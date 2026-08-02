@@ -7,22 +7,24 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { CirclePlay, Loader2, ImageOff, ExternalLink } from 'lucide-react'
-import { demoUrl, type DemoInfo } from '@/lib/demos'
+import { CirclePlay, Loader2, ImageOff } from 'lucide-react'
+import type { DemoInfo, DemoSource } from '@/lib/demos'
 
 interface Props {
   exerciseName: string
   demo: DemoInfo
 }
 
-export default function ExerciseDemoButton({ exerciseName, demo }: Props) {
+/** 单视角媒体：按顺序尝试 sources，全部失败显示兜底 */
+function DemoMedia({ sources, label, exerciseName }: { sources: DemoSource[]; label: string; exerciseName: string }) {
   const [idx, setIdx] = useState(0)
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
 
   const onError = () => {
-    if (idx < demo.ids.length - 1) {
+    if (idx < sources.length - 1) {
       setIdx((i) => i + 1)
       setLoading(true)
     } else {
@@ -31,6 +33,51 @@ export default function ExerciseDemoButton({ exerciseName, demo }: Props) {
     }
   }
 
+  const source = sources[idx]
+
+  return (
+    <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-muted">
+      {loading && !failed && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      {failed ? (
+        <div className="flex flex-col items-center gap-1 p-4 text-center text-xs text-muted-foreground">
+          <ImageOff className="h-6 w-6" />
+          加载失败
+        </div>
+      ) : source.type === 'video' ? (
+        <video
+          key={source.url}
+          src={source.url}
+          className="h-full w-full object-contain"
+          autoPlay
+          loop
+          muted
+          playsInline
+          controls
+          onLoadedData={() => setLoading(false)}
+          onError={onError}
+        />
+      ) : (
+        <img
+          key={source.url}
+          src={source.url}
+          alt={`${exerciseName} ${label}示范`}
+          className="h-full w-full object-contain"
+          onLoad={() => setLoading(false)}
+          onError={onError}
+        />
+      )}
+      <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
+        {label}
+      </span>
+    </div>
+  )
+}
+
+export default function ExerciseDemoButton({ exerciseName, demo }: Props) {
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -44,56 +91,39 @@ export default function ExerciseDemoButton({ exerciseName, demo }: Props) {
           <CirclePlay className="h-4.5 w-4.5" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{exerciseName} · 标准动作示范</DialogTitle>
-          <DialogDescription>跟着动图节奏做，动作质量比数量更重要</DialogDescription>
+          <div className="flex items-center gap-2">
+            <DialogTitle>{exerciseName}</DialogTitle>
+            <Badge className="border-emerald-200 bg-emerald-500/15 text-emerald-700 dark:border-emerald-500/30 dark:text-emerald-300">
+              {demo.level}
+            </Badge>
+          </div>
+          <DialogDescription>正面 + 侧面双视角示范，跟着节奏做，动作质量比数量更重要</DialogDescription>
         </DialogHeader>
 
-        <div className="relative flex min-h-64 items-center justify-center overflow-hidden rounded-xl bg-muted">
-          {loading && !failed && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          )}
-          {failed ? (
-            <div className="flex flex-col items-center gap-2 p-6 text-center text-sm text-muted-foreground">
-              <ImageOff className="h-8 w-8" />
-              动图加载失败（需要网络）
-              <a
-                href="https://musclewiki.com/zh-cn"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-orange-600 underline dark:text-orange-400"
-              >
-                去 MuscleWiki 查看动作库 <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
-          ) : (
-            <img
-              key={demo.ids[idx]}
-              src={demoUrl(demo.ids[idx])}
-              alt={`${exerciseName} 动作示范`}
-              className="max-h-80 w-full object-contain"
-              onLoad={() => setLoading(false)}
-              onError={onError}
-            />
-          )}
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <DemoMedia sources={demo.front} label="正面" exerciseName={exerciseName} />
+          <DemoMedia sources={demo.side} label="侧面" exerciseName={exerciseName} />
         </div>
 
-        <div className="space-y-1.5">
-          <p className="text-sm font-medium">动作要点</p>
-          <ul className="space-y-1 text-sm text-muted-foreground">
-            {demo.cues.map((c, i) => (
-              <li key={i} className="flex gap-2">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-orange-400" />
-                {c}
-              </li>
-            ))}
-          </ul>
-        </div>
+        <ol className="space-y-2.5">
+          {demo.steps.map((step, i) => (
+            <li key={i} className="flex items-start gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-500 text-xs font-semibold text-white">
+                {i + 1}
+              </span>
+              <span className="pt-0.5 text-sm text-muted-foreground">{step}</span>
+            </li>
+          ))}
+        </ol>
+
         <p className="text-xs text-muted-foreground">
-          动图来源：free-exercise-db（开源健身动作库） · 更多动作可参考 MuscleWiki
+          动图来源：
+          <a href="https://musclewiki.com/zh-cn" target="_blank" rel="noreferrer" className="underline">
+            MuscleWiki
+          </a>
+          （加载失败时自动切换备用开源动作库）
         </p>
       </DialogContent>
     </Dialog>
