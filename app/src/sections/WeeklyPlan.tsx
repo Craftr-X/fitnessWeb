@@ -3,9 +3,9 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ArrowRightCircle, BedDouble, Dumbbell, Info, Leaf, Trophy } from 'lucide-react'
+import { ArrowRightCircle, BedDouble, CalendarClock, Copy, Dumbbell, Info, Leaf, Trophy } from 'lucide-react'
 import { toast } from 'sonner'
-import { buildWeekPlan } from '@/lib/store'
+import { buildWeekPlan, copyWeekPlan, currentMonday } from '@/lib/store'
 import { burstAt, celebrateDayDone, celebrateWeekDone } from '@/lib/celebrate'
 import { getDemo } from '@/lib/demos'
 import ExerciseDemoButton from '@/components/ExerciseDemoButton'
@@ -17,6 +17,7 @@ interface Props {
   checks: CheckMap
   setChecks: (v: CheckMap | ((p: CheckMap) => CheckMap)) => void
   feedbacks: WeekFeedback[]
+  onGoFeedback: () => void
 }
 
 const DAY_STYLE: Record<
@@ -53,8 +54,9 @@ const DAY_STYLE: Record<
   },
 }
 
-export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, feedbacks }: Props) {
+export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, feedbacks, onGoFeedback }: Props) {
   const [confirming, setConfirming] = useState(false)
+  const [confirmingCopy, setConfirmingCopy] = useState(false)
   const clickPos = useRef<{ x: number; y: number } | null>(null)
 
   const toggle = (di: number, ei: number) => {
@@ -84,10 +86,49 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, f
     toast.success(`🚀 第 ${weekPlan.week} 周完成！新计划已生成，继续加油！`)
   }
 
+  const copyLast = () => {
+    if (!confirmingCopy) {
+      setConfirmingCopy(true)
+      return
+    }
+    setWeekPlan(copyWeekPlan(weekPlan))
+    setConfirmingCopy(false)
+    celebrateWeekDone()
+    toast.success(`📋 已复制本周计划为第 ${weekPlan.week + 1} 周计划！`)
+  }
+
   const todayIdx = (new Date().getDay() + 6) % 7
+  // 周日且计划仍是本周时，提醒填反馈并生成下周计划（当天一直显示，不持久化）
+  const showSundayReminder = new Date().getDay() === 0 && weekPlan.startDate === currentMonday()
 
   return (
     <div className="space-y-4">
+      {showSundayReminder && (
+        <Card className="overflow-hidden rounded-2xl border-0 bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/20">
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+            <div className="flex flex-1 items-start gap-2 text-sm">
+              <CalendarClock className="mt-0.5 h-4 w-4 shrink-0 opacity-80" />
+              <span className="text-white/90">今天是周日，本周即将结束，记得填写每周反馈并生成下周计划。</span>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={onGoFeedback}
+                variant="secondary"
+                className="bg-white/15 text-white hover:bg-white/25 border border-white/30"
+              >
+                去填反馈
+              </Button>
+              <Button
+                onClick={nextWeek}
+                variant={confirming ? 'default' : 'secondary'}
+                className={confirming ? 'bg-white text-orange-700 hover:bg-white/90' : 'bg-white/15 text-white hover:bg-white/25 border border-white/30'}
+              >
+                {confirming ? '再点一次确认' : '生成下周计划'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       {/* 进阶说明 + 生成下周 */}
       <Card className="overflow-hidden rounded-2xl border-0 bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-lg shadow-sky-500/20">
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
@@ -95,14 +136,24 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, f
             <Info className="mt-0.5 h-4 w-4 shrink-0 opacity-80" />
             <span className="text-white/90">{weekPlan.adjustmentNote} 想获得更个性化的调整，可在「每周反馈」页复制摘要发给 Kimi。</span>
           </div>
-          <Button
-            onClick={nextWeek}
-            variant={confirming ? 'default' : 'secondary'}
-            className={confirming ? 'bg-white text-sky-700 hover:bg-white/90' : 'bg-white/15 text-white hover:bg-white/25 border border-white/30'}
-          >
-            <ArrowRightCircle className="mr-1 h-4 w-4" />
-            {confirming ? '再点一次确认进入下一周' : '完成本周，生成下周计划'}
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              onClick={copyLast}
+              variant={confirmingCopy ? 'default' : 'secondary'}
+              className={confirmingCopy ? 'bg-white text-sky-700 hover:bg-white/90' : 'bg-white/15 text-white hover:bg-white/25 border border-white/30'}
+            >
+              <Copy className="mr-1 h-4 w-4" />
+              {confirmingCopy ? '再点一次确认复制' : '复制上周计划'}
+            </Button>
+            <Button
+              onClick={nextWeek}
+              variant={confirming ? 'default' : 'secondary'}
+              className={confirming ? 'bg-white text-sky-700 hover:bg-white/90' : 'bg-white/15 text-white hover:bg-white/25 border border-white/30'}
+            >
+              <ArrowRightCircle className="mr-1 h-4 w-4" />
+              {confirming ? '再点一次确认进入下一周' : '完成本周，生成下周计划'}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

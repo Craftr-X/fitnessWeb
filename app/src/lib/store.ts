@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { format, startOfWeek } from 'date-fns'
+import { addDays, format, startOfWeek } from 'date-fns'
 import type { DayPlan, Profile, WeekPlan } from '@/types'
 
 /** 通用 localStorage 持久化 Hook */
@@ -158,6 +158,17 @@ export function buildWeekPlan(week: number, difficulty?: number): WeekPlan {
   ]
 
   return { week, startDate: currentMonday(), days, adjustmentNote: note }
+}
+
+/** 原样复制当前计划为下一周：不做进阶调整，startDate 取下一个周一 */
+export function copyWeekPlan(plan: WeekPlan): WeekPlan {
+  const nextMonday = format(startOfWeek(addDays(new Date(), 7), { weekStartsOn: 1 }), 'yyyy-MM-dd')
+  return {
+    week: plan.week + 1,
+    startDate: nextMonday,
+    days: plan.days.map((d) => ({ ...d, exercises: d.exercises.map((e) => ({ ...e })) })),
+    adjustmentNote: '沿用上周计划，未做进阶调整。',
+  }
 }
 
 /** 计算 BMI */
