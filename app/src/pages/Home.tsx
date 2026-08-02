@@ -81,7 +81,7 @@ export default function Home() {
             <div className="flex items-center gap-6 pr-2">
               {latestWeight && (
                 <div className="text-center">
-                  <div className="text-2xl font-bold">{latestWeight.toFixed(1)}</div>
+                  <div className="text-2xl font-bold">{latestWeight.toFixed(2)}</div>
                   <div className="text-xs text-white/75">当前体重 kg</div>
                 </div>
               )}

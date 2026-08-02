@@ -21,6 +21,7 @@ export interface WeekPlan {
 
 export interface WeightEntry {
   date: string // YYYY-MM-DD
+  time?: string // HH:mm，同一天可记录多次（如早/晚各一次），缺省视为较早记录
   weight: number
   bodyFat?: number | null
 }

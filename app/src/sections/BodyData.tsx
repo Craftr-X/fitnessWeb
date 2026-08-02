@@ -35,12 +35,16 @@ interface Props {
 
 export default function BodyData({ weights, setWeights, heightCm }: Props) {
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [time, setTime] = useState(format(new Date(), 'HH:mm'))
   const [weight, setWeight] = useState('')
   const [bodyFat, setBodyFat] = useState('')
   const [range, setRange] = useState<'30' | 'all'>('30')
 
+  // 同一天可有多条记录（早晚），以 日期+时间 作为唯一键
+  const keyOf = (e: WeightEntry) => `${e.date}T${e.time ?? ''}`
+
   const sorted = useMemo(
-    () => [...weights].sort((a, b) => a.date.localeCompare(b.date)),
+    () => [...weights].sort((a, b) => keyOf(a).localeCompare(keyOf(b))),
     [weights],
   )
 
@@ -49,7 +53,7 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
     return sorted
       .filter((e) => !cutoff || e.date >= cutoff)
       .map((e) => ({
-        date: format(new Date(e.date + 'T00:00:00'), 'M/d'),
+        date: format(new Date(e.date + 'T00:00:00'), 'M/d') + (e.time ? ` ${e.time}` : ''),
         体重: e.weight,
         体脂: e.bodyFat ?? undefined,
       }))
@@ -67,17 +71,22 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
     const w = parseFloat(weight)
     if (!date || isNaN(w) || w <= 0) return
     const bf = bodyFat.trim() === '' ? null : parseFloat(bodyFat)
+    const entry: WeightEntry = {
+      date,
+      time: time || undefined,
+      weight: Math.round(w * 100) / 100,
+      bodyFat: bf === null || isNaN(bf as number) ? null : bf,
+    }
     setWeights((prev) => {
-      const rest = prev.filter((e) => e.date !== date)
-      return [...rest, { date, weight: w, bodyFat: bf === null || isNaN(bf as number) ? null : bf }].sort(
-        (a, b) => a.date.localeCompare(b.date),
-      )
+      // 同一日期+时间覆盖，否则新增（同一天早晚可各记一条）
+      const rest = prev.filter((e) => keyOf(e) !== keyOf(entry))
+      return [...rest, entry].sort((a, b) => keyOf(a).localeCompare(keyOf(b)))
     })
     setWeight('')
     setBodyFat('')
   }
 
-  const remove = (d: string) => setWeights((prev) => prev.filter((e) => e.date !== d))
+  const remove = (key: string) => setWeights((prev) => prev.filter((e) => keyOf(e) !== key))
 
   return (
     <div className="space-y-4">
@@ -85,9 +94,9 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Plus className="h-4 w-4 text-orange-500" /> 记录今日数据
+            <Plus className="h-4 w-4 text-orange-500" /> 记录身体数据
             <span className="text-xs font-normal text-muted-foreground">
-              建议每天早晨空腹、排便后上秤，数据最稳定
+              同一天可记多次（如早/晚各一次），建议早晨空腹上秤数据最稳定
             </span>
           </CardTitle>
         </CardHeader>
@@ -98,12 +107,16 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
               <Input id="bd-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-40" />
             </div>
             <div className="space-y-1">
+              <Label htmlFor="bd-time">时间</Label>
+              <Input id="bd-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-28" />
+            </div>
+            <div className="space-y-1">
               <Label htmlFor="bd-weight">体重 (kg)</Label>
               <Input
                 id="bd-weight"
                 type="number"
-                step="0.1"
-                placeholder="50.5"
+                step="0.01"
+                placeholder="50.55"
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
                 className="w-28"
@@ -147,7 +160,7 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
           {/* 统计摘要 */}
           <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-lg bg-muted/60 p-3 text-center">
-              <div className="text-xl font-bold">{latest ? latest.weight.toFixed(1) : '—'} kg</div>
+              <div className="text-xl font-bold">{latest ? latest.weight.toFixed(2) : '—'} kg</div>
               <div className="text-xs text-muted-foreground">最新体重</div>
             </div>
             <div className="rounded-lg bg-muted/60 p-3 text-center">
@@ -158,7 +171,7 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
             </div>
             <div className="rounded-lg bg-muted/60 p-3 text-center">
               <div className={`text-xl font-bold ${weekDelta == null ? '' : weekDelta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
-                {weekDelta == null ? '—' : `${weekDelta >= 0 ? '+' : ''}${weekDelta.toFixed(1)} kg`}
+                {weekDelta == null ? '—' : `${weekDelta >= 0 ? '+' : ''}${weekDelta.toFixed(2)} kg`}
               </div>
               <div className="text-xs text-muted-foreground">近 7 天变化</div>
             </div>
@@ -212,6 +225,7 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
             <TableHeader>
               <TableRow>
                 <TableHead>日期</TableHead>
+                <TableHead>时间</TableHead>
                 <TableHead className="text-right">体重 (kg)</TableHead>
                 <TableHead className="text-right">体脂 (%)</TableHead>
                 <TableHead className="text-right">BMI</TableHead>
@@ -220,13 +234,14 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
             </TableHeader>
             <TableBody>
               {[...sorted].reverse().slice(0, 15).map((e) => (
-                <TableRow key={e.date}>
+                <TableRow key={keyOf(e)}>
                   <TableCell>{format(new Date(e.date + 'T00:00:00'), 'yyyy年M月d日')}</TableCell>
-                  <TableCell className="text-right">{e.weight.toFixed(1)}</TableCell>
+                  <TableCell>{e.time ?? '—'}</TableCell>
+                  <TableCell className="text-right">{e.weight.toFixed(2)}</TableCell>
                   <TableCell className="text-right">{e.bodyFat != null ? e.bodyFat.toFixed(1) : '—'}</TableCell>
                   <TableCell className="text-right">{bmi(e.weight, heightCm).toFixed(1)}</TableCell>
                   <TableCell>
-                    <Button size="icon" variant="ghost" onClick={() => remove(e.date)}>
+                    <Button size="icon" variant="ghost" onClick={() => remove(keyOf(e))}>
                       <Trash2 className="h-4 w-4 text-muted-foreground" />
                     </Button>
                   </TableCell>
