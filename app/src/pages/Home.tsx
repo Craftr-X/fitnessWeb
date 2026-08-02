@@ -1,4 +1,6 @@
+import { useEffect, useRef, useState } from 'react'
 import { format } from 'date-fns'
+import { toast } from 'sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Dumbbell, Flame } from 'lucide-react'
@@ -6,6 +8,7 @@ import {
   LS_KEYS,
   DEFAULT_PROFILE,
   buildWeekPlan,
+  currentMonday,
   useLocalStorage,
 } from '@/lib/store'
 import type { CheckMap, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
@@ -35,6 +38,18 @@ export default function Home() {
     { date: format(new Date(), 'yyyy-MM-dd'), weight: 50.5, bodyFat: null },
   ])
   const [feedbacks, setFeedbacks] = useLocalStorage<WeekFeedback[]>(LS_KEYS.feedback, [])
+  const [tab, setTab] = useState('overview')
+
+  // 进入新自然周后自动生成新一周计划（只推进一周，startDate 会自然纠正过期）
+  const rolledOver = useRef(false) // 防止 StrictMode 下 effect 双跑重复弹提示
+  useEffect(() => {
+    if (rolledOver.current || weekPlan.startDate >= currentMonday()) return
+    rolledOver.current = true
+    const lastFb = feedbacks.find((f) => f.week === weekPlan.week)
+    setWeekPlan(buildWeekPlan(weekPlan.week + 1, lastFb?.difficulty))
+    toast.success(`📅 新的一周开始了，已为你生成第 ${weekPlan.week + 1} 周计划！`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const todayPlan = weekPlan.days[(new Date().getDay() + 6) % 7]
   const latestWeight = weights[weights.length - 1]?.weight
@@ -96,7 +111,7 @@ export default function Home() {
           </div>
         </div>
 
-        <Tabs defaultValue="overview">
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="mb-6 grid h-11 w-full grid-cols-5 rounded-full bg-card p-1 shadow-sm">
             <TabsTrigger value="overview" className="rounded-full">总览</TabsTrigger>
             <TabsTrigger value="plan" className="rounded-full">每周计划</TabsTrigger>
@@ -122,6 +137,7 @@ export default function Home() {
               checks={checks}
               setChecks={setChecks}
               feedbacks={feedbacks}
+              onGoFeedback={() => setTab('feedback')}
             />
           </TabsContent>
           <TabsContent value="data">
