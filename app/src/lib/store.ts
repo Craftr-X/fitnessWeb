@@ -1,34 +1,7 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { addDays, format, startOfWeek } from 'date-fns'
-import type { DayPlan, Profile, WeekPlan } from '@/types'
-
-/** 通用 localStorage 持久化 Hook */
-export function useLocalStorage<T>(
-  key: string,
-  initial: T | (() => T),
-): [T, (v: T | ((p: T) => T)) => void] {
-  const [value, setValue] = useState<T>(() => {
-    try {
-      const raw = localStorage.getItem(key)
-      if (raw != null) return JSON.parse(raw) as T
-    } catch {
-      /* ignore */
-    }
-    return typeof initial === 'function' ? (initial as () => T)() : initial
-  })
-  const set = useCallback((v: T | ((p: T) => T)) => {
-    setValue((prev) => {
-      const next = typeof v === 'function' ? (v as (p: T) => T)(prev) : v
-      try {
-        localStorage.setItem(key, JSON.stringify(next))
-      } catch {
-        /* ignore */
-      }
-      return next
-    })
-  }, [])
-  return [value, set]
-}
+import type { CheckMap, DayPlan, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
+import { loadUserData, readLegacyData, saveUserData } from '@/lib/sync'
 
 export const LS_KEYS = {
   profile: 'fitup:profile',
@@ -37,6 +10,9 @@ export const LS_KEYS = {
   weights: 'fitup:weights',
   feedback: 'fitup:feedback',
 }
+
+/** 登录用户的本地缓存 key（整文档，按用户隔离） */
+export const cloudCacheKey = (userId: string) => `fitup:u:${userId}`
 
 export const DEFAULT_PROFILE: Profile = {
   name: '我',
@@ -187,4 +163,126 @@ export function bmiLabel(v: number): string {
 /** 每日蛋白质建议（增肌 1.6-2.0 g/kg） */
 export function proteinRange(weightKg: number): [number, number] {
   return [Math.round(weightKg * 1.6), Math.round(weightKg * 2.0)]
+}
+
+/** 一个用户的全部应用状态（与远端 user_data.data 对应） */
+export interface CloudState {
+  profile: Profile
+  weekPlan: WeekPlan
+  checks: CheckMap
+  weights: WeightEntry[]
+  feedbacks: WeekFeedback[]
+}
+
+export type Setter<T> = (v: T | ((p: T) => T)) => void
+
+export interface CloudStore {
+  profile: [Profile, Setter<Profile>]
+  weekPlan: [WeekPlan, Setter<WeekPlan>]
+  checks: [CheckMap, Setter<CheckMap>]
+  weights: [WeightEntry[], Setter<WeightEntry[]>]
+  feedbacks: [WeekFeedback[], Setter<WeekFeedback[]>]
+  /** 远端数据加载（或迁移）完成前为 false，界面应显示加载态 */
+  ready: boolean
+  /** 本次登录触发了旧本地数据迁移 */
+  migrated: boolean
+  /** 立即把最新状态写入云端（退出登录前调用，避免防抖窗口丢数据） */
+  flush: () => Promise<void>
+}
+
+function defaultCloudState(): CloudState {
+  return {
+    profile: DEFAULT_PROFILE,
+    weekPlan: buildWeekPlan(1),
+    checks: {},
+    weights: [{ date: format(new Date(), 'yyyy-MM-dd'), weight: 50.5, bodyFat: null }],
+    feedbacks: [],
+  }
+}
+
+function readCache(userId: string): CloudState | null {
+  try {
+    const raw = localStorage.getItem(cloudCacheKey(userId))
+    if (raw == null) return null
+    const data = JSON.parse(raw) as Partial<CloudState>
+    return { ...defaultCloudState(), ...data }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 云端同步存储：登录用户的单一数据源。
+ * 启动时先用本地缓存秒开，再拉远端覆盖；远端为空则自动迁移旧版本地数据。
+ * 之后每次变更写缓存并防抖 800ms 同步到 Supabase。
+ */
+export function useCloudStorage(userId: string): CloudStore {
+  const [state, setState] = useState<CloudState>(() => readCache(userId) ?? defaultCloudState())
+  const [ready, setReady] = useState(false)
+  const [migrated, setMigrated] = useState(false)
+  const stateRef = useRef(state)
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
+
+  // 初次加载：远端优先；无远端数据时尝试迁移旧本地数据
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const remote = await loadUserData(userId)
+      if (cancelled) return
+      if (remote && Object.values(remote).some((v) => v !== undefined)) {
+        setState((prev) => ({ ...prev, ...remote }))
+      } else {
+        const legacy = readLegacyData()
+        const next = { ...defaultCloudState(), ...readCache(userId), ...legacy }
+        setState(next)
+        if (legacy) setMigrated(true)
+        await saveUserData(userId, next)
+      }
+      if (!cancelled) setReady(true)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [userId])
+
+  // 变更持久化：本地缓存 + 防抖同步云端
+  useEffect(() => {
+    if (!ready) return
+    try {
+      localStorage.setItem(cloudCacheKey(userId), JSON.stringify(state))
+    } catch {
+      /* ignore */
+    }
+    const timer = setTimeout(() => {
+      void saveUserData(userId, state)
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [state, ready, userId])
+
+  const flush = useCallback(async () => {
+    await saveUserData(userId, stateRef.current)
+  }, [userId])
+
+  const makeSetter = useCallback(
+    <K extends keyof CloudState>(key: K): Setter<CloudState[K]> =>
+      (v) =>
+        setState((prev) => ({
+          ...prev,
+          [key]: typeof v === 'function' ? (v as (p: CloudState[K]) => CloudState[K])(prev[key]) : v,
+        })),
+    [],
+  )
+
+  return {
+    profile: [state.profile, makeSetter('profile')],
+    weekPlan: [state.weekPlan, makeSetter('weekPlan')],
+    checks: [state.checks, makeSetter('checks')],
+    weights: [state.weights, makeSetter('weights')],
+    feedbacks: [state.feedbacks, makeSetter('feedbacks')],
+    ready,
+    migrated,
+    flush,
+  }
 }
