@@ -82,7 +82,7 @@ export default function Overview({
         <CardContent className="space-y-3">
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="rounded-xl bg-gradient-to-b from-orange-500/10 to-transparent p-3">
-              <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{weight.toFixed(1)}</div>
+              <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{weight.toFixed(2)}</div>
               <div className="text-xs text-muted-foreground">体重 kg</div>
             </div>
             <div className="rounded-xl bg-gradient-to-b from-sky-500/10 to-transparent p-3">
@@ -115,7 +115,7 @@ export default function Overview({
             自开始记录以来体重{' '}
             <span className={weightDelta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}>
               {weightDelta >= 0 ? '+' : ''}
-              {weightDelta.toFixed(1)} kg
+              {weightDelta.toFixed(2)} kg
             </span>
             （增肌期希望缓慢上涨）
           </div>
