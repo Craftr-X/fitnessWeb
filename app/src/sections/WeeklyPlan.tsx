@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ArrowRightCircle, BedDouble, Dumbbell, Info, Leaf, Trophy } from 'lucide-react'
+import { toast } from 'sonner'
 import { buildWeekPlan } from '@/lib/store'
+import { burstAt, celebrateDayDone, celebrateWeekDone } from '@/lib/celebrate'
 import { getDemo } from '@/lib/demos'
 import ExerciseDemoButton from '@/components/ExerciseDemoButton'
 import type { CheckMap, WeekFeedback, WeekPlan } from '@/types'
@@ -53,10 +55,21 @@ const DAY_STYLE: Record<
 
 export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, feedbacks }: Props) {
   const [confirming, setConfirming] = useState(false)
+  const clickPos = useRef<{ x: number; y: number } | null>(null)
 
   const toggle = (di: number, ei: number) => {
     const key = `${weekPlan.week}:${di}:${ei}`
+    const willCheck = !checks[key]
     setChecks((prev) => ({ ...prev, [key]: !prev[key] }))
+    if (!willCheck) return
+    const day = weekPlan.days[di]
+    const dayAllDone = day.exercises.every((_, i) => i === ei || checks[`${weekPlan.week}:${di}:${i}`])
+    if (dayAllDone) {
+      celebrateDayDone()
+      toast.success(`🎉 ${day.day}全部完成，干得漂亮！`)
+    } else if (clickPos.current) {
+      burstAt(clickPos.current.x, clickPos.current.y)
+    }
   }
 
   const nextWeek = () => {
@@ -67,6 +80,8 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, f
     const lastFb = feedbacks.find((f) => f.week === weekPlan.week)
     setWeekPlan(buildWeekPlan(weekPlan.week + 1, lastFb?.difficulty))
     setConfirming(false)
+    celebrateWeekDone()
+    toast.success(`🚀 第 ${weekPlan.week} 周完成！新计划已生成，继续加油！`)
   }
 
   const todayIdx = (new Date().getDay() + 6) % 7
@@ -137,7 +152,12 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, f
                         checked ? 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-500/30 dark:bg-emerald-500/10' : 'hover:bg-muted/50'
                       }`}
                     >
-                      <label className="flex flex-1 cursor-pointer items-start gap-3">
+                      <label
+                        className="flex flex-1 cursor-pointer items-start gap-3"
+                        onClickCapture={(e) => {
+                          clickPos.current = { x: e.clientX, y: e.clientY }
+                        }}
+                      >
                         <Checkbox
                           checked={checked}
                           onCheckedChange={() => toggle(di, ei)}
