@@ -37,7 +37,7 @@ export default function ExerciseDemoButton({ exerciseName, demo }: Props) {
         <Button
           size="icon"
           variant="ghost"
-          className="h-7 w-7 shrink-0 text-orange-500 hover:bg-orange-100 hover:text-orange-600"
+          className="h-7 w-7 shrink-0 text-orange-500 hover:bg-orange-100 hover:text-orange-600 dark:hover:bg-orange-500/15 dark:hover:text-orange-400"
           title="查看标准动作示范"
           onClick={(e) => e.stopPropagation()}
         >
@@ -64,7 +64,7 @@ export default function ExerciseDemoButton({ exerciseName, demo }: Props) {
                 href="https://musclewiki.com/zh-cn"
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 text-orange-600 underline"
+                className="inline-flex items-center gap-1 text-orange-600 underline dark:text-orange-400"
               >
                 去 MuscleWiki 查看动作库 <ExternalLink className="h-3 w-3" />
               </a>

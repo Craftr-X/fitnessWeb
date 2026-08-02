@@ -26,10 +26,10 @@ interface Props {
 }
 
 const DAY_TYPE_STYLE: Record<string, string> = {
-  strength: 'bg-orange-500/15 text-orange-700 border-orange-200',
-  sport: 'bg-emerald-500/15 text-emerald-700 border-emerald-200',
-  recovery: 'bg-sky-500/15 text-sky-700 border-sky-200',
-  rest: 'bg-slate-500/10 text-slate-600 border-slate-200',
+  strength: 'bg-orange-500/15 text-orange-700 border-orange-200 dark:text-orange-300 dark:border-orange-500/30',
+  sport: 'bg-emerald-500/15 text-emerald-700 border-emerald-200 dark:text-emerald-300 dark:border-emerald-500/30',
+  recovery: 'bg-sky-500/15 text-sky-700 border-sky-200 dark:text-sky-300 dark:border-sky-500/30',
+  rest: 'bg-slate-500/10 text-slate-600 border-slate-200 dark:text-slate-300 dark:border-slate-500/30',
 }
 
 export default function Overview({
@@ -82,17 +82,17 @@ export default function Overview({
         <CardContent className="space-y-3">
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="rounded-xl bg-gradient-to-b from-orange-500/10 to-transparent p-3">
-              <div className="text-2xl font-bold text-orange-600">{weight.toFixed(1)}</div>
+              <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{weight.toFixed(1)}</div>
               <div className="text-xs text-muted-foreground">体重 kg</div>
             </div>
             <div className="rounded-xl bg-gradient-to-b from-sky-500/10 to-transparent p-3">
-              <div className="text-2xl font-bold text-sky-600">
+              <div className="text-2xl font-bold text-sky-600 dark:text-sky-400">
                 {latest?.bodyFat ? latest.bodyFat.toFixed(1) : '—'}
               </div>
               <div className="text-xs text-muted-foreground">体脂 %</div>
             </div>
             <div className="rounded-xl bg-gradient-to-b from-emerald-500/10 to-transparent p-3">
-              <div className="text-2xl font-bold text-emerald-600">{bmiValue.toFixed(1)}</div>
+              <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{bmiValue.toFixed(1)}</div>
               <div className="text-xs text-muted-foreground">BMI（{bmiLabel(bmiValue)}）</div>
             </div>
           </div>
@@ -113,7 +113,7 @@ export default function Overview({
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
             <TrendingUp className="h-4 w-4" />
             自开始记录以来体重{' '}
-            <span className={weightDelta >= 0 ? 'text-emerald-600' : 'text-red-500'}>
+            <span className={weightDelta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}>
               {weightDelta >= 0 ? '+' : ''}
               {weightDelta.toFixed(1)} kg
             </span>
@@ -123,7 +123,7 @@ export default function Overview({
       </Card>
 
       {/* 今日任务 */}
-      <Card className={`${cardCls} border-orange-200 bg-gradient-to-b from-orange-50 to-white`}>
+      <Card className={`${cardCls} border-orange-200 bg-gradient-to-b from-orange-50 to-white dark:border-orange-500/30 dark:from-orange-500/10 dark:to-card`}>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-500/15">

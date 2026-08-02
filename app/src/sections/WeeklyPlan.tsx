@@ -25,28 +25,28 @@ const DAY_STYLE: Record<
     label: '力量训练',
     icon: Dumbbell,
     header: 'from-orange-500/15 to-orange-400/5',
-    badge: 'bg-orange-500/15 text-orange-700 border-orange-200',
+    badge: 'bg-orange-500/15 text-orange-700 border-orange-200 dark:text-orange-300 dark:border-orange-500/30',
     ring: 'ring-orange-400',
   },
   sport: {
     label: '羽毛球',
     icon: Trophy,
     header: 'from-emerald-500/15 to-emerald-400/5',
-    badge: 'bg-emerald-500/15 text-emerald-700 border-emerald-200',
+    badge: 'bg-emerald-500/15 text-emerald-700 border-emerald-200 dark:text-emerald-300 dark:border-emerald-500/30',
     ring: 'ring-emerald-400',
   },
   recovery: {
     label: '主动恢复',
     icon: Leaf,
     header: 'from-sky-500/15 to-sky-400/5',
-    badge: 'bg-sky-500/15 text-sky-700 border-sky-200',
+    badge: 'bg-sky-500/15 text-sky-700 border-sky-200 dark:text-sky-300 dark:border-sky-500/30',
     ring: 'ring-sky-400',
   },
   rest: {
     label: '休息',
     icon: BedDouble,
     header: 'from-slate-400/10 to-slate-300/5',
-    badge: 'bg-slate-500/10 text-slate-600 border-slate-200',
+    badge: 'bg-slate-500/10 text-slate-600 border-slate-200 dark:text-slate-300 dark:border-slate-500/30',
     ring: 'ring-slate-300',
   },
 }
@@ -114,7 +114,7 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, f
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <span className={`font-semibold ${isToday ? 'text-orange-600' : ''}`}>{day.day}</span>
+                    <span className={`font-semibold ${isToday ? 'text-orange-600 dark:text-orange-400' : ''}`}>{day.day}</span>
                     {isToday && (
                       <Badge className="bg-orange-500 text-white hover:bg-orange-500">今天</Badge>
                     )}
@@ -134,7 +134,7 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, f
                     <div
                       key={ei}
                       className={`flex items-center gap-2 rounded-xl border p-2 transition-colors ${
-                        checked ? 'border-emerald-200 bg-emerald-50/60' : 'hover:bg-muted/50'
+                        checked ? 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-500/30 dark:bg-emerald-500/10' : 'hover:bg-muted/50'
                       }`}
                     >
                       <label className="flex flex-1 cursor-pointer items-start gap-3">

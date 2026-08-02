@@ -121,7 +121,7 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
                 className="w-28"
               />
             </div>
-            <Button onClick={addEntry} className="bg-orange-500 hover:bg-orange-600">
+            <Button onClick={addEntry} className="bg-primary text-primary-foreground hover:bg-primary/90">
               <Plus className="mr-1 h-4 w-4" /> 保存
             </Button>
           </div>
@@ -157,7 +157,7 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
               <div className="text-xs text-muted-foreground">最新体脂率</div>
             </div>
             <div className="rounded-lg bg-muted/60 p-3 text-center">
-              <div className={`text-xl font-bold ${weekDelta == null ? '' : weekDelta >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+              <div className={`text-xl font-bold ${weekDelta == null ? '' : weekDelta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
                 {weekDelta == null ? '—' : `${weekDelta >= 0 ? '+' : ''}${weekDelta.toFixed(1)} kg`}
               </div>
               <div className="text-xs text-muted-foreground">近 7 天变化</div>

@@ -114,7 +114,7 @@ export default function Feedback({ feedbacks, setFeedbacks, weekPlan }: Props) {
                 <label
                   key={s}
                   className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-sm ${
-                    soreness.includes(s) ? 'border-pink-300 bg-pink-50 text-pink-700' : 'text-muted-foreground'
+                    soreness.includes(s) ? 'border-pink-300 bg-pink-50 text-pink-700 dark:border-pink-500/30 dark:bg-pink-500/10 dark:text-pink-300' : 'text-muted-foreground'
                   }`}
                 >
                   <Checkbox checked={soreness.includes(s)} onCheckedChange={() => toggleSoreness(s)} className="h-3.5 w-3.5" />
@@ -161,7 +161,7 @@ export default function Feedback({ feedbacks, setFeedbacks, weekPlan }: Props) {
             />
           </div>
 
-          <Button onClick={save} className="w-full bg-pink-500 hover:bg-pink-600">
+          <Button onClick={save} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
             <Send className="mr-1 h-4 w-4" /> {saved ? '✓ 已保存' : '保存本周反馈'}
           </Button>
         </CardContent>
@@ -169,7 +169,7 @@ export default function Feedback({ feedbacks, setFeedbacks, weekPlan }: Props) {
 
       {/* 历史 + 发给 Kimi */}
       <div className="space-y-4">
-        <Card className="border-pink-200 bg-pink-50/40">
+        <Card className="border-pink-200 bg-pink-50/40 dark:border-pink-500/30 dark:bg-pink-500/10">
           <CardContent className="space-y-3 pt-4 text-sm">
             <p>
               保存反馈后，可以把摘要直接发给 Kimi，我会结合你的体重/体脂趋势帮你定制下周计划；
@@ -193,7 +193,7 @@ export default function Feedback({ feedbacks, setFeedbacks, weekPlan }: Props) {
             {feedbacks.map((f) => (
               <div key={f.week} className="space-y-1 rounded-lg border p-3 text-sm">
                 <div className="flex items-center gap-2">
-                  <Badge className="bg-pink-100 text-pink-700">第 {f.week} 周</Badge>
+                  <Badge className="bg-pink-100 text-pink-700 dark:bg-pink-500/15 dark:text-pink-300">第 {f.week} 周</Badge>
                   <span className="text-xs text-muted-foreground">
                     {format(new Date(f.date + 'T00:00:00'), 'M月d日')}
                   </span>

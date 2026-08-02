@@ -14,6 +14,7 @@ import WeeklyPlan from '@/sections/WeeklyPlan'
 import BodyData from '@/sections/BodyData'
 import Feedback from '@/sections/Feedback'
 import Nutrition from '@/sections/Nutrition'
+import ThemeToggle from '@/components/ThemeToggle'
 
 function greeting(): string {
   const h = new Date().getHours()
@@ -39,10 +40,10 @@ export default function Home() {
   const latestWeight = weights[weights.length - 1]?.weight
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-orange-50 via-background to-background">
+    <div className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
       <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-rose-500 text-white shadow-md shadow-orange-500/30">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 text-white shadow-md shadow-teal-500/30">
             <Dumbbell className="h-5 w-5" />
           </div>
           <div className="flex-1">
@@ -51,7 +52,8 @@ export default function Home() {
               {profile.heightCm} cm · 目标：{profile.goal}
             </p>
           </div>
-          <Badge variant="secondary" className="bg-orange-100 text-orange-700">
+          <ThemeToggle />
+          <Badge variant="secondary" className="bg-primary/10 text-primary">
             第 {weekPlan.week} 周
           </Badge>
         </div>
@@ -59,7 +61,7 @@ export default function Home() {
 
       <main className="mx-auto max-w-5xl px-4 py-5">
         {/* 欢迎横幅 */}
-        <div className="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-r from-orange-500 via-orange-500 to-rose-500 p-5 text-white shadow-lg shadow-orange-500/25">
+        <div className="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-r from-teal-500 via-teal-500 to-emerald-500 p-5 text-white shadow-lg shadow-teal-500/25">
           <div className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full bg-white/10" />
           <div className="pointer-events-none absolute -bottom-12 right-16 h-32 w-32 rounded-full bg-white/10" />
           <div className="relative flex flex-wrap items-center gap-4">
@@ -95,7 +97,7 @@ export default function Home() {
         </div>
 
         <Tabs defaultValue="overview">
-          <TabsList className="mb-6 grid h-11 w-full grid-cols-5 rounded-full bg-white p-1 shadow-sm">
+          <TabsList className="mb-6 grid h-11 w-full grid-cols-5 rounded-full bg-card p-1 shadow-sm">
             <TabsTrigger value="overview" className="rounded-full">总览</TabsTrigger>
             <TabsTrigger value="plan" className="rounded-full">每周计划</TabsTrigger>
             <TabsTrigger value="data" className="rounded-full">数据记录</TabsTrigger>
