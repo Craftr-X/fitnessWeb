@@ -172,11 +172,19 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="date" fontSize={12} />
-                  <YAxis yAxisId="w" domain={['dataMin - 1', 'dataMax + 1']} fontSize={12} tickFormatter={(v: number) => v.toFixed(1)} />
-                  <YAxis yAxisId="f" orientation="right" domain={['dataMin - 2', 'dataMax + 2']} fontSize={12} hide={!chartData.some((d) => d.体脂 != null)} />
-                  <Tooltip />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="date" fontSize={12} tick={{ fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
+                  <YAxis yAxisId="w" domain={['dataMin - 1', 'dataMax + 1']} fontSize={12} tickFormatter={(v: number) => v.toFixed(1)} tick={{ fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
+                  <YAxis yAxisId="f" orientation="right" domain={['dataMin - 2', 'dataMax + 2']} fontSize={12} hide={!chartData.some((d) => d.体脂 != null)} tick={{ fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--popover))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: 'var(--radius)',
+                      color: 'hsl(var(--popover-foreground))',
+                    }}
+                    labelStyle={{ color: 'hsl(var(--popover-foreground))' }}
+                  />
                   <Legend />
                   <Line yAxisId="w" type="monotone" dataKey="体重" stroke="#f97316" strokeWidth={2} dot={{ r: 3 }} unit=" kg" />
                   <Line yAxisId="f" type="monotone" dataKey="体脂" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 3 }} unit=" %" connectNulls />
