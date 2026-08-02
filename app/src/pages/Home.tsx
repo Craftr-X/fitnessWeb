@@ -1,17 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
+import type { User } from '@supabase/supabase-js'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import { Dumbbell, Flame } from 'lucide-react'
-import {
-  LS_KEYS,
-  DEFAULT_PROFILE,
-  buildWeekPlan,
-  currentMonday,
-  useLocalStorage,
-} from '@/lib/store'
-import type { CheckMap, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
+import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
+import { Dumbbell, Flame, LogOut } from 'lucide-react'
+import { buildWeekPlan, currentMonday, useCloudStorage } from '@/lib/store'
+import { useAuth } from '@/hooks/useAuth'
 import Overview from '@/sections/Overview'
 import WeeklyPlan from '@/sections/WeeklyPlan'
 import BodyData from '@/sections/BodyData'
@@ -27,32 +24,52 @@ function greeting(): string {
   return '晚上好'
 }
 
-export default function Home() {
-  const [profile, setProfile] = useLocalStorage<Profile>(LS_KEYS.profile, DEFAULT_PROFILE)
-  const [weekPlan, setWeekPlan] = useLocalStorage<WeekPlan>(
-    LS_KEYS.weekPlan,
-    () => buildWeekPlan(1),
-  )
-  const [checks, setChecks] = useLocalStorage<CheckMap>(LS_KEYS.checks, {})
-  const [weights, setWeights] = useLocalStorage<WeightEntry[]>(LS_KEYS.weights, () => [
-    { date: format(new Date(), 'yyyy-MM-dd'), weight: 50.5, bodyFat: null },
-  ])
-  const [feedbacks, setFeedbacks] = useLocalStorage<WeekFeedback[]>(LS_KEYS.feedback, [])
+export default function Home({ user }: { user: User }) {
+  const cloud = useCloudStorage(user.id)
+  const { signOut } = useAuth()
+  const { ready, migrated } = cloud
+  const [profile, setProfile] = cloud.profile
+  const [weekPlan, setWeekPlan] = cloud.weekPlan
+  const [checks, setChecks] = cloud.checks
+  const [weights, setWeights] = cloud.weights
+  const [feedbacks, setFeedbacks] = cloud.feedbacks
   const [tab, setTab] = useState('overview')
 
   // 进入新自然周后自动生成新一周计划（只推进一周，startDate 会自然纠正过期）
   const rolledOver = useRef(false) // 防止 StrictMode 下 effect 双跑重复弹提示
   useEffect(() => {
-    if (rolledOver.current || weekPlan.startDate >= currentMonday()) return
+    if (!ready || rolledOver.current || weekPlan.startDate >= currentMonday()) return
     rolledOver.current = true
     const lastFb = feedbacks.find((f) => f.week === weekPlan.week)
     setWeekPlan(buildWeekPlan(weekPlan.week + 1, lastFb?.difficulty))
     toast.success(`📅 新的一周开始了，已为你生成第 ${weekPlan.week + 1} 周计划！`)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [ready])
+
+  // 旧版本地数据迁移提示
+  const migrationNotified = useRef(false)
+  useEffect(() => {
+    if (!ready || !migrated || migrationNotified.current) return
+    migrationNotified.current = true
+    toast.success('📦 已把本机的历史数据迁移到你的云端账号！')
+  }, [ready, migrated])
+
+  const handleSignOut = async () => {
+    await cloud.flush() // 把防抖窗口内的最新数据先写入云端
+    await signOut()
+  }
 
   const todayPlan = weekPlan.days[(new Date().getDay() + 6) % 7]
   const latestWeight = weights[weights.length - 1]?.weight
+
+  if (!ready) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3">
+        <Spinner className="h-8 w-8" />
+        <p className="text-sm text-muted-foreground">正在同步你的数据…</p>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
@@ -67,10 +84,16 @@ export default function Home() {
               {profile.heightCm} cm · 目标：{profile.goal}
             </p>
           </div>
+          <span className="hidden max-w-40 truncate text-xs text-muted-foreground sm:block">
+            {user.email}
+          </span>
           <ThemeToggle />
           <Badge variant="secondary" className="bg-primary/10 text-primary">
             第 {weekPlan.week} 周
           </Badge>
+          <Button size="icon" variant="ghost" title="退出登录" onClick={handleSignOut}>
+            <LogOut className="h-4 w-4 text-muted-foreground" />
+          </Button>
         </div>
       </header>
 
