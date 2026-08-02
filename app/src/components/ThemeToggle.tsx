@@ -8,6 +8,7 @@ export default function ThemeToggle() {
   const [mounted, setMounted] = useState(false)
 
   // 避免 SSR/水合不一致，挂载后再渲染图标
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- 挂载标记是 next-themes 官方推荐模式
   useEffect(() => setMounted(true), [])
 
   return (
