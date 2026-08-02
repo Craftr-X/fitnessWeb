@@ -121,7 +121,7 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
                 className="w-28"
               />
             </div>
-            <Button onClick={addEntry} className="bg-orange-500 hover:bg-orange-600">
+            <Button onClick={addEntry} className="bg-primary text-primary-foreground hover:bg-primary/90">
               <Plus className="mr-1 h-4 w-4" /> 保存
             </Button>
           </div>
@@ -157,7 +157,7 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
               <div className="text-xs text-muted-foreground">最新体脂率</div>
             </div>
             <div className="rounded-lg bg-muted/60 p-3 text-center">
-              <div className={`text-xl font-bold ${weekDelta == null ? '' : weekDelta >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+              <div className={`text-xl font-bold ${weekDelta == null ? '' : weekDelta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
                 {weekDelta == null ? '—' : `${weekDelta >= 0 ? '+' : ''}${weekDelta.toFixed(1)} kg`}
               </div>
               <div className="text-xs text-muted-foreground">近 7 天变化</div>
@@ -172,11 +172,19 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="date" fontSize={12} />
-                  <YAxis yAxisId="w" domain={['dataMin - 1', 'dataMax + 1']} fontSize={12} tickFormatter={(v: number) => v.toFixed(1)} />
-                  <YAxis yAxisId="f" orientation="right" domain={['dataMin - 2', 'dataMax + 2']} fontSize={12} hide={!chartData.some((d) => d.体脂 != null)} />
-                  <Tooltip />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="date" fontSize={12} tick={{ fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
+                  <YAxis yAxisId="w" domain={['dataMin - 1', 'dataMax + 1']} fontSize={12} tickFormatter={(v: number) => v.toFixed(1)} tick={{ fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
+                  <YAxis yAxisId="f" orientation="right" domain={['dataMin - 2', 'dataMax + 2']} fontSize={12} hide={!chartData.some((d) => d.体脂 != null)} tick={{ fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--popover))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: 'var(--radius)',
+                      color: 'hsl(var(--popover-foreground))',
+                    }}
+                    labelStyle={{ color: 'hsl(var(--popover-foreground))' }}
+                  />
                   <Legend />
                   <Line yAxisId="w" type="monotone" dataKey="体重" stroke="#f97316" strokeWidth={2} dot={{ r: 3 }} unit=" kg" />
                   <Line yAxisId="f" type="monotone" dataKey="体脂" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 3 }} unit=" %" connectNulls />
