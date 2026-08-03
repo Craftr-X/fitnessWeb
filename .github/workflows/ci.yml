@@ -21,6 +21,7 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
+      - run: npm run test
       - run: npm run build
         env:
           # 仅用于通过构建（import.meta.env 读取），真实值在 deploy.yml 注入
