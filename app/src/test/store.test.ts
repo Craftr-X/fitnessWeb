@@ -5,7 +5,6 @@ import {
   bmi,
   bmiLabel,
   proteinRange,
-  DEFAULT_PROFILE,
 } from '@/lib/store'
 import type { WeekPlan } from '@/types'
 
