@@ -4,11 +4,15 @@
  * 备用图源：free-exercise-db（开源健身动作库，逐帧动画 jpg，0.jpg 正面 / 1.jpg 侧面）。
  * front / side 各自的来源按顺序尝试加载，全部失败时显示兜底提示。
  * steps 为参考 MuscleWiki 步骤说明翻译/编写的中文版。
+ * 热身 / 拉伸类动作 MuscleWiki 没有对应示范视频，使用已验证存在的 free-exercise-db 逐帧图，
+ * 并把 0.jpg / 1.jpg 双帧循环播放，形成动图效果。
  */
 
 export interface DemoSource {
   type: 'video' | 'img'
   url: string
+  /** 第二帧 URL，存在时与 url 循环切换，形成动图效果 */
+  url2?: string
 }
 
 export interface DemoInfo {
@@ -16,6 +20,8 @@ export interface DemoInfo {
   front: DemoSource[]
   side: DemoSource[]
   steps: string[] // 中文步骤说明
+  /** 两个媒体位的角标，默认 ['正面', '侧面']；front / side 展示两个不同动作时应给出具体动作名 */
+  mediaLabels?: [string, string]
 }
 
 const MW_BASE = 'https://media.musclewiki.com/media/uploads/videos/branded'
@@ -31,7 +37,16 @@ function fed(frame: 0 | 1, ...ids: string[]): DemoSource[] {
   return ids.map((id) => ({ type: 'img' as const, url: `${FED_BASE}/${id}/${frame}.jpg` }))
 }
 
-/** key 为动作名的前缀匹配 */
+/** free-exercise-db 逐帧动图：0.jpg / 1.jpg 双帧循环播放 */
+function feda(...ids: string[]): DemoSource[] {
+  return ids.map((id) => ({ type: 'img' as const, url: `${FED_BASE}/${id}/0.jpg`, url2: `${FED_BASE}/${id}/1.jpg` }))
+}
+
+/**
+ * key 为动作名的前缀匹配：getDemo 按插入顺序返回首个前缀命中的条目。
+ * 注意：若两个 key 存在前缀关系（如 "开合跳" 与 "开合跳变式"），
+ * 更具体的 key 必须放在前面，否则会被较短的 key 抢先命中。
+ */
 const DEMOS: Record<string, DemoInfo> = {
   俯卧撑: {
     level: '初级',
@@ -199,15 +214,124 @@ const DEMOS: Record<string, DemoInfo> = {
       '顶端收缩腹部，缓慢下放',
     ],
   },
+  // 当前训练计划中没有独立命名为"开合跳"的动作（只有"热身：开合跳"），此条为后续计划预留
   开合跳: {
     level: '初级',
-    front: [...mw('male-Cardio-cardio-jumping-jacks-front'), ...fed(0, 'Jumping_Jack')],
-    side: [...mw('male-Cardio-cardio-jumping-jacks-side'), ...fed(1, 'Jumping_Jack')],
+    front: [...mw('male-Cardio-cardio-jumping-jacks-front'), ...fed(0, 'Star_Jump')],
+    side: [...mw('male-Cardio-cardio-jumping-jacks-side'), ...fed(1, 'Star_Jump')],
     steps: [
       '站立，双脚并拢，手臂自然放于体侧',
       '跳起时双脚向两侧打开，双手举过头顶',
       '再跳回起始姿势，保持轻快节奏',
       '落地轻缓、膝盖微屈缓冲，配合呼吸',
+    ],
+  },
+  // —— 以下为热身 / 拉伸类动作，图源为 free-exercise-db 逐帧动画 ——
+  '热身：开合跳': {
+    level: '初级',
+    front: [...mw('male-Cardio-cardio-jumping-jacks-front'), ...feda('Star_Jump'), ...fed(0, 'Dynamic_Chest_Stretch')],
+    side: [...mw('male-Cardio-cardio-jumping-jacks-side'), ...feda('Star_Jump'), ...fed(1, 'Dynamic_Chest_Stretch')],
+    steps: [
+      '先做 1-2 分钟开合跳，把心率慢慢提上来',
+      '再做肩部绕环：双肩向后画大圈，正反各 10 次',
+      '扩胸运动：双臂体前水平开合 15-20 次，幅度逐渐加大',
+      '热身到微微出汗、关节活动开，再开始正式训练',
+    ],
+  },
+  '胸部 + 三头静态拉伸': {
+    level: '初级',
+    front: [...feda('Behind_Head_Chest_Stretch'), ...fed(0, 'Triceps_Stretch')],
+    side: [...feda('Triceps_Stretch'), ...fed(1, 'Behind_Head_Chest_Stretch')],
+    mediaLabels: ['胸部拉伸', '三头拉伸'],
+    steps: [
+      '胸部拉伸：站立，双手在头后交扣，手肘向后打开，挺胸感受胸部牵拉',
+      '保持 20-30 秒，自然呼吸，不要弹振',
+      '三头拉伸：一手举过头顶屈肘摸向对侧肩胛，另一手轻压手肘',
+      '每侧保持 20-30 秒，两侧交替进行',
+    ],
+  },
+  全身拉伸: {
+    level: '初级',
+    front: [...feda('Worlds_Greatest_Stretch'), ...fed(0, 'Chest_And_Front_Of_Shoulder_Stretch')],
+    side: [...feda('Chest_And_Front_Of_Shoulder_Stretch'), ...fed(1, 'Worlds_Greatest_Stretch')],
+    mediaLabels: ['世界最伟大拉伸', '胸肩拉伸'],
+    steps: [
+      '每个部位保持 20-30 秒，全程缓慢深呼吸',
+      '胸肩：双手背后交扣，挺胸抬臂，感受胸部和肩前束牵拉',
+      '配合"世界最伟大拉伸"活动髋部与胸椎',
+      '拉伸到有明显牵拉感但不疼痛的程度即可',
+    ],
+  },
+  '热身：弹力带': {
+    level: '初级',
+    front: [...feda('Round_The_World_Shoulder_Stretch'), ...fed(0, 'Cat_Stretch')],
+    side: [...feda('Cat_Stretch'), ...fed(1, 'Round_The_World_Shoulder_Stretch')],
+    mediaLabels: ['弹力带绕肩', '猫式伸展'],
+    steps: [
+      '双手握弹力带或毛巾，握距约为肩宽的 1.5 倍',
+      '手臂伸直，从体前缓慢绕到体后再绕回，做 10-15 次',
+      '猫式伸展：四点跪姿，吸气塌腰抬头，呼气拱背低头',
+      '猫式做 8-10 次，配合呼吸，把脊柱活动开',
+    ],
+  },
+  '背部 + 二头静态拉伸': {
+    level: '初级',
+    front: [...feda('Upper_Back_Stretch'), ...fed(0, 'Standing_Biceps_Stretch')],
+    side: [...feda('Standing_Biceps_Stretch'), ...fed(1, 'Upper_Back_Stretch')],
+    mediaLabels: ['上背拉伸', '二头拉伸'],
+    steps: [
+      '上背拉伸：双臂前伸、双手交扣，含胸拱背把肩胛撑开',
+      '保持 20-30 秒，感受肩胛骨之间的牵拉',
+      '二头拉伸：手臂伸直向后打开、掌心朝前，可扶墙固定',
+      '每侧 20-30 秒，肩膀保持下沉不要耸肩',
+    ],
+  },
+  '热身：肩部环绕': {
+    level: '初级',
+    front: [...feda('Shoulder_Circles'), ...fed(0, 'External_Rotation')],
+    side: [...feda('External_Rotation'), ...fed(1, 'Shoulder_Circles')],
+    mediaLabels: ['肩部环绕', '招财猫式'],
+    steps: [
+      '肩部环绕：双肩向上、向后、向下画大圈，正反各 10 次',
+      '再做手臂绕环：双臂侧平举，向前向后画小圈各 15 次',
+      '招财猫式：大臂侧平举与肩同高，小臂像招财猫一样上下旋转',
+      '招财猫做 12-15 次，激活肩袖肌群，预防肩部伤病',
+    ],
+  },
+  肩部拉伸: {
+    level: '初级',
+    front: [...feda('Shoulder_Stretch'), ...fed(0, 'Overhead_Stretch')],
+    side: [...feda('Overhead_Stretch'), ...fed(1, 'Shoulder_Stretch')],
+    mediaLabels: ['胸前横拉', '过头拉伸'],
+    steps: [
+      '一手横过胸前，另一手托住手肘轻轻拉向身体',
+      '保持 20-30 秒，感受三角肌后束牵拉，两侧交替',
+      '再做过头拉伸：双臂上举交扣，分别向左右侧屈',
+      '全程自然呼吸，肩膀放松不要耸肩',
+    ],
+  },
+  动态热身: {
+    level: '初级',
+    front: [...feda('Ankle_Circles'), ...fed(0, 'Arm_Circles')],
+    side: [...feda('Arm_Circles'), ...fed(1, 'Ankle_Circles')],
+    mediaLabels: ['踝关节环绕', '手臂绕环'],
+    steps: [
+      '踝关节环绕：单脚站立，脚尖点地画圈，每脚正反各 10 次',
+      '膝关节环绕：双脚并拢、双手扶膝，顺逆时针各 10 次',
+      '手臂绕环：双臂侧平举画圈，由小到大，正反各 15 次',
+      '再做 1 分钟原地小跑或开合跳，让全身热起来',
+    ],
+  },
+  赛后静态拉伸: {
+    level: '初级',
+    front: [...feda('Standing_Gastrocnemius_Calf_Stretch'), ...fed(0, 'Side_Wrist_Pull')],
+    side: [...feda('Side_Wrist_Pull'), ...fed(1, 'Standing_Gastrocnemius_Calf_Stretch')],
+    mediaLabels: ['小腿拉伸', '手腕拉伸'],
+    steps: [
+      '小腿拉伸：双手推墙，一腿后伸脚跟着地，身体前倾，每侧 30 秒',
+      '肩部拉伸：一手横过胸前，另一手托肘拉近身体，每侧 30 秒',
+      '手腕拉伸：手臂前伸掌心朝前，另一手轻掰手指向后，每侧 20 秒',
+      '所有动作静态保持、缓慢呼吸，不要弹振',
     ],
   },
 }
