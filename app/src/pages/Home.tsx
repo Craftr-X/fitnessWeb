@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import type { User } from '@supabase/supabase-js'
@@ -7,14 +7,16 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Dumbbell, Flame, LogOut } from 'lucide-react'
-import { buildWeekPlan, currentMonday, useCloudStorage } from '@/lib/store'
+import { buildWeekPlan, currentMonday, useCloudStorage, weeksBetween } from '@/lib/store'
 import { useAuth } from '@/hooks/useAuth'
-import Overview from '@/sections/Overview'
-import WeeklyPlan from '@/sections/WeeklyPlan'
-import BodyData from '@/sections/BodyData'
-import Feedback from '@/sections/Feedback'
-import Nutrition from '@/sections/Nutrition'
 import ThemeToggle from '@/components/ThemeToggle'
+
+// 路由级懒加载：5 个 section 按需加载，减轻首屏 bundle
+const Overview = lazy(() => import('@/sections/Overview'))
+const WeeklyPlan = lazy(() => import('@/sections/WeeklyPlan'))
+const BodyData = lazy(() => import('@/sections/BodyData'))
+const Feedback = lazy(() => import('@/sections/Feedback'))
+const Nutrition = lazy(() => import('@/sections/Nutrition'))
 
 function greeting(): string {
   const h = new Date().getHours()
@@ -35,14 +37,22 @@ export default function Home({ user }: { user: User }) {
   const [feedbacks, setFeedbacks] = cloud.feedbacks
   const [tab, setTab] = useState('overview')
 
-  // 进入新自然周后自动生成新一周计划（只推进一周，startDate 会自然纠正过期）
+  // 进入新自然周后自动生成新一周计划：跨多周时一次性补齐到当前周
   const rolledOver = useRef(false) // 防止 StrictMode 下 effect 双跑重复弹提示
   useEffect(() => {
-    if (!ready || rolledOver.current || weekPlan.startDate >= currentMonday()) return
+    if (!ready || rolledOver.current) return
+    const gap = weeksBetween(weekPlan.startDate, currentMonday())
+    if (gap <= 0) return
     rolledOver.current = true
+    // 多周未打开 App：跳到当前周；gap=1 为正常跨周
+    const targetWeek = weekPlan.week + gap
     const lastFb = feedbacks.find((f) => f.week === weekPlan.week)
-    setWeekPlan(buildWeekPlan(weekPlan.week + 1, lastFb?.difficulty))
-    toast.success(`📅 新的一周开始了，已为你生成第 ${weekPlan.week + 1} 周计划！`)
+    setWeekPlan(buildWeekPlan(targetWeek, lastFb?.difficulty))
+    toast.success(
+      gap === 1
+        ? `📅 新的一周开始了，已为你生成第 ${targetWeek} 周计划！`
+        : `📅 你离开了 ${gap} 周，已把计划推进到第 ${targetWeek} 周（中间周未打卡，可按需补练）。`,
+    )
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready])
 
@@ -143,35 +153,44 @@ export default function Home({ user }: { user: User }) {
             <TabsTrigger value="nutrition" className="rounded-full">营养建议</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="overview">
-            <Overview
-              profile={profile}
-              setProfile={setProfile}
-              weekPlan={weekPlan}
-              weights={weights}
-              checks={checks}
-              feedbacks={feedbacks}
-            />
-          </TabsContent>
-          <TabsContent value="plan">
-            <WeeklyPlan
-              weekPlan={weekPlan}
-              setWeekPlan={setWeekPlan}
-              checks={checks}
-              setChecks={setChecks}
-              feedbacks={feedbacks}
-              onGoFeedback={() => setTab('feedback')}
-            />
-          </TabsContent>
-          <TabsContent value="data">
-            <BodyData weights={weights} setWeights={setWeights} heightCm={profile.heightCm} />
-          </TabsContent>
-          <TabsContent value="feedback">
-            <Feedback feedbacks={feedbacks} setFeedbacks={setFeedbacks} weekPlan={weekPlan} />
-          </TabsContent>
-          <TabsContent value="nutrition">
-            <Nutrition weights={weights} />
-          </TabsContent>
+          {/* Suspense 包整个 Tabs：Radix Tabs 默认只挂载当前 Tab，切 Tab 时触发对应 section 的懒加载 */}
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center py-20">
+                <Spinner className="h-6 w-6" />
+              </div>
+            }
+          >
+            <TabsContent value="overview">
+              <Overview
+                profile={profile}
+                setProfile={setProfile}
+                weekPlan={weekPlan}
+                weights={weights}
+                checks={checks}
+                feedbacks={feedbacks}
+              />
+            </TabsContent>
+            <TabsContent value="plan">
+              <WeeklyPlan
+                weekPlan={weekPlan}
+                setWeekPlan={setWeekPlan}
+                checks={checks}
+                setChecks={setChecks}
+                feedbacks={feedbacks}
+                onGoFeedback={() => setTab('feedback')}
+              />
+            </TabsContent>
+            <TabsContent value="data">
+              <BodyData weights={weights} setWeights={setWeights} heightCm={profile.heightCm} />
+            </TabsContent>
+            <TabsContent value="feedback">
+              <Feedback feedbacks={feedbacks} setFeedbacks={setFeedbacks} weekPlan={weekPlan} />
+            </TabsContent>
+            <TabsContent value="nutrition">
+              <Nutrition weights={weights} />
+            </TabsContent>
+          </Suspense>
         </Tabs>
       </main>
     </div>
