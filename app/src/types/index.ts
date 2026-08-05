@@ -37,11 +37,38 @@ export interface WeekFeedback {
   note: string
 }
 
+// —— onboarding 收集的画像枚举（v2 新增，全部可选以兼容老数据）——
+export type Gender = 'male' | 'female'
+/** 体重目标：增肌 / 减脂 / 塑形（减脂+增肌）/ 保持 */
+export type WeightGoal = 'gain' | 'lose' | 'recomp' | 'maintain'
+/** 可用器械：无器械 / 哑铃（含弹力带）/ 健身房 */
+export type Equipment = 'none' | 'dumbbell' | 'gym'
+/** 训练经验：新手 / 进阶 */
+export type Experience = 'beginner' | 'intermediate'
+/** 专项运动偏好 */
+export type Sport = 'badminton' | 'running' | 'cycling' | 'none'
+
 export interface Profile {
+  // —— 老字段（老用户 + 头部展示仍用）——
   name: string
   heightCm: number
   badmintonHours: number
   goal: string
+  // —— v2 onboarding 新增（全部可选，jsonb merge 天然兼容旧数据）——
+  /** 已完成 onboarding；区分新老用户、判断是否进入引导 */
+  onboarded?: boolean
+  gender?: Gender
+  age?: number
+  weightKg?: number
+  weightGoal?: WeightGoal
+  experience?: Experience
+  /** 每周训练天数 3-6 */
+  trainDaysPerWeek?: number
+  equipment?: Equipment
+  sport?: Sport
+  sportHours?: number
+  /** 伤病 / 不适部位备注（多选） */
+  injuries?: string[]
 }
 
 export type CheckMap = Record<string, boolean>

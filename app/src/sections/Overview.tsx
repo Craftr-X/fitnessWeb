@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Input } from '@/components/ui/input'
 import {
@@ -10,10 +11,12 @@ import {
   Flame,
   Moon,
   Scale,
+  Sparkles,
   Target,
   TrendingUp,
 } from 'lucide-react'
 import { bmi, bmiLabel, proteinRange } from '@/lib/store'
+import Onboarding from '@/pages/Onboarding'
 import type { CheckMap, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
 
 interface Props {
@@ -23,6 +26,8 @@ interface Props {
   weights: WeightEntry[]
   checks: CheckMap
   feedbacks: WeekFeedback[]
+  /** 老用户重新定制计划完成回调 */
+  onRebuild?: (profile: Profile, weekPlan: WeekPlan) => void
 }
 
 const DAY_TYPE_STYLE: Record<string, string> = {
@@ -39,7 +44,9 @@ export default function Overview({
   weights,
   checks,
   feedbacks,
+  onRebuild,
 }: Props) {
+  const [rebuilding, setRebuilding] = useState(false)
   const latest = weights[weights.length - 1]
   const weight = latest?.weight ?? 50.5
   const bmiValue = bmi(weight, profile.heightCm)
@@ -208,8 +215,33 @@ export default function Overview({
               最近一次记录：{latest ? format(new Date(latest.date + 'T00:00:00'), 'M月d日') : '—'}
             </li>
           </ul>
+          {onRebuild && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3 w-full"
+              onClick={() => setRebuilding(true)}
+            >
+              <Sparkles className="mr-1.5 h-4 w-4" />
+              {profile.onboarded ? '重新定制我的计划' : '定制我的专属计划'}
+            </Button>
+          )}
         </CardContent>
       </Card>
+
+      {/* 重新定制：全屏覆盖 Onboarding，完成后回调 */}
+      {rebuilding && onRebuild && (
+        <div className="fixed inset-0 z-50 overflow-auto bg-background">
+          <Onboarding
+            existing={profile.onboarded ? profile : undefined}
+            onComplete={(p, plan) => {
+              onRebuild(p, plan)
+              setRebuilding(false)
+            }}
+            onCancel={() => setRebuilding(false)}
+          />
+        </div>
+      )}
     </div>
   )
 }

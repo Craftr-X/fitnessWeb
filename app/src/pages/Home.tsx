@@ -8,8 +8,11 @@ import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Dumbbell, Flame, LogOut } from 'lucide-react'
 import { buildWeekPlan, currentMonday, useCloudStorage, weeksBetween } from '@/lib/store'
+import { buildWeekPlanFromProfile } from '@/lib/planEngine'
 import { useAuth } from '@/hooks/useAuth'
 import ThemeToggle from '@/components/ThemeToggle'
+import Onboarding from '@/pages/Onboarding'
+import type { Profile, WeightEntry, WeekPlan } from '@/types'
 
 // 路由级懒加载：5 个 section 按需加载，减轻首屏 bundle
 const Overview = lazy(() => import('@/sections/Overview'))
@@ -37,17 +40,36 @@ export default function Home({ user }: { user: User }) {
   const [feedbacks, setFeedbacks] = cloud.feedbacks
   const [tab, setTab] = useState('overview')
 
+  // 判断是否需要 onboarding：未 onboarded 且没有任何使用痕迹（真·新用户）
+  // 老用户（账号体系上线前已有数据）虽然有 profile.onboarded 缺失，但有使用痕迹 → 不强制填表
+  const hasUsageTrace =
+    Object.keys(checks).length > 0 || feedbacks.length > 0 || weights.length > 1 || weekPlan.week > 1
+  const needsOnboarding = ready && !profile.onboarded && !hasUsageTrace
+
+  // 老用户静默补 onboarded 标志（避免每次进来都判断）
+  const backfillNotified = useRef(false)
+  useEffect(() => {
+    if (!ready || profile.onboarded || !hasUsageTrace || backfillNotified.current) return
+    backfillNotified.current = true
+    setProfile((p) => ({ ...p, onboarded: true }))
+  }, [ready, profile.onboarded, hasUsageTrace, setProfile])
+
   // 进入新自然周后自动生成新一周计划：跨多周时一次性补齐到当前周
   const rolledOver = useRef(false) // 防止 StrictMode 下 effect 双跑重复弹提示
   useEffect(() => {
-    if (!ready || rolledOver.current) return
+    if (!ready || rolledOver.current || needsOnboarding) return
     const gap = weeksBetween(weekPlan.startDate, currentMonday())
     if (gap <= 0) return
     rolledOver.current = true
     // 多周未打开 App：跳到当前周；gap=1 为正常跨周
     const targetWeek = weekPlan.week + gap
     const lastFb = feedbacks.find((f) => f.week === weekPlan.week)
-    setWeekPlan(buildWeekPlan(targetWeek, lastFb?.difficulty))
+    // 已 onboarded 的用户走规则引擎，保持个性化；否则用老模板
+    const next =
+      profile.onboarded && profile.weightGoal
+        ? buildWeekPlanFromProfile(profile, targetWeek, lastFb?.difficulty)
+        : buildWeekPlan(targetWeek, lastFb?.difficulty)
+    setWeekPlan(next)
     toast.success(
       gap === 1
         ? `📅 新的一周开始了，已为你生成第 ${targetWeek} 周计划！`
@@ -64,6 +86,37 @@ export default function Home({ user }: { user: User }) {
     toast.success('📦 已把本机的历史数据迁移到你的云端账号！')
   }, [ready, migrated])
 
+  // 把 onboarding 采集的体重落到 weights：
+  // - 只有默认占位 entry（length<=1）时，用当天日期覆盖，避免 BMI/热量仍按 50.5kg 占位展示
+  // - 已有真实历史记录时不动，由用户在 BodyData 页自行记录
+  const syncWeightFromProfile = (weightKg: number) => {
+    if (weightKg <= 0) return
+    setWeights((prev) => {
+      if (prev.length > 1) return prev
+      const today = format(new Date(), 'yyyy-MM-dd')
+      const entry: WeightEntry = { date: today, weight: weightKg, bodyFat: null }
+      // 占位 entry 非当天则替换，当天则直接覆盖
+      return prev.length === 1 && prev[0].date === today ? [entry] : [entry, ...prev.slice(1)]
+    })
+  }
+
+  // onboarding 完成：写入 profile + 生成匹配的第 1 周计划
+  const handleOnboard = (newProfile: Profile, newPlan: WeekPlan) => {
+    setProfile({ ...newProfile, onboarded: true })
+    setWeekPlan(newPlan)
+    syncWeightFromProfile(newProfile.weightKg ?? 0)
+    rolledOver.current = true // 防止刚生成的计划立即触发 rollover
+    toast.success('🎉 你的专属健身计划已生成！')
+  }
+
+  // 重新定制完成（老用户）：重置为第 1 周
+  const handleRebuild = (newProfile: Profile, newPlan: WeekPlan) => {
+    setProfile({ ...newProfile, onboarded: true })
+    setWeekPlan(newPlan)
+    syncWeightFromProfile(newProfile.weightKg ?? 0)
+    toast.success('🔄 计划已按你的最新情况重新生成！')
+  }
+
   const handleSignOut = async () => {
     await cloud.flush() // 把防抖窗口内的最新数据先写入云端
     await signOut()
@@ -71,6 +124,11 @@ export default function Home({ user }: { user: User }) {
 
   const todayPlan = weekPlan.days[(new Date().getDay() + 6) % 7]
   const latestWeight = weights[weights.length - 1]?.weight
+
+  // 新用户首次进入：走 onboarding 引导
+  if (needsOnboarding) {
+    return <Onboarding onComplete={handleOnboard} />
+  }
 
   if (!ready) {
     return (
@@ -169,6 +227,7 @@ export default function Home({ user }: { user: User }) {
                 weights={weights}
                 checks={checks}
                 feedbacks={feedbacks}
+                onRebuild={handleRebuild}
               />
             </TabsContent>
             <TabsContent value="plan">
@@ -179,6 +238,7 @@ export default function Home({ user }: { user: User }) {
                 setChecks={setChecks}
                 feedbacks={feedbacks}
                 onGoFeedback={() => setTab('feedback')}
+                profile={profile}
               />
             </TabsContent>
             <TabsContent value="data">
@@ -188,7 +248,7 @@ export default function Home({ user }: { user: User }) {
               <Feedback feedbacks={feedbacks} setFeedbacks={setFeedbacks} weekPlan={weekPlan} />
             </TabsContent>
             <TabsContent value="nutrition">
-              <Nutrition weights={weights} />
+              <Nutrition weights={weights} weightGoal={profile.weightGoal} />
             </TabsContent>
           </Suspense>
         </Tabs>

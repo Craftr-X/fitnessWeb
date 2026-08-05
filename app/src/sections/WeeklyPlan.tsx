@@ -6,10 +6,11 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { ArrowRightCircle, BedDouble, CalendarClock, Copy, Dumbbell, Info, Leaf, Trophy } from 'lucide-react'
 import { toast } from 'sonner'
 import { buildWeekPlan, copyWeekPlan, currentMonday } from '@/lib/store'
+import { buildWeekPlanFromProfile } from '@/lib/planEngine'
 import { burstAt, celebrateDayDone, celebrateWeekDone } from '@/lib/celebrate'
 import { getDemo } from '@/lib/demos'
 import ExerciseDemoButton from '@/components/ExerciseDemoButton'
-import type { CheckMap, WeekFeedback, WeekPlan } from '@/types'
+import type { CheckMap, Profile, WeekFeedback, WeekPlan } from '@/types'
 
 interface Props {
   weekPlan: WeekPlan
@@ -18,6 +19,8 @@ interface Props {
   setChecks: (v: CheckMap | ((p: CheckMap) => CheckMap)) => void
   feedbacks: WeekFeedback[]
   onGoFeedback: () => void
+  /** 当前用户画像，用于已 onboarded 用户生成下周时走规则引擎 */
+  profile?: Profile
 }
 
 const DAY_STYLE: Record<
@@ -32,7 +35,7 @@ const DAY_STYLE: Record<
     ring: 'ring-orange-400',
   },
   sport: {
-    label: '羽毛球',
+    label: '运动',
     icon: Trophy,
     header: 'from-emerald-500/15 to-emerald-400/5',
     badge: 'bg-emerald-500/15 text-emerald-700 border-emerald-200 dark:text-emerald-300 dark:border-emerald-500/30',
@@ -54,7 +57,10 @@ const DAY_STYLE: Record<
   },
 }
 
-export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, feedbacks, onGoFeedback }: Props) {
+// 防御性兜底：规则引擎若产出未知 type（未来扩展），用 rest 样式兜底而不是崩溃
+const FALLBACK_STYLE = DAY_STYLE.rest
+
+export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, feedbacks, onGoFeedback, profile }: Props) {
   const [confirming, setConfirming] = useState(false)
   const [confirmingCopy, setConfirmingCopy] = useState(false)
   const clickPos = useRef<{ x: number; y: number } | null>(null)
@@ -80,7 +86,12 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, f
       return
     }
     const lastFb = feedbacks.find((f) => f.week === weekPlan.week)
-    setWeekPlan(buildWeekPlan(weekPlan.week + 1, lastFb?.difficulty))
+    // 已 onboarded 用户走规则引擎保持个性化，否则用老模板
+    const next =
+      profile?.onboarded && profile.weightGoal
+        ? buildWeekPlanFromProfile(profile, weekPlan.week + 1, lastFb?.difficulty)
+        : buildWeekPlan(weekPlan.week + 1, lastFb?.difficulty)
+    setWeekPlan(next)
     setConfirming(false)
     celebrateWeekDone()
     toast.success(`🚀 第 ${weekPlan.week} 周完成！新计划已生成，继续加油！`)
@@ -159,7 +170,7 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, f
 
       <div className="grid gap-4 md:grid-cols-2">
         {weekPlan.days.map((day, di) => {
-          const style = DAY_STYLE[day.type]
+          const style = DAY_STYLE[day.type] ?? FALLBACK_STYLE
           const Icon = style.icon
           const doneCount = day.exercises.filter(
             (_, ei) => checks[`${weekPlan.week}:${di}:${ei}`],

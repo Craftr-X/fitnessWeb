@@ -10,10 +10,12 @@ import {
 } from '@/components/ui/table'
 import { Beef, Droplets, Moon, UtensilsCrossed } from 'lucide-react'
 import { proteinRange } from '@/lib/store'
-import type { WeightEntry } from '@/types'
+import type { WeightEntry, WeightGoal } from '@/types'
 
 interface Props {
   weights: WeightEntry[]
+  /** 体重目标，决定热量盈余/缺口；老用户无此字段时默认增肌（沿用旧逻辑） */
+  weightGoal?: WeightGoal
 }
 
 const PROTEIN_FOODS = [
@@ -26,11 +28,43 @@ const PROTEIN_FOODS = [
   { food: '蛋白粉 1 勺（30 g）', protein: '≈ 22-24 g', tip: '吃不够时再考虑，非必需' },
 ]
 
-export default function Nutrition({ weights }: Props) {
+/** 按体重目标计算热量调整：每日维持热量 + 盈余/缺口 */
+function calorieTarget(weight: number, goal: WeightGoal | undefined): { target: number; label: string; tip: string } {
+  const maintenance = Math.round(weight * 32) // 粗略维持热量
+  switch (goal) {
+    case 'lose':
+      return {
+        target: maintenance - 400,
+        label: '每日热量目标（维持 −400 减脂缺口）',
+        tip: '减脂期保持蛋白质充足、力量训练不减量，缺口主要从碳水和脂肪里出。每周体重下降 0.25-0.5 kg 为宜。',
+      }
+    case 'recomp':
+      return {
+        target: maintenance,
+        label: '每日热量目标（维持，靠训练重塑身体成分）',
+        tip: '塑形期热量维持即可，重点是训练强度和蛋白质，体脂和体重会缓慢此消彼长。',
+      }
+    case 'maintain':
+      return {
+        target: maintenance,
+        label: '每日热量目标（维持）',
+        tip: '保持期维持当前饮食即可，重在规律训练和睡眠。',
+      }
+    case 'gain':
+    default:
+      // 老用户无 goal 字段时默认增肌，沿用旧 +250 逻辑
+      return {
+        target: maintenance + 250,
+        label: '每日热量目标（维持 +250 温和盈余）',
+        tip: '偏瘦增肌的关键不是"吃撑"，而是每天稳定地多吃一点（约 +250 kcal），配合训练让体重每周缓慢上涨 0.1-0.25 kg。',
+      }
+  }
+}
+
+export default function Nutrition({ weights, weightGoal }: Props) {
   const weight = weights[weights.length - 1]?.weight ?? 50.5
   const [pMin, pMax] = useMemo(() => proteinRange(weight), [weight])
-  const surplus = Math.round(weight * 32) // 粗略维持热量
-  const target = surplus + 250
+  const { target, label, tip } = useMemo(() => calorieTarget(weight, weightGoal), [weight, weightGoal])
 
   return (
     <div className="space-y-4">
@@ -46,7 +80,7 @@ export default function Nutrition({ weights }: Props) {
           <CardContent className="pt-4 text-center">
             <UtensilsCrossed className="mx-auto mb-1 h-6 w-6 text-emerald-500" />
             <div className="text-2xl font-bold">≈ {target} kcal</div>
-            <div className="text-xs text-muted-foreground">每日热量目标（维持 +250 温和盈余）</div>
+            <div className="text-xs text-muted-foreground">{label}</div>
           </CardContent>
         </Card>
         <Card>
@@ -95,8 +129,8 @@ export default function Nutrition({ weights }: Props) {
           <p><span className="font-medium">晚餐：</span>鸡胸/鱼虾 120 g + 米饭 + 蔬菜（≈ 30 g）</p>
           <p><span className="font-medium">睡前：</span>一杯牛奶（≈ 8 g）</p>
           <p className="rounded-md bg-muted/60 p-2 text-xs text-muted-foreground">
-            💡 偏瘦增肌的关键不是"吃撑"，而是每天稳定地多吃一点（约 +250 kcal，相当于一盒牛奶 + 一根香蕉 + 一小把坚果），
-            配合训练让体重每周缓慢上涨 0.1-0.25 kg。羽毛球日消耗大，当天再额外加一顿碳水加餐。
+            💡 {tip}
+            {weightGoal === 'gain' || !weightGoal ? ' 运动日消耗大，当天可额外加一顿碳水加餐。' : ''}
           </p>
         </CardContent>
       </Card>
