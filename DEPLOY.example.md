@@ -44,7 +44,7 @@ CI 部署需要以下两个环境变量（在 GitHub Secrets 中配置）：
 
 ## 四、本地开发环境
 
-创建 `app/.env` 文件（已加入 .gitignore）：
+创建 `app/.env.local` 文件（已加入 .gitignore）：
 
 ```env
 VITE_SUPABASE_URL=<你的 Supabase Project URL>
