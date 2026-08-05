@@ -1,21 +1,49 @@
-import { useState } from 'react'
-import { Dumbbell, Loader2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Dumbbell, Loader2, Mail } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 
-/** 登录 / 注册页（邮箱 + 密码） */
+/** 验证码重发倒计时（秒） */
+const RESEND_COOLDOWN = 60
+/** 验证码位数 */
+const OTP_LENGTH = 6
+
+type Step = 'email' | 'otp'
+
+/**
+ * 邮箱验证码登录（passwordless）。
+ * 两步流程：① 输邮箱发送验证码 ② 填 6 位验证码登录。
+ * 首次邮箱自动建号（shouldCreateUser: true），后续直接登录，用户无感知。
+ */
 export default function Auth() {
-  const { signIn, signUp, signOut } = useAuth()
-  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const { sendOtp, verifyOtp } = useAuth()
+  const [step, setStep] = useState<Step>('email')
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [token, setToken] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [cooldown, setCooldown] = useState(0)
   const [message, setMessage] = useState<{ type: 'error' | 'info'; text: string } | null>(null)
+  const cooldownTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // 60s 重发倒计时
+  useEffect(() => {
+    if (cooldown <= 0) {
+      if (cooldownTimer.current) {
+        clearInterval(cooldownTimer.current)
+        cooldownTimer.current = null
+      }
+      return
+    }
+    cooldownTimer.current = setInterval(() => setCooldown((c) => c - 1), 1000)
+    return () => {
+      if (cooldownTimer.current) clearInterval(cooldownTimer.current)
+    }
+  }, [cooldown])
 
   if (!supabase) {
     return (
@@ -33,35 +61,61 @@ export default function Auth() {
     )
   }
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const validEmail = (e: string) => /^\S+@\S+\.\S+$/.test(e)
+
+  const handleSendOtp = async () => {
     setMessage(null)
-    if (!/^\S+@\S+\.\S+$/.test(email)) {
+    if (!validEmail(email)) {
       setMessage({ type: 'error', text: '请输入有效的邮箱地址' })
       return
     }
-    if (password.length < 6) {
-      setMessage({ type: 'error', text: '密码至少 6 位' })
+    setSubmitting(true)
+    const err = await sendOtp(email)
+    setSubmitting(false)
+    if (err) {
+      setMessage({ type: 'error', text: err })
+      return
+    }
+    setStep('otp')
+    setCooldown(RESEND_COOLDOWN)
+    setMessage({ type: 'info', text: `验证码已发送到 ${email}，请查收（含垃圾邮件箱）` })
+  }
+
+  const handleResend = async () => {
+    if (cooldown > 0) return
+    setMessage(null)
+    setSubmitting(true)
+    const err = await sendOtp(email)
+    setSubmitting(false)
+    if (err) {
+      setMessage({ type: 'error', text: err })
+      return
+    }
+    setCooldown(RESEND_COOLDOWN)
+    setMessage({ type: 'info', text: '已重新发送验证码' })
+  }
+
+  const handleVerify = async () => {
+    setMessage(null)
+    if (token.length !== OTP_LENGTH) {
+      setMessage({ type: 'error', text: `请输入 ${OTP_LENGTH} 位验证码` })
       return
     }
     setSubmitting(true)
-    if (mode === 'register') {
-      const err = await signUp(email, password)
-      if (!err) await signOut() // 注册成功会自带会话，先登出，让用户显式登录
-      setSubmitting(false)
-      // 无论是否需要邮箱确认，注册后都回到登录页
-      setMode('login')
-      setPassword('')
-      setMessage({
-        type: err ? 'error' : 'info',
-        text: err ?? '注册成功！请使用邮箱和密码登录。',
-      })
+    const err = await verifyOtp(email, token)
+    setSubmitting(false)
+    if (err) {
+      setMessage({ type: 'error', text: err })
       return
     }
-    const err = await signIn(email, password)
-    setSubmitting(false)
-    if (err) setMessage({ type: 'error', text: err })
-    // 登录成功时 onAuthStateChange 会自动切换到主界面
+    // 登录成功：onAuthStateChange 会自动切换到主界面，无需手动跳转
+    setMessage({ type: 'info', text: '登录成功，正在进入…' })
+  }
+
+  const backToEmail = () => {
+    setStep('email')
+    setToken('')
+    setMessage(null)
   }
 
   return (
@@ -72,48 +126,94 @@ export default function Auth() {
             <Dumbbell className="h-6 w-6" />
           </div>
           <CardTitle className="text-xl">FitUp 健身计划</CardTitle>
-          <CardDescription>登录后你的训练数据将安全地保存在云端</CardDescription>
+          <CardDescription>
+            {step === 'email' ? '用邮箱验证码登录，无需密码' : `验证码已发送至 ${email}`}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs value={mode} onValueChange={(v) => { setMode(v as 'login' | 'register'); setMessage(null) }}>
-            <TabsList className="mb-4 grid w-full grid-cols-2">
-              <TabsTrigger value="login">登录</TabsTrigger>
-              <TabsTrigger value="register">注册</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <form onSubmit={submit} className="space-y-4">
-            <div className="space-y-1">
-              <Label htmlFor="auth-email">邮箱</Label>
-              <Input
-                id="auth-email"
-                type="email"
-                autoComplete="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+          {step === 'email' ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                void handleSendOtp()
+              }}
+              className="space-y-4"
+            >
+              <div className="space-y-1">
+                <Label htmlFor="auth-email">邮箱</Label>
+                <Input
+                  id="auth-email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              {message && (
+                <p className={`text-sm ${message.type === 'error' ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                  {message.text}
+                </p>
+              )}
+              <Button type="submit" className="w-full" disabled={submitting}>
+                {submitting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+                <Mail className="mr-1 h-4 w-4" />
+                发送验证码
+              </Button>
+            </form>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>验证码</Label>
+                <div className="flex justify-center">
+                  <InputOTP
+                    maxLength={OTP_LENGTH}
+                    value={token}
+                    onChange={setToken}
+                    disabled={submitting}
+                  >
+                    <InputOTPGroup>
+                      <InputOTPSlot index={0} />
+                      <InputOTPSlot index={1} />
+                      <InputOTPSlot index={2} />
+                      <InputOTPSlot index={3} />
+                      <InputOTPSlot index={4} />
+                      <InputOTPSlot index={5} />
+                    </InputOTPGroup>
+                  </InputOTP>
+                </div>
+              </div>
+
+              {message && (
+                <p className={`text-center text-sm ${message.type === 'error' ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                  {message.text}
+                </p>
+              )}
+
+              <Button
+                onClick={() => void handleVerify()}
+                className="w-full"
+                disabled={submitting || token.length !== OTP_LENGTH}
+              >
+                {submitting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+                登录
+              </Button>
+
+              <div className="flex items-center justify-between text-sm">
+                <Button variant="link" className="h-auto p-0 text-muted-foreground" onClick={backToEmail}>
+                  ← 换个邮箱
+                </Button>
+                <Button
+                  variant="link"
+                  className="h-auto p-0"
+                  disabled={cooldown > 0 || submitting}
+                  onClick={() => void handleResend()}
+                >
+                  {cooldown > 0 ? `${cooldown}s 后可重发` : '重新发送'}
+                </Button>
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="auth-password">密码</Label>
-              <Input
-                id="auth-password"
-                type="password"
-                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                placeholder="至少 6 位"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            {message && (
-              <p className={`text-sm ${message.type === 'error' ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                {message.text}
-              </p>
-            )}
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
-              {mode === 'login' ? '登录' : '注册'}
-            </Button>
-          </form>
+          )}
         </CardContent>
       </Card>
     </div>
