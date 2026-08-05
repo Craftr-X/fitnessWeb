@@ -27,12 +27,11 @@ import type {
   WeightGoal,
 } from '@/types'
 
-type Step = 'basics' | 'goal' | 'training'
+type Step = 'basics' | 'details'
 
 const STEPS: { key: Step; title: string; desc: string }[] = [
   { key: 'basics', title: '基础信息', desc: '先了解一下你的身体情况' },
-  { key: 'goal', title: '训练目标', desc: '你希望达到什么目标' },
-  { key: 'training', title: '训练偏好', desc: '器械、频率和运动习惯' },
+  { key: 'details', title: '训练目标与偏好', desc: '你的目标、器械、频率和运动习惯' },
 ]
 
 /** 可选伤病/不适部位 */
@@ -63,7 +62,7 @@ interface Props {
 
 /**
  * 新用户引导 / 老用户重新定制。
- * 3 步向导，参考 Auth.tsx 的 type Step + 条件渲染范式。
+ * 2 步向导：基础信息 → 训练目标与偏好。
  * 完成后调规则引擎生成个性化第 1 周计划。
  */
 export default function Onboarding({ existing, onComplete, onCancel }: Props) {
@@ -94,15 +93,12 @@ export default function Onboarding({ existing, onComplete, onCancel }: Props) {
         toast.error('请检查基础信息填写是否合理')
         return
       }
-      setStep('goal')
-    } else if (step === 'goal') {
-      setStep('training')
+      setStep('details')
     }
   }
 
   const back = () => {
-    if (step === 'training') setStep('goal')
-    else if (step === 'goal') setStep('basics')
+    if (step === 'details') setStep('basics')
   }
 
   const finish = () => {
@@ -196,7 +192,7 @@ export default function Onboarding({ existing, onComplete, onCancel }: Props) {
             </div>
           )}
 
-          {step === 'goal' && (
+          {step === 'details' && (
             <div className="space-y-5">
               <div className="space-y-2">
                 <Label>你的主要目标</Label>
@@ -224,11 +220,7 @@ export default function Onboarding({ existing, onComplete, onCancel }: Props) {
                   ))}
                 </RadioGroup>
               </div>
-            </div>
-          )}
 
-          {step === 'training' && (
-            <div className="space-y-5">
               <div className="space-y-2">
                 <Label>训练经验</Label>
                 <RadioGroup
@@ -376,7 +368,7 @@ export default function Onboarding({ existing, onComplete, onCancel }: Props) {
                 </Button>
               ) : null}
             </div>
-            {step === 'training' ? (
+            {step === 'details' ? (
               <Button onClick={finish}>
                 <Sparkles className="mr-1 h-4 w-4" />
                 {existing ? '重新生成计划' : '生成我的计划'}
