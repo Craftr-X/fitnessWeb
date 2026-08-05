@@ -4,7 +4,7 @@
 >
 > **当仓库切换为 Public 后**，按照本文档操作即可启用 Pages 自动部署。
 >
-> ⚠️ 完整版（含密钥）见 `DEPLOY.md`（已加入 .gitignore，不会提交到 Git）。
+> ⚠️ 密钥（Supabase / Resend / Access Token）统一存于云端文档，不落在仓库和本地文档中；本地部署步骤见 `DEPLOY.md`（已加入 .gitignore，不会提交到 Git）。
 
 ---
 
