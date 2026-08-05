@@ -162,6 +162,31 @@ export function copyWeekPlan(plan: WeekPlan): WeekPlan {
   }
 }
 
+/**
+ * 把 onboarding 采集的体重合并进 weights 数组（纯函数，便于单测）。
+ *
+ * - weightKg 无效（<=0）：原样返回，不写入
+ * - 已有真实历史记录（length>1）：不动，由用户在 BodyData 页自行记录
+ * - 只有默认占位 entry（length<=1）：
+ *   - 占位 entry 非当天 → 在头部插入当天记录（保留占位作历史首点）
+ *   - 占位 entry 恰好是当天 → 直接覆盖
+ *
+ * 这样首页 BMI / 热量 / 蛋白质（均读 weights 末项）能立即基于真实体重展示，
+ * 而不是 defaultCloudState 的 50.5kg 占位值。
+ */
+export function mergeOnboardingWeight(
+  prev: WeightEntry[],
+  weightKg: number,
+  today: string,
+): WeightEntry[] {
+  if (weightKg <= 0) return prev
+  if (prev.length > 1) return prev
+  const entry: WeightEntry = { date: today, weight: weightKg, bodyFat: null }
+  // 占位 entry 恰是当天 → 直接覆盖（新用户首次进入的常见路径）
+  // 占位 entry 非当天（如隔几天才完成 onboarding）→ 前插当天记录，保留占位作历史首点
+  return prev.length === 1 && prev[0].date === today ? [entry] : [entry, ...prev]
+}
+
 /** 计算 BMI */
 export function bmi(weightKg: number, heightCm: number): number {
   const m = heightCm / 100

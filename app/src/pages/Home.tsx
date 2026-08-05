@@ -7,12 +7,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Dumbbell, Flame, LogOut } from 'lucide-react'
-import { buildWeekPlan, currentMonday, useCloudStorage, weeksBetween } from '@/lib/store'
+import { buildWeekPlan, currentMonday, mergeOnboardingWeight, useCloudStorage, weeksBetween } from '@/lib/store'
 import { buildWeekPlanFromProfile } from '@/lib/planEngine'
 import { useAuth } from '@/hooks/useAuth'
 import ThemeToggle from '@/components/ThemeToggle'
 import Onboarding from '@/pages/Onboarding'
-import type { Profile, WeightEntry, WeekPlan } from '@/types'
+import type { Profile, WeekPlan } from '@/types'
 
 // 路由级懒加载：5 个 section 按需加载，减轻首屏 bundle
 const Overview = lazy(() => import('@/sections/Overview'))
@@ -86,18 +86,11 @@ export default function Home({ user }: { user: User }) {
     toast.success('📦 已把本机的历史数据迁移到你的云端账号！')
   }, [ready, migrated])
 
-  // 把 onboarding 采集的体重落到 weights：
-  // - 只有默认占位 entry（length<=1）时，用当天日期覆盖，避免 BMI/热量仍按 50.5kg 占位展示
-  // - 已有真实历史记录时不动，由用户在 BodyData 页自行记录
+  // 把 onboarding 采集的体重落到 weights（逻辑见 store.mergeOnboardingWeight，已单测覆盖）
   const syncWeightFromProfile = (weightKg: number) => {
     if (weightKg <= 0) return
-    setWeights((prev) => {
-      if (prev.length > 1) return prev
-      const today = format(new Date(), 'yyyy-MM-dd')
-      const entry: WeightEntry = { date: today, weight: weightKg, bodyFat: null }
-      // 占位 entry 非当天则替换，当天则直接覆盖
-      return prev.length === 1 && prev[0].date === today ? [entry] : [entry, ...prev.slice(1)]
-    })
+    const today = format(new Date(), 'yyyy-MM-dd')
+    setWeights((prev) => mergeOnboardingWeight(prev, weightKg, today))
   }
 
   // onboarding 完成：写入 profile + 生成匹配的第 1 周计划

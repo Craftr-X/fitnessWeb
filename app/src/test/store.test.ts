@@ -6,8 +6,9 @@ import {
   bmiLabel,
   proteinRange,
   weeksBetween,
+  mergeOnboardingWeight,
 } from '@/lib/store'
-import type { WeekPlan } from '@/types'
+import type { WeekPlan, WeightEntry } from '@/types'
 
 /* ------------------------------------------------------------------ */
 /* bmi —— 体重 / 身高²                                                */
@@ -268,5 +269,54 @@ describe('weeksBetween', () => {
   it('非法日期返回 0 不抛错', () => {
     expect(weeksBetween('not-a-date', '2026-08-03')).toBe(0)
     expect(weeksBetween('2026-08-03', '')).toBe(0)
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* mergeOnboardingWeight —— onboarding 体重落到 weights 数组           */
+/* 锁定 P0：新用户填的体重必须出现在 weights，否则首页 BMI/热量仍按     */
+/* 50.5kg 占位值展示                                                   */
+/* ------------------------------------------------------------------ */
+describe('mergeOnboardingWeight', () => {
+  const PLACEHOLDER: WeightEntry = { date: '2026-01-01', weight: 50.5, bodyFat: null }
+
+  it('无效体重（<=0）：原样返回，不写入', () => {
+    expect(mergeOnboardingWeight([PLACEHOLDER], 0, '2026-08-05')).toEqual([PLACEHOLDER])
+    expect(mergeOnboardingWeight([PLACEHOLDER], -5, '2026-08-05')).toEqual([PLACEHOLDER])
+  })
+
+  it('已有真实历史记录（length>1）：不动', () => {
+    const history: WeightEntry[] = [
+      { date: '2026-07-01', weight: 60, bodyFat: null },
+      { date: '2026-08-01', weight: 61, bodyFat: null },
+    ]
+    expect(mergeOnboardingWeight(history, 70, '2026-08-05')).toBe(history)
+  })
+
+  it('只有占位 entry 且非当天：在头部插入当天记录', () => {
+    const result = mergeOnboardingWeight([PLACEHOLDER], 70, '2026-08-05')
+    expect(result).toHaveLength(2)
+    expect(result[0]).toEqual({ date: '2026-08-05', weight: 70, bodyFat: null })
+    // 占位 entry 保留作历史首点
+    expect(result[1]).toEqual(PLACEHOLDER)
+  })
+
+  it('只有占位 entry 且恰是当天：直接覆盖', () => {
+    const todayPlaceholder: WeightEntry = { date: '2026-08-05', weight: 50.5, bodyFat: null }
+    const result = mergeOnboardingWeight([todayPlaceholder], 70, '2026-08-05')
+    expect(result).toHaveLength(1)
+    expect(result[0]).toEqual({ date: '2026-08-05', weight: 70, bodyFat: null })
+  })
+
+  it('空数组：插入当天记录', () => {
+    const result = mergeOnboardingWeight([], 65, '2026-08-05')
+    expect(result).toEqual([{ date: '2026-08-05', weight: 65, bodyFat: null }])
+  })
+
+  it('不修改入参数组（返回新数组）', () => {
+    const prev = [PLACEHOLDER]
+    const result = mergeOnboardingWeight(prev, 70, '2026-08-05')
+    expect(prev).toEqual([PLACEHOLDER]) // 入参未被改
+    expect(result).not.toBe(prev)
   })
 })
