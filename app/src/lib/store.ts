@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { addDays, format, startOfWeek } from 'date-fns'
+import { addDays, differenceInCalendarWeeks, format, startOfWeek } from 'date-fns'
 import type { CheckMap, DayPlan, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
 import { loadUserData, readLegacyData, saveUserData } from '@/lib/sync'
 
@@ -23,6 +23,21 @@ export const DEFAULT_PROFILE: Profile = {
 
 export function currentMonday(): string {
   return format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
+}
+
+/**
+ * 计算两个周一日期字符串（yyyy-MM-dd）之间相隔的自然周数（向下取 0）。
+ * 以周一为一周起点：to 早于 from 时返回 0，否则返回完整跨过的周数。
+ * 用于跨周补齐——用户多周未打开 App 时，一次性推进到当前周。
+ */
+export function weeksBetween(from: string, to: string): number {
+  const fromD = new Date(from + 'T00:00:00')
+  const toD = new Date(to + 'T00:00:00')
+  if (Number.isNaN(fromD.getTime()) || Number.isNaN(toD.getTime())) return 0
+  return Math.max(
+    0,
+    differenceInCalendarWeeks(toD, fromD, { weekStartsOn: 1 }),
+  )
 }
 
 /**

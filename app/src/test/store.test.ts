@@ -5,6 +5,7 @@ import {
   bmi,
   bmiLabel,
   proteinRange,
+  weeksBetween,
 } from '@/lib/store'
 import type { WeekPlan } from '@/types'
 
@@ -235,5 +236,37 @@ describe('copyWeekPlan', () => {
 
   it('startDate 是 yyyy-MM-dd 格式', () => {
     expect(copyWeekPlan(source).startDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* weeksBetween —— 两个周一日期相隔的自然周数                         */
+/* ------------------------------------------------------------------ */
+describe('weeksBetween', () => {
+  it('同一周返回 0', () => {
+    expect(weeksBetween('2026-08-03', '2026-08-03')).toBe(0)
+    // 同一周内非周一也归 0（以周一为起点）
+    expect(weeksBetween('2026-08-03', '2026-08-05')).toBe(0)
+  })
+
+  it('正好跨 1 周返回 1', () => {
+    // 2026-08-03 周一 → 2026-08-10 周一
+    expect(weeksBetween('2026-08-03', '2026-08-10')).toBe(1)
+    // 2026-08-04 周二 → 2026-08-10 周一（跨过一次周一分界）仍为 1
+    expect(weeksBetween('2026-08-04', '2026-08-10')).toBe(1)
+  })
+
+  it('跨多周正确累计', () => {
+    // 2026-08-03 → 2026-08-24 = 3 周
+    expect(weeksBetween('2026-08-03', '2026-08-24')).toBe(3)
+  })
+
+  it('to 早于 from 返回 0（不返回负数）', () => {
+    expect(weeksBetween('2026-08-24', '2026-08-03')).toBe(0)
+  })
+
+  it('非法日期返回 0 不抛错', () => {
+    expect(weeksBetween('not-a-date', '2026-08-03')).toBe(0)
+    expect(weeksBetween('2026-08-03', '')).toBe(0)
   })
 })
