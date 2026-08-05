@@ -49,12 +49,8 @@ export type Experience = 'beginner' | 'intermediate'
 export type Sport = 'badminton' | 'running' | 'cycling' | 'none'
 
 export interface Profile {
-  // —— 老字段（老用户 + 头部展示仍用）——
   name: string
   heightCm: number
-  badmintonHours: number
-  goal: string
-  // —— v2 onboarding 新增（全部可选，jsonb merge 天然兼容旧数据）——
   /** 已完成 onboarding；区分新老用户、判断是否进入引导 */
   onboarded?: boolean
   gender?: Gender

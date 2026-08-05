@@ -107,12 +107,11 @@ export default function Onboarding({ existing, onComplete, onCancel }: Props) {
 
   const finish = () => {
     const profile: Profile = {
-      ...(existing ?? { name: '我', badmintonHours: 0, goal: '' }),
+      ...(existing ?? { name: '我' }),
       gender: draft.gender,
       age: draft.age,
       heightCm: draft.heightCm,
       weightKg: draft.weightKg,
-      badmintonHours: draft.sport === 'badminton' ? draft.sportHours : existing?.badmintonHours ?? 0,
       weightGoal: draft.weightGoal,
       experience: draft.experience,
       trainDaysPerWeek: draft.trainDaysPerWeek,
@@ -120,8 +119,6 @@ export default function Onboarding({ existing, onComplete, onCancel }: Props) {
       sport: draft.sport,
       sportHours: draft.sportHours,
       injuries: draft.injuries,
-      // 同步 goal 文本字段（老代码头部展示用）
-      goal: GOAL_LABEL[draft.weightGoal],
       onboarded: true,
     }
     const weekPlan = buildWeekPlanFromProfile(profile, 1)
@@ -358,8 +355,6 @@ export default function Onboarding({ existing, onComplete, onCancel }: Props) {
                   {describeProfile({
                     ...draft,
                     name: '我',
-                    badmintonHours: 0,
-                    goal: GOAL_LABEL[draft.weightGoal],
                   })}
                 </p>
               </div>
@@ -397,11 +392,4 @@ export default function Onboarding({ existing, onComplete, onCancel }: Props) {
       </Card>
     </div>
   )
-}
-
-const GOAL_LABEL: Record<WeightGoal, string> = {
-  gain: '增肌',
-  lose: '减脂',
-  recomp: '塑形',
-  maintain: '保持体能',
 }

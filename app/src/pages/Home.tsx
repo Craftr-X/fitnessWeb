@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Dumbbell, Flame, LogOut } from 'lucide-react'
-import { buildWeekPlan, currentMonday, mergeOnboardingWeight, needsOnboarding, shouldBackfillOnboarded, useCloudStorage, weeksBetween } from '@/lib/store'
+import { buildWeekPlan, currentMonday, mergeOnboardingWeight, needsOnboarding, shouldBackfillOnboarded, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
 import { buildWeekPlanFromProfile } from '@/lib/planEngine'
 import { useAuth } from '@/hooks/useAuth'
 import ThemeToggle from '@/components/ThemeToggle'
@@ -143,7 +143,7 @@ export default function Home({ user }: { user: User }) {
           <div className="flex-1">
             <h1 className="text-lg font-bold leading-tight">FitUp 健身计划</h1>
             <p className="text-xs text-muted-foreground">
-              {profile.heightCm} cm · 目标：{profile.goal}
+              {profile.heightCm} cm · 目标：{profile.weightGoal ? WEIGHT_GOAL_LABEL[profile.weightGoal] : '—'}
             </p>
           </div>
           <span className="hidden max-w-40 truncate text-xs text-muted-foreground sm:block">

@@ -21,7 +21,7 @@ import type {
   WeightGoal,
 } from '@/types'
 // currentMonday 复用 store 实现，避免双份维护；同时 re-export 保持本模块 API 稳定
-import { currentMonday } from '@/lib/store'
+import { currentMonday, WEIGHT_GOAL_LABEL } from '@/lib/store'
 export { currentMonday }
 
 /* ------------------------------------------------------------------ */
@@ -622,18 +622,12 @@ export function copyWeekPlanFromProfile(plan: WeekPlan): WeekPlan {
 /* ------------------------------------------------------------------ */
 
 export function describeProfile(profile: Profile): string {
-  const goalText: Record<WeightGoal, string> = {
-    gain: '增肌',
-    lose: '减脂',
-    recomp: '塑形',
-    maintain: '保持',
-  }
   const parts: string[] = []
   if (profile.gender) parts.push(profile.gender === 'male' ? '男' : '女')
   if (profile.age) parts.push(`${profile.age} 岁`)
   if (profile.heightCm) parts.push(`${profile.heightCm}cm`)
   if (profile.weightKg) parts.push(`${profile.weightKg}kg`)
-  if (profile.weightGoal) parts.push(`目标：${goalText[profile.weightGoal]}`)
+  if (profile.weightGoal) parts.push(`目标：${WEIGHT_GOAL_LABEL[profile.weightGoal]}`)
   if (profile.trainDaysPerWeek) parts.push(`${profile.trainDaysPerWeek} 天/周`)
   if (profile.experience) parts.push(profile.experience === 'beginner' ? '新手' : '进阶')
   return parts.join(' · ')

@@ -16,8 +16,6 @@ import type { Profile } from '@/types'
 const BASE_PROFILE: Profile = {
   name: '测试',
   heightCm: 175,
-  badmintonHours: 0,
-  goal: '增肌',
   onboarded: true,
   gender: 'male',
   age: 25,
@@ -369,8 +367,6 @@ describe('buildWeekPlanFromProfile', () => {
     const minimal: Profile = {
       name: '我',
       heightCm: 170,
-      badmintonHours: 0,
-      goal: '健身',
     }
     const plan = buildWeekPlanFromProfile(minimal, 1)
     expect(plan.days).toHaveLength(7)
@@ -441,6 +437,6 @@ describe('describeProfile', () => {
   })
 
   it('空画像：不抛错', () => {
-    expect(describeProfile({ name: '', heightCm: 0, badmintonHours: 0, goal: '' })).toBe('')
+    expect(describeProfile({ name: '', heightCm: 0 })).toBe('')
   })
 })

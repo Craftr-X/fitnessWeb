@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { addDays, differenceInCalendarWeeks, format, startOfWeek } from 'date-fns'
 import type { CheckMap, DayPlan, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
+import type { WeightGoal } from '@/types'
 import { loadUserData, readLegacyData, saveUserData } from '@/lib/sync'
 
 export const LS_KEYS = {
@@ -14,11 +15,17 @@ export const LS_KEYS = {
 /** 登录用户的本地缓存 key（整文档，按用户隔离） */
 export const cloudCacheKey = (userId: string) => `fitup:u:${userId}`
 
+/** 体重目标的中文展示（Home 头部 / Onboarding / planEngine 共享） */
+export const WEIGHT_GOAL_LABEL: Record<WeightGoal, string> = {
+  gain: '增肌',
+  lose: '减脂',
+  recomp: '塑形',
+  maintain: '保持',
+}
+
 export const DEFAULT_PROFILE: Profile = {
   name: '我',
   heightCm: 163,
-  badmintonHours: 3,
-  goal: '上身增肌（胸 / 背 / 肩 / 手臂），保持羽毛球体能',
 }
 
 export function currentMonday(): string {
