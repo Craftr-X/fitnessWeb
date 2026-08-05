@@ -187,6 +187,52 @@ export function mergeOnboardingWeight(
   return prev.length === 1 && prev[0].date === today ? [entry] : [entry, ...prev]
 }
 
+/* ------------------------------------------------------------------ */
+/* 新老用户判定：决定首页走 onboarding 引导 / 静默补标志 / 直接进主界面 */
+/* ------------------------------------------------------------------ */
+
+export interface UsageTrace {
+  checks: CheckMap
+  feedbacks: WeekFeedback[]
+  weights: WeightEntry[]
+  weekPlan: WeekPlan
+}
+
+export interface OnboardingState {
+  ready: boolean
+  onboarded: boolean | undefined
+  trace: UsageTrace
+}
+
+/**
+ * 是否有使用痕迹：任一维度非初始默认值即算。
+ * 用于区分"真·新用户"和"账号体系上线前已有数据的老用户"。
+ * weights.length>1：默认占位 entry 不算痕迹，至少 2 条才算。
+ */
+export function hasUsageTrace(trace: UsageTrace): boolean {
+  return (
+    Object.keys(trace.checks).length > 0 ||
+    trace.feedbacks.length > 0 ||
+    trace.weights.length > 1 ||
+    trace.weekPlan.week > 1
+  )
+}
+
+/**
+ * 是否需要走 onboarding 引导：数据就绪 + 未 onboarded + 无任何使用痕迹（真·新用户）。
+ */
+export function needsOnboarding(state: OnboardingState): boolean {
+  return state.ready && !state.onboarded && !hasUsageTrace(state.trace)
+}
+
+/**
+ * 是否需要静默补 onboarded 标志：数据就绪 + 未 onboarded + 有使用痕迹（老用户）。
+ * 与 needsOnboarding 互斥（一个要 trace，一个不要）。
+ */
+export function shouldBackfillOnboarded(state: OnboardingState): boolean {
+  return state.ready && !state.onboarded && hasUsageTrace(state.trace)
+}
+
 /** 计算 BMI */
 export function bmi(weightKg: number, heightCm: number): number {
   const m = heightCm / 100

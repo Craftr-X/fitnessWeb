@@ -7,8 +7,11 @@ import {
   proteinRange,
   weeksBetween,
   mergeOnboardingWeight,
+  hasUsageTrace,
+  needsOnboarding,
+  shouldBackfillOnboarded,
 } from '@/lib/store'
-import type { WeekPlan, WeightEntry } from '@/types'
+import type { CheckMap, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
 
 /* ------------------------------------------------------------------ */
 /* bmi —— 体重 / 身高²                                                */
@@ -318,5 +321,110 @@ describe('mergeOnboardingWeight', () => {
     const result = mergeOnboardingWeight(prev, 70, '2026-08-05')
     expect(prev).toEqual([PLACEHOLDER]) // 入参未被改
     expect(result).not.toBe(prev)
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* 新老用户判定 —— hasUsageTrace / needsOnboarding / shouldBackfill    */
+/* ------------------------------------------------------------------ */
+
+// 初始状态：defaultCloudState 的默认值（无任何使用痕迹）
+const INITIAL_TRACE = {
+  checks: {} as CheckMap,
+  feedbacks: [] as WeekFeedback[],
+  weights: [{ date: '2026-08-05', weight: 50.5, bodyFat: null }] as WeightEntry[],
+  weekPlan: { ...buildWeekPlan(1) },
+}
+
+describe('hasUsageTrace', () => {
+  it('全初始状态：false（真·新用户）', () => {
+    expect(hasUsageTrace(INITIAL_TRACE)).toBe(false)
+  })
+
+  it('有打卡记录：true', () => {
+    expect(hasUsageTrace({ ...INITIAL_TRACE, checks: { '1:0:0': true } })).toBe(true)
+  })
+
+  it('有反馈记录：true', () => {
+    expect(hasUsageTrace({ ...INITIAL_TRACE, feedbacks: [{ week: 1, date: '2026-08-05', completion: 80, difficulty: 3, soreness: [], sleep: '', diet: '', note: '' }] })).toBe(true)
+  })
+
+  it('weights 多于 1 条（占位不算痕迹）：true', () => {
+    expect(
+      hasUsageTrace({
+        ...INITIAL_TRACE,
+        weights: [...INITIAL_TRACE.weights, { date: '2026-08-06', weight: 51, bodyFat: null }],
+      }),
+    ).toBe(true)
+  })
+
+  it('weekPlan 已推进到第 2 周：true（老用户跨周）', () => {
+    expect(hasUsageTrace({ ...INITIAL_TRACE, weekPlan: { ...INITIAL_TRACE.weekPlan, week: 2 } })).toBe(true)
+  })
+})
+
+describe('needsOnboarding', () => {
+  const newUserState = { ready: true, onboarded: undefined, trace: INITIAL_TRACE }
+  const readyState = (overrides: Partial<typeof newUserState>) => ({ ...newUserState, ...overrides })
+
+  it('真·新用户（ready + 未 onboarded + 无痕迹）：true', () => {
+    expect(needsOnboarding(readyState({}))).toBe(true)
+  })
+
+  it('数据未就绪（ready=false）：false', () => {
+    expect(needsOnboarding(readyState({ ready: false }))).toBe(false)
+  })
+
+  it('老用户（有使用痕迹）：false', () => {
+    expect(needsOnboarding(readyState({ trace: { ...INITIAL_TRACE, checks: { '1:0:0': true } } }))).toBe(false)
+  })
+
+  it('已 onboarded：false', () => {
+    expect(needsOnboarding(readyState({ onboarded: true }))).toBe(false)
+  })
+})
+
+describe('shouldBackfillOnboarded', () => {
+  const oldUserState = {
+    ready: true,
+    onboarded: undefined,
+    trace: { ...INITIAL_TRACE, checks: { '1:0:0': true } },
+  }
+  const state = (overrides: Partial<typeof oldUserState>) => ({ ...oldUserState, ...overrides })
+
+  it('老用户（ready + 未 onboarded + 有痕迹）：true', () => {
+    expect(shouldBackfillOnboarded(state({}))).toBe(true)
+  })
+
+  it('真·新用户（无痕迹）：false', () => {
+    expect(shouldBackfillOnboarded(state({ trace: INITIAL_TRACE }))).toBe(false)
+  })
+
+  it('数据未就绪：false', () => {
+    expect(shouldBackfillOnboarded(state({ ready: false }))).toBe(false)
+  })
+
+  it('已 onboarded：false', () => {
+    expect(shouldBackfillOnboarded(state({ onboarded: true }))).toBe(false)
+  })
+})
+
+describe('needsOnboarding 与 shouldBackfillOnboarded 互斥', () => {
+  it('真·新用户：needsOnboarding=true，shouldBackfill=false', () => {
+    const obState = { ready: true, onboarded: undefined, trace: INITIAL_TRACE }
+    expect(needsOnboarding(obState)).toBe(true)
+    expect(shouldBackfillOnboarded(obState)).toBe(false)
+  })
+
+  it('老用户：needsOnboarding=false，shouldBackfill=true', () => {
+    const obState = { ready: true, onboarded: undefined, trace: { ...INITIAL_TRACE, checks: { '1:0:0': true } } }
+    expect(needsOnboarding(obState)).toBe(false)
+    expect(shouldBackfillOnboarded(obState)).toBe(true)
+  })
+
+  it('已 onboarded 用户：两者都 false', () => {
+    const obState = { ready: true, onboarded: true, trace: INITIAL_TRACE }
+    expect(needsOnboarding(obState)).toBe(false)
+    expect(shouldBackfillOnboarded(obState)).toBe(false)
   })
 })

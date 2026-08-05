@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Dumbbell, Flame, LogOut } from 'lucide-react'
-import { buildWeekPlan, currentMonday, mergeOnboardingWeight, useCloudStorage, weeksBetween } from '@/lib/store'
+import { buildWeekPlan, currentMonday, mergeOnboardingWeight, needsOnboarding, shouldBackfillOnboarded, useCloudStorage, weeksBetween } from '@/lib/store'
 import { buildWeekPlanFromProfile } from '@/lib/planEngine'
 import { useAuth } from '@/hooks/useAuth'
 import ThemeToggle from '@/components/ThemeToggle'
@@ -42,22 +42,23 @@ export default function Home({ user }: { user: User }) {
 
   // 判断是否需要 onboarding：未 onboarded 且没有任何使用痕迹（真·新用户）
   // 老用户（账号体系上线前已有数据）虽然有 profile.onboarded 缺失，但有使用痕迹 → 不强制填表
-  const hasUsageTrace =
-    Object.keys(checks).length > 0 || feedbacks.length > 0 || weights.length > 1 || weekPlan.week > 1
-  const needsOnboarding = ready && !profile.onboarded && !hasUsageTrace
+  const trace = { checks, feedbacks, weights, weekPlan }
+  const obState = { ready, onboarded: profile.onboarded, trace }
+  const needsOnboardingVal = needsOnboarding(obState)
 
   // 老用户静默补 onboarded 标志（避免每次进来都判断）
   const backfillNotified = useRef(false)
   useEffect(() => {
-    if (!ready || profile.onboarded || !hasUsageTrace || backfillNotified.current) return
+    if (!shouldBackfillOnboarded(obState) || backfillNotified.current) return
     backfillNotified.current = true
     setProfile((p) => ({ ...p, onboarded: true }))
-  }, [ready, profile.onboarded, hasUsageTrace, setProfile])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, profile.onboarded])
 
   // 进入新自然周后自动生成新一周计划：跨多周时一次性补齐到当前周
   const rolledOver = useRef(false) // 防止 StrictMode 下 effect 双跑重复弹提示
   useEffect(() => {
-    if (!ready || rolledOver.current || needsOnboarding) return
+    if (!ready || rolledOver.current || needsOnboardingVal) return
     const gap = weeksBetween(weekPlan.startDate, currentMonday())
     if (gap <= 0) return
     rolledOver.current = true
@@ -119,7 +120,7 @@ export default function Home({ user }: { user: User }) {
   const latestWeight = weights[weights.length - 1]?.weight
 
   // 新用户首次进入：走 onboarding 引导
-  if (needsOnboarding) {
+  if (needsOnboardingVal) {
     return <Onboarding onComplete={handleOnboard} />
   }
 
