@@ -75,3 +75,89 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ===== 登录页科技感视觉 ===== */
+
+/* 点阵网格背景，中心清晰、边缘渐隐 */
+.auth-grid {
+  background-image:
+    linear-gradient(to right, rgb(148 163 184 / 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(148 163 184 / 0.07) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 75% 65% at 50% 42%, black 25%, transparent 78%);
+}
+
+/* 极光光斑：缓慢漂移 */
+.auth-aurora {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  will-change: transform;
+}
+@keyframes aurora-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(60px, 40px) scale(1.15); }
+}
+@keyframes aurora-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-50px, -60px) scale(1.1); }
+}
+@keyframes aurora-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(40px, -40px) scale(0.9); }
+}
+
+/* 上升粒子 */
+@keyframes particle-rise {
+  0% { transform: translateY(0); opacity: 0; }
+  8% { opacity: 0.7; }
+  85% { opacity: 0.5; }
+  100% { transform: translateY(-105vh); opacity: 0; }
+}
+.auth-particle {
+  position: absolute;
+  bottom: -8px;
+  border-radius: 9999px;
+  background: rgb(94 234 212 / 0.7);
+  box-shadow: 0 0 8px rgb(45 212 191 / 0.8);
+  animation: particle-rise linear infinite;
+}
+
+/* 入场：上浮淡入，配合内联 animationDelay 做级联 */
+@keyframes auth-fade-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.auth-enter {
+  animation: auth-fade-up 0.65s cubic-bezier(0.21, 0.6, 0.35, 1) both;
+}
+
+/* Logo 旋转光环 */
+@keyframes ring-spin {
+  to { transform: rotate(360deg); }
+}
+.auth-ring {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    rgb(45 212 191) 18%,
+    transparent 38%,
+    transparent 55%,
+    rgb(52 211 153) 75%,
+    transparent 95%
+  );
+  animation: ring-spin 4s linear infinite;
+  filter: blur(4px);
+}
+
+/* 尊重系统减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .auth-enter,
+  .auth-aurora,
+  .auth-ring {
+    animation: none !important;
+  }
+  .auth-particle {
+    display: none;
+  }
+}
