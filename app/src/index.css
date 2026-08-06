@@ -124,12 +124,21 @@
 }
 
 /* 入场：上浮淡入，配合内联 animationDelay 做级联 */
-@keyframes auth-fade-up {
+@keyframes fade-up {
   from { opacity: 0; transform: translateY(18px); }
   to { opacity: 1; transform: translateY(0); }
 }
 .auth-enter {
-  animation: auth-fade-up 0.65s cubic-bezier(0.21, 0.6, 0.35, 1) both;
+  animation: fade-up 0.65s cubic-bezier(0.21, 0.6, 0.35, 1) both;
+}
+
+/* Tab 切换等内容淡入（幅度更小、更快） */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-enter {
+  animation: fade-in 0.3s ease-out both;
 }
 
 /* Logo 旋转光环 */
@@ -153,6 +162,7 @@
 /* 尊重系统减少动效偏好 */
 @media (prefers-reduced-motion: reduce) {
   .auth-enter,
+  .fade-enter,
   .auth-aurora,
   .auth-ring {
     animation: none !important;

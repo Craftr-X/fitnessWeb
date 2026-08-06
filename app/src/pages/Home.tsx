@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import type { User } from '@supabase/supabase-js'
@@ -6,7 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
-import { Dumbbell, Flame, LogOut } from 'lucide-react'
+import { ArrowRight, Dumbbell, Flame, LogOut } from 'lucide-react'
+import { useCountUp } from '@/hooks/useCountUp'
 import { buildWeekPlan, currentMonday, mergeOnboardingWeight, needsOnboarding, shouldBackfillOnboarded, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
 import { buildWeekPlanFromProfile } from '@/lib/planEngine'
 import { useAuth } from '@/hooks/useAuth'
@@ -116,8 +117,33 @@ export default function Home({ user }: { user: User }) {
     await signOut()
   }
 
-  const todayPlan = weekPlan.days[(new Date().getDay() + 6) % 7]
+  const todayIdx = (new Date().getDay() + 6) % 7
+  const todayPlan = weekPlan.days[todayIdx]
   const latestWeight = weights[weights.length - 1]?.weight
+
+  // 本周打卡统计：完成项数 + 每天是否打过卡（作战卡进度环 / 打卡点用）
+  const { done, total, dayChecked } = useMemo(() => {
+    let d = 0
+    let t = 0
+    const perDay = new Array<boolean>(7).fill(false)
+    weekPlan.days.forEach((day, di) => {
+      day.exercises.forEach((_, ei) => {
+        t += 1
+        if (checks[`${weekPlan.week}:${di}:${ei}`]) {
+          d += 1
+          perDay[di] = true
+        }
+      })
+    })
+    return { done: d, total: t, dayChecked: perDay }
+  }, [weekPlan, checks])
+  const weekPct = total === 0 ? 0 : Math.round((done / total) * 100)
+  const daysTrained = dayChecked.filter(Boolean).length
+
+  // 作战卡数字 count-up
+  const animatedPct = useCountUp(weekPct)
+  const animatedWeight = useCountUp(latestWeight ?? 0)
+  const animatedWeeks = useCountUp(feedbacks.length)
 
   // 新用户首次进入：走 onboarding 引导
   if (needsOnboardingVal) {
@@ -134,7 +160,20 @@ export default function Home({ user }: { user: User }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
+    <div className="relative min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
+      {/* 背景装饰：与登录页呼应的点阵网格 + 极光光斑（浅色下更淡） */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+        <div className="auth-grid absolute inset-0 opacity-50 dark:opacity-100" />
+        <div
+          className="auth-aurora -top-24 left-[8%] h-72 w-72 bg-teal-400/10 dark:bg-teal-500/20"
+          style={{ animation: 'aurora-1 20s ease-in-out infinite' }}
+        />
+        <div
+          className="auth-aurora right-[4%] top-48 h-64 w-64 bg-emerald-400/8 dark:bg-emerald-500/15"
+          style={{ animation: 'aurora-2 24s ease-in-out infinite' }}
+        />
+      </div>
+
       <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 text-white shadow-md shadow-teal-500/30">
@@ -159,13 +198,24 @@ export default function Home({ user }: { user: User }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-5">
-        {/* 欢迎横幅 */}
-        <div className="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-r from-teal-500 via-teal-500 to-emerald-500 p-5 text-white shadow-lg shadow-teal-500/25">
-          <div className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full bg-white/10" />
-          <div className="pointer-events-none absolute -bottom-12 right-16 h-32 w-32 rounded-full bg-white/10" />
-          <div className="relative flex flex-wrap items-center gap-4">
-            <div className="flex-1">
+      <main className="relative mx-auto max-w-5xl px-4 py-5">
+        {/* 今日作战卡 */}
+        <div className="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-teal-600 via-teal-500 to-emerald-500 p-5 text-white shadow-lg shadow-teal-500/25 sm:p-6">
+          {/* 卡内装饰：细网格 + 光斑 */}
+          <div
+            className="pointer-events-none absolute inset-0 opacity-35"
+            style={{
+              backgroundImage:
+                'linear-gradient(to right, rgb(255 255 255 / 0.09) 1px, transparent 1px), linear-gradient(to bottom, rgb(255 255 255 / 0.09) 1px, transparent 1px)',
+              backgroundSize: '28px 28px',
+            }}
+            aria-hidden
+          />
+          <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-white/15 blur-2xl" aria-hidden />
+          <div className="pointer-events-none absolute -bottom-16 right-28 h-40 w-40 rounded-full bg-emerald-300/25 blur-2xl" aria-hidden />
+
+          <div className="relative flex flex-wrap items-center gap-5">
+            <div className="min-w-56 flex-1">
               <p className="text-sm text-white/80">{greeting()}！{format(new Date(), 'M月d日')}</p>
               <h2 className="mt-0.5 text-xl font-bold">
                 今天：{todayPlan.day} · {todayPlan.focus}
@@ -177,20 +227,67 @@ export default function Home({ user }: { user: User }) {
                     ? '羽毛球日！尽情挥洒汗水，注意补水 🏸'
                     : '练前别忘了 5 分钟热身，动作质量优先 🔥'}
               </p>
+
+              {/* 本周打卡点：亮=当天有打卡，光环=今天 */}
+              <div className="mt-3 flex items-center gap-1.5">
+                {weekPlan.days.map((d, di) => (
+                  <span
+                    key={di}
+                    title={d.day}
+                    className={`h-2.5 w-2.5 rounded-full transition-colors ${
+                      dayChecked[di] ? 'bg-white shadow-sm shadow-white/60' : 'bg-white/25'
+                    } ${di === todayIdx ? 'ring-2 ring-white/80 ring-offset-2 ring-offset-teal-500' : ''}`}
+                  />
+                ))}
+                <span className="ml-2 text-xs text-white/75">本周已练 {daysTrained} 天</span>
+              </div>
+
+              <Button
+                onClick={() => setTab('plan')}
+                className="mt-4 bg-white font-semibold text-teal-700 shadow-md transition-transform hover:scale-[1.03] hover:bg-teal-50"
+              >
+                {todayPlan.type === 'rest' ? '查看本周计划' : '开始今日训练'}
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
             </div>
-            <div className="flex items-center gap-6 pr-2">
-              {latestWeight && (
+
+            <div className="flex items-center gap-6 pr-1">
+              {/* 本周完成度进度环 */}
+              <div className="relative h-20 w-20" title={`已打卡 ${done} / ${total} 项`}>
+                <svg viewBox="0 0 80 80" className="h-20 w-20 -rotate-90">
+                  <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="7" />
+                  <circle
+                    cx="40"
+                    cy="40"
+                    r="34"
+                    fill="none"
+                    stroke="#fff"
+                    strokeWidth="7"
+                    strokeLinecap="round"
+                    strokeDasharray={2 * Math.PI * 34}
+                    strokeDashoffset={2 * Math.PI * 34 * (1 - animatedPct / 100)}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-lg font-bold leading-none">{Math.round(animatedPct)}%</span>
+                  <span className="mt-0.5 text-[10px] text-white/75">本周进度</span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {latestWeight && (
+                  <div className="text-center">
+                    <div className="text-2xl font-bold tabular-nums">{animatedWeight.toFixed(2)}</div>
+                    <div className="text-xs text-white/75">当前体重 kg</div>
+                  </div>
+                )}
                 <div className="text-center">
-                  <div className="text-2xl font-bold">{latestWeight.toFixed(2)}</div>
-                  <div className="text-xs text-white/75">当前体重 kg</div>
+                  <div className="flex items-center justify-center gap-1 text-2xl font-bold tabular-nums">
+                    <Flame className="h-5 w-5" />
+                    {Math.round(animatedWeeks)}
+                  </div>
+                  <div className="text-xs text-white/75">已坚持周数</div>
                 </div>
-              )}
-              <div className="text-center">
-                <div className="flex items-center gap-1 text-2xl font-bold">
-                  <Flame className="h-5 w-5" />
-                  {feedbacks.length}
-                </div>
-                <div className="text-xs text-white/75">已坚持周数</div>
               </div>
             </div>
           </div>
@@ -213,7 +310,7 @@ export default function Home({ user }: { user: User }) {
               </div>
             }
           >
-            <TabsContent value="overview">
+            <TabsContent value="overview" className="fade-enter">
               <Overview
                 profile={profile}
                 setProfile={setProfile}
@@ -224,7 +321,7 @@ export default function Home({ user }: { user: User }) {
                 onRebuild={handleRebuild}
               />
             </TabsContent>
-            <TabsContent value="plan">
+            <TabsContent value="plan" className="fade-enter">
               <WeeklyPlan
                 weekPlan={weekPlan}
                 setWeekPlan={setWeekPlan}
@@ -235,13 +332,13 @@ export default function Home({ user }: { user: User }) {
                 profile={profile}
               />
             </TabsContent>
-            <TabsContent value="data">
+            <TabsContent value="data" className="fade-enter">
               <BodyData weights={weights} setWeights={setWeights} heightCm={profile.heightCm} />
             </TabsContent>
-            <TabsContent value="feedback">
+            <TabsContent value="feedback" className="fade-enter">
               <Feedback feedbacks={feedbacks} setFeedbacks={setFeedbacks} weekPlan={weekPlan} />
             </TabsContent>
-            <TabsContent value="nutrition">
+            <TabsContent value="nutrition" className="fade-enter">
               <Nutrition weights={weights} weightGoal={profile.weightGoal} />
             </TabsContent>
           </Suspense>

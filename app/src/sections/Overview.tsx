@@ -16,6 +16,7 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import { bmi, bmiLabel, proteinRange, WEIGHT_GOAL_LABEL } from '@/lib/store'
+import { useCountUp } from '@/hooks/useCountUp'
 import Onboarding from '@/pages/Onboarding'
 import type { CheckMap, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
 
@@ -68,6 +69,12 @@ export default function Overview({
   }, [weekPlan, checks])
   const weekPct = total === 0 ? 0 : Math.round((done / total) * 100)
 
+  // 关键数字 count-up 动画
+  const animatedWeight = useCountUp(weight)
+  const animatedFat = useCountUp(latest?.bodyFat ?? 0)
+  const animatedBmi = useCountUp(bmiValue)
+  const animatedPct = useCountUp(weekPct)
+
   const first = weights[0]
   const weightDelta = first && latest ? latest.weight - first.weight : 0
   const lastFeedback = feedbacks[0]
@@ -110,17 +117,17 @@ export default function Overview({
         <CardContent className="space-y-3">
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="rounded-xl bg-gradient-to-b from-orange-500/10 to-transparent p-3">
-              <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{weight.toFixed(2)}</div>
+              <div className="text-2xl font-bold tabular-nums text-orange-600 dark:text-orange-400">{animatedWeight.toFixed(2)}</div>
               <div className="text-xs text-muted-foreground">体重 kg</div>
             </div>
             <div className="rounded-xl bg-gradient-to-b from-sky-500/10 to-transparent p-3">
-              <div className="text-2xl font-bold text-sky-600 dark:text-sky-400">
-                {latest?.bodyFat ? latest.bodyFat.toFixed(1) : '—'}
+              <div className="text-2xl font-bold tabular-nums text-sky-600 dark:text-sky-400">
+                {latest?.bodyFat ? animatedFat.toFixed(1) : '—'}
               </div>
               <div className="text-xs text-muted-foreground">体脂 %</div>
             </div>
             <div className="rounded-xl bg-gradient-to-b from-emerald-500/10 to-transparent p-3">
-              <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{bmiValue.toFixed(1)}</div>
+              <div className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{animatedBmi.toFixed(1)}</div>
               <div className="text-xs text-muted-foreground">BMI（{bmiLabel(bmiValue)}）</div>
             </div>
           </div>
@@ -189,8 +196,8 @@ export default function Overview({
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-end justify-between">
-            <span className="bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-3xl font-bold text-transparent">
-              {weekPct}%
+            <span className="bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-3xl font-bold tabular-nums text-transparent">
+              {Math.round(animatedPct)}%
             </span>
             <span className="text-sm text-muted-foreground">
               已打卡 {done} / {total} 项
