@@ -11,6 +11,8 @@ import { useAuth } from '@/hooks/useAuth'
 const RESEND_COOLDOWN = 60
 /** 验证码位数 */
 const OTP_LENGTH = 6
+/** 邮箱格式：local@domain.tld，禁止出现多个 @ 或空格 */
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 type Step = 'email' | 'otp'
 
@@ -103,12 +105,16 @@ export default function Auth() {
     )
   }
 
-  const validEmail = (e: string) => /^\S+@\S+\.\S+$/.test(e)
+  const validEmail = (e: string) => EMAIL_REGEX.test(e)
+  // 邮箱是否通过校验，用于实时红框与提示
+  const emailValid = validEmail(email)
+  // 仅当用户已开始输入才提示，避免首屏就报红
+  const showEmailError = email.length > 0 && !emailValid
 
   const handleSendOtp = async () => {
     setMessage(null)
     if (!validEmail(email)) {
-      setMessage({ type: 'error', text: '请输入有效的邮箱地址' })
+      setMessage({ type: 'error', text: '请输入有效的邮箱地址（例如 you@example.com）' })
       return
     }
     setSubmitting(true)
@@ -215,9 +221,19 @@ export default function Auth() {
                       autoComplete="email"
                       placeholder="you@example.com"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      aria-invalid={showEmailError}
+                      onChange={(e) => {
+                        setEmail(e.target.value)
+                        // 用户修改邮箱时清空旧提示，避免红框与绿色"已发送"提示并存
+                        if (message) setMessage(null)
+                      }}
                       className="h-11 rounded-xl border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500 focus-visible:ring-teal-400/60"
                     />
+                    {showEmailError && (
+                      <p className="text-xs text-rose-400">
+                        邮箱格式不正确，请输入有效邮箱（例如 you@example.com）
+                      </p>
+                    )}
                   </div>
                   {message && (
                     <p className={`text-sm ${message.type === 'error' ? 'text-rose-400' : 'text-emerald-300'}`}>
