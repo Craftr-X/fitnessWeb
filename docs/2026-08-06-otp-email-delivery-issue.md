@@ -52,7 +52,13 @@
 
 用自定义 SMTP 绕过默认邮件服务的限制。
 
-### 选型：Resend
+> **2026-08-06 更新（已解决）**：最终采用 **163 邮箱 SMTP** 过渡方案（零成本、无需域名），
+> 新邮箱注册收码已实测通过。配置：`smtp.163.com:465`，Username/Sender 为完整 163 地址，
+> Password 填 163「设置 → POP3/SMTP/IMAP」里开通 IMAP/SMTP 服务后获得的**授权码**（非登录密码）。
+> 注意新注册 163 账号往 QQ 邮箱发信可能触发 554 DT:SPM 反垃圾拦截，属该方案已知短板。
+> 域名 + Resend 降级为**正式上线前的可选项**，见文末待办。
+
+### 原方案：Resend（留作正式上线选项）
 
 - Supabase 侧配置免费
 - Resend 免费档 **3,000 封/月**，验证码量级足够（0 成本）
@@ -104,9 +110,16 @@ Resend 发信必须用已验证的自有域名，不能用它自带的。需要�
 
 ## 六、待办清单
 
+### 已完成（163 SMTP 过渡方案，2026-08-06）
+
+- [x] 注册 163 邮箱，开通 IMAP/SMTP 服务拿授权码
+- [x] Supabase 配置 SMTP 凭据（`smtp.163.com:465`）
+- [x] 新邮箱注册实测通过（任意邮箱可收码）
+
+### 上线前待办（域名 + Resend，可选）
+
 - [ ] 买域名
 - [ ] Resend 添加 `mail.` 子域名 + DNS 验证
-- [ ] Supabase 配置 SMTP 凭据
-- [ ] 新邮箱注册实测
-- [ ] 调高 Supabase 邮件频率限制
+- [ ] Supabase SMTP 切换到 Resend（`smtp.resend.com:465`，密码为 Resend API Key）
+- [ ] 调高 Supabase 邮件频率限制（Authentication → Rate Limits，默认约 30 封/小时）
 - [ ] （可选）域名同时绑 GitHub Pages
