@@ -38,7 +38,7 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
   const [time, setTime] = useState(format(new Date(), 'HH:mm'))
   const [weight, setWeight] = useState('')
   const [bodyFat, setBodyFat] = useState('')
-  const [range, setRange] = useState<'30' | 'all'>('30')
+  const [range, setRange] = useState<'7' | '30' | 'all'>('30')
 
   // 同一天可有多条记录（早晚），以 日期+时间 作为唯一键
   const keyOf = (e: WeightEntry) => `${e.date}T${e.time ?? ''}`
@@ -49,7 +49,8 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
   )
 
   const chartData = useMemo(() => {
-    const cutoff = range === '30' ? format(subDays(new Date(), 30), 'yyyy-MM-dd') : null
+    const cutoff =
+      range === 'all' ? null : format(subDays(new Date(), range === '7' ? 7 : 30), 'yyyy-MM-dd')
     return sorted
       .filter((e) => !cutoff || e.date >= cutoff)
       .map((e) => ({
@@ -134,6 +135,15 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
                 className="w-28"
               />
             </div>
+            <div className="space-y-1">
+              <Label>BMI</Label>
+              <div className="flex h-9 w-24 items-center justify-center rounded-md border bg-muted/60 text-sm font-semibold">
+                {(() => {
+                  const w = parseFloat(weight)
+                  return !isNaN(w) && w > 0 ? bmi(w, heightCm).toFixed(1) : '—'
+                })()}
+              </div>
+            </div>
             <Button onClick={addEntry} className="bg-primary text-primary-foreground hover:bg-primary/90">
               <Plus className="mr-1 h-4 w-4" /> 保存
             </Button>
@@ -147,6 +157,9 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
           <CardTitle className="flex items-center gap-2 text-base">
             <LineChartIcon className="h-4 w-4 text-sky-500" /> 趋势
             <span className="ml-auto flex gap-2">
+              <Button size="sm" variant={range === '7' ? 'default' : 'outline'} onClick={() => setRange('7')}>
+                近 7 天
+              </Button>
               <Button size="sm" variant={range === '30' ? 'default' : 'outline'} onClick={() => setRange('30')}>
                 近 30 天
               </Button>
