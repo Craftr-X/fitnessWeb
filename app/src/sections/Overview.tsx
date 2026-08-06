@@ -15,7 +15,7 @@ import {
   Target,
   TrendingUp,
 } from 'lucide-react'
-import { bmi, bmiLabel, proteinRange } from '@/lib/store'
+import { bmi, bmiLabel, proteinRange, WEIGHT_GOAL_LABEL } from '@/lib/store'
 import Onboarding from '@/pages/Onboarding'
 import type { CheckMap, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
 
@@ -71,6 +71,27 @@ export default function Overview({
   const first = weights[0]
   const weightDelta = first && latest ? latest.weight - first.weight : 0
   const lastFeedback = feedbacks[0]
+
+  // 从当前计划动态提取本周训练摘要，避免硬编码"上身增肌+羽毛球"老模板文案
+  const summary = useMemo(() => {
+    const strengthDays = weekPlan.days.filter((d) => d.type === 'strength')
+    const sportDays = weekPlan.days.filter((d) => d.type === 'sport')
+    const groups = strengthDays.map((d) => d.focus).join('、')
+    const trainCount = strengthDays.length + sportDays.length
+    const sportDesc = sportDays.map((d) => d.focus).join('、')
+    return { trainCount, groups, sportDesc, hasSport: sportDays.length > 0 }
+  }, [weekPlan])
+
+  // 目标导向的体重趋势提示（增肌希望缓慢上涨 / 减脂希望缓慢下降）
+  const goal = profile.weightGoal
+  const weightTrendTip =
+    goal === 'lose'
+      ? '减脂期体重应缓慢下降（每周 0.25-0.5 kg 为宜）'
+      : goal === 'recomp'
+        ? '塑形期体重基本持平，关注体脂与围度变化'
+        : goal === 'maintain'
+          ? '保持期体重稳定即可，重在规律训练'
+          : '增肌期体重应缓慢上涨（每周 0.1-0.25 kg）'
 
   const cardCls = 'rounded-2xl shadow-sm transition-shadow hover:shadow-md'
 
@@ -191,19 +212,26 @@ export default function Overview({
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-500/15">
               <Target className="h-4 w-4 text-sky-500" />
             </span>
-            目标与关键提醒
+            {goal ? `${WEIGHT_GOAL_LABEL[goal]} · 关键提醒` : '目标与关键提醒'}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2 text-sm">
             <li className="flex gap-2">
               <Activity className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" />
-              主攻上身增肌：周一胸+三头、周三背+二头、周五肩+核心，周六羽毛球保持体能。
+              <span>
+                本周训练 <span className="font-medium">{summary.trainCount}</span> 天
+                {summary.groups && <>：{summary.groups}</>}
+                {summary.hasSport && <>；专项 {summary.sportDesc}</>}。
+              </span>
             </li>
             <li className="flex gap-2">
               <Flame className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
-              每天蛋白质 {pMin}–{pMax} g（约 {Math.round(weight * 1.6 / 30)} 个鸡蛋 + 一份鸡胸/鱼肉），
-              热量略有盈余，体重才会往上涨。
+              每天蛋白质 {pMin}–{pMax} g（约 {Math.round(weight * 1.6 / 30)} 个鸡蛋 + 一份鸡胸/鱼肉）。
+            </li>
+            <li className="flex gap-2">
+              <TrendingUp className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+              {weightTrendTip}。
             </li>
             <li className="flex gap-2">
               <Moon className="mt-0.5 h-4 w-4 shrink-0 text-indigo-400" />

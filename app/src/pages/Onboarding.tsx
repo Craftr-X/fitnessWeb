@@ -37,6 +37,9 @@ const STEPS: { key: Step; title: string; desc: string }[] = [
 /** 可选伤病/不适部位 */
 const INJURY_OPTIONS = ['膝盖', '肩', '腰 / 下背', '手腕', '脚踝'] as const
 
+/** 把数值限定在 [lo, hi] 区间（防御性 clamp，避免异常输入写入画像） */
+const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi)
+
 interface Draft {
   gender: Gender
   age: number
@@ -87,6 +90,13 @@ export default function Onboarding({ existing, onComplete, onCancel }: Props) {
   const isBasicsValid =
     draft.age >= 10 && draft.age <= 100 && draft.heightCm >= 100 && draft.heightCm <= 250 && draft.weightKg >= 25 && draft.weightKg <= 300
 
+  // details 步骤校验：训练天数与运动时长由 slider 控制（已限范围），这里只校验取值合理
+  const isDetailsValid =
+    draft.trainDaysPerWeek >= 2 &&
+    draft.trainDaysPerWeek <= 6 &&
+    (draft.sport === 'none' ? draft.sportHours === 0 : draft.sportHours >= 1 && draft.sportHours <= 6) &&
+    Array.isArray(draft.injuries)
+
   const next = () => {
     if (step === 'basics') {
       if (!isBasicsValid) {
@@ -102,19 +112,26 @@ export default function Onboarding({ existing, onComplete, onCancel }: Props) {
   }
 
   const finish = () => {
+    // 防御性 clamp：即便 slider/radio 异常或外部注入，也保证写入的画像落在合法区间
+    const heightCm = clamp(draft.heightCm, 100, 250)
+    const weightKg = clamp(draft.weightKg, 25, 300)
+    const age = clamp(draft.age, 10, 100)
+    const trainDaysPerWeek = clamp(draft.trainDaysPerWeek, 2, 6)
+    const sport: Sport = draft.sport
+    const sportHours = sport === 'none' ? 0 : clamp(draft.sportHours, 1, 6)
     const profile: Profile = {
       ...(existing ?? { name: '我' }),
       gender: draft.gender,
-      age: draft.age,
-      heightCm: draft.heightCm,
-      weightKg: draft.weightKg,
+      age,
+      heightCm,
+      weightKg,
       weightGoal: draft.weightGoal,
       experience: draft.experience,
-      trainDaysPerWeek: draft.trainDaysPerWeek,
+      trainDaysPerWeek,
       equipment: draft.equipment,
-      sport: draft.sport,
-      sportHours: draft.sportHours,
-      injuries: draft.injuries,
+      sport,
+      sportHours,
+      injuries: Array.isArray(draft.injuries) ? draft.injuries : [],
       onboarded: true,
     }
     const weekPlan = buildWeekPlanFromProfile(profile, 1)
@@ -369,7 +386,7 @@ export default function Onboarding({ existing, onComplete, onCancel }: Props) {
               ) : null}
             </div>
             {step === 'details' ? (
-              <Button onClick={finish}>
+              <Button onClick={finish} disabled={!isDetailsValid}>
                 <Sparkles className="mr-1 h-4 w-4" />
                 {existing ? '重新生成计划' : '生成我的计划'}
               </Button>

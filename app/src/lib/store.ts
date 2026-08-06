@@ -285,7 +285,9 @@ export interface CloudStore {
 
 function defaultCloudState(): CloudState {
   return {
-    profile: DEFAULT_PROFILE,
+    // 浅拷贝：避免每个默认实例共享同一个模块级对象引用，
+    // 防止某处误做 profile.xxx = y 时污染全局默认值
+    profile: { ...DEFAULT_PROFILE },
     weekPlan: buildWeekPlan(1),
     checks: {},
     weights: [{ date: format(new Date(), 'yyyy-MM-dd'), weight: 50.5, bodyFat: null }],

@@ -65,6 +65,8 @@ export default function Nutrition({ weights, weightGoal }: Props) {
   const weight = weights[weights.length - 1]?.weight ?? 50.5
   const [pMin, pMax] = useMemo(() => proteinRange(weight), [weight])
   const { target, label, tip } = useMemo(() => calorieTarget(weight, weightGoal), [weight, weightGoal])
+  // 示例餐单总蛋白（早 22 + 午 25 + 加餐 8 + 晚 30 + 睡前 8），用于标题展示与上方目标对照
+  const sampleProtein = 93
 
   return (
     <div className="space-y-4">
@@ -120,7 +122,10 @@ export default function Nutrition({ weights, weightGoal }: Props) {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">一日饮食示例（≈ 90 g 蛋白质）</CardTitle>
+          <CardTitle className="text-base">一日饮食示例（约 {sampleProtein} g 蛋白质）</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            你的每日目标 {pMin}–{pMax} g{sampleProtein >= pMin && sampleProtein <= pMax ? '，与下方示例基本匹配' : '，可按比例增减下方分量'}
+          </p>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p><span className="font-medium">早餐：</span>2 个鸡蛋 + 一杯牛奶 + 全麦面包（≈ 22 g）</p>
