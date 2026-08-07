@@ -1,5 +1,6 @@
 .DS_Store
 DEPLOY.md
+.idea/
 
 # ZCode 工作区元数据
 .zcode/
