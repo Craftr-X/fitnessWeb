@@ -439,7 +439,7 @@ function buildStrengthDay(
 ): DayPlan {
   const pool = filterByInjury(group, poolFor(group, equipment), injuries)
   const main = pool.map((seed) => seedToExercise(seed, p, tuning, experience))
-  const stretch: Exercise = { name: `${STRETCH_PREFIX[group]} 静态拉伸`, sets: '3 分钟' }
+  const stretch: Exercise = { name: `${STRETCH_PREFIX[group]}静态拉伸`, sets: '3 分钟' }
   return {
     day: dayName,
     focus: GROUP_LABEL[group],
