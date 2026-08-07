@@ -164,6 +164,7 @@ export default function ExerciseDemoButton({ exerciseName, demo }: Props) {
           ))}
         </ol>
 
+        {/* 暂不显示动图来源说明
         <p className="text-xs text-muted-foreground">
           动图来源：
           <a href="https://musclewiki.com/zh-cn" target="_blank" rel="noreferrer" className="underline">
@@ -171,6 +172,7 @@ export default function ExerciseDemoButton({ exerciseName, demo }: Props) {
           </a>
           （加载失败时自动切换备用开源动作库）
         </p>
+        */}
       </DialogContent>
     </Dialog>
   )
