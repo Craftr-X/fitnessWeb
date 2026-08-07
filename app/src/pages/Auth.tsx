@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import FeedbackDialog from '@/components/FeedbackDialog'
 
 /** 验证码重发倒计时（秒） */
 const RESEND_COOLDOWN = 60
@@ -332,6 +333,23 @@ export default function Auth() {
             <TrendingUp className="h-3.5 w-3.5 text-teal-400/80" />
             追踪每次进步
           </span>
+        </div>
+
+        {/* 反馈入口：新用户收不到验证码时最需要它，此刻他还没登录 */}
+        <div
+          className="auth-enter mt-4 text-center"
+          style={{ animationDelay: '400ms' }}
+        >
+          <FeedbackDialog
+            trigger={
+              <button
+                type="button"
+                className="text-xs text-slate-500 underline-offset-4 transition-colors hover:text-teal-300 hover:underline"
+              >
+                收不到验证码？点这里反馈
+              </button>
+            }
+          />
         </div>
       </div>
     </div>
