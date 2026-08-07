@@ -1,8 +1,7 @@
 # FitUp 部署配置文档
 
-> **当前状态**：仓库为 Private，GitHub Pages 不可用，仅能通过本地 `npm run dev` 访问。
->
-> **当仓库切换为 Public 后**，按照本文档操作即可启用 Pages 自动部署。
+> **当前状态（2026-08-07 更新）**：已上线，生产地址 https://craftr-x.github.io/fitnessWeb/ 可正常访问，
+> 推送到 `main` 自动部署。以下「切换 Public」步骤仅作历史记录保留。
 >
 > ⚠️ 密钥（Supabase / Resend / Access Token）统一存于云端文档，不落在仓库和本地文档中；本地部署步骤见 `DEPLOY.md`（已加入 .gitignore，不会提交到 Git）。
 
