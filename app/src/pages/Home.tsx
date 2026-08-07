@@ -6,12 +6,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
-import { ArrowRight, Dumbbell, Flame, LogOut } from 'lucide-react'
+import { ArrowRight, Dumbbell, Flame, LogOut, MessageCircle } from 'lucide-react'
 import { useCountUp } from '@/hooks/useCountUp'
 import { buildWeekPlan, currentMonday, mergeOnboardingWeight, needsOnboarding, shouldBackfillOnboarded, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
 import { buildWeekPlanFromProfile } from '@/lib/planEngine'
 import { useAuth } from '@/hooks/useAuth'
 import ThemeToggle from '@/components/ThemeToggle'
+import FeedbackDialog from '@/components/FeedbackDialog'
 import Onboarding from '@/pages/Onboarding'
 import type { Profile, WeekPlan } from '@/types'
 
@@ -188,6 +189,13 @@ export default function Home({ user }: { user: User }) {
           <span className="hidden max-w-40 truncate text-xs text-muted-foreground sm:block">
             {user.email}
           </span>
+          <FeedbackDialog
+            trigger={
+              <Button size="icon" variant="ghost" title="意见反馈" aria-label="意见反馈">
+                <MessageCircle className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            }
+          />
           <ThemeToggle />
           <Badge variant="secondary" className="bg-primary/10 text-primary">
             第 {weekPlan.week} 周
