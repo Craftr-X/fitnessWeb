@@ -10,6 +10,16 @@ interface State {
   error: Error | null
 }
 
+const RELOAD_FLAG = 'fitup:chunk-reload'
+
+function isChunkLoadError(error: Error): boolean {
+  return (
+    /Failed to fetch dynamically imported module/.test(error.message) ||
+    /error loading dynamically imported module/i.test(error.message) ||
+    error.name === 'ChunkLoadError'
+  )
+}
+
 /** 渲染异常兜底：显示错误页而不是黑屏 */
 export default class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null }
@@ -20,6 +30,11 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: unknown) {
     console.error('[FitUp] 渲染异常：', error, info)
+    // 新版本发布后，旧页面缓存的 hash 资源已不存在，自动刷新一次拉取新版
+    if (isChunkLoadError(error) && !sessionStorage.getItem(RELOAD_FLAG)) {
+      sessionStorage.setItem(RELOAD_FLAG, '1')
+      window.location.reload()
+    }
   }
 
   render() {
