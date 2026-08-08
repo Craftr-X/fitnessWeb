@@ -53,12 +53,18 @@ function readLegacy<T>(key: string): T | undefined {
  * 有任何有效数据则返回组装好的 UserData，否则返回 null。不删除旧 key，留作兜底。
  */
 export function readLegacyData(): UserData | null {
-  const data: UserData = {
-    profile: readLegacy<Profile>(LS_KEYS.profile),
-    weekPlan: readLegacy<WeekPlan>(LS_KEYS.weekPlan),
-    checks: readLegacy<CheckMap>(LS_KEYS.checks),
-    weights: readLegacy<WeightEntry[]>(LS_KEYS.weights),
-    feedbacks: readLegacy<WeekFeedback[]>(LS_KEYS.feedback),
-  }
+  // 只收集实际存在的 key：缺省的字段不能写成 undefined，
+  // 否则展开合并时会把默认值覆盖成 undefined（如 profile 缺失导致运行时崩溃）
+  const data: UserData = {}
+  const profile = readLegacy<Profile>(LS_KEYS.profile)
+  if (profile !== undefined) data.profile = profile
+  const weekPlan = readLegacy<WeekPlan>(LS_KEYS.weekPlan)
+  if (weekPlan !== undefined) data.weekPlan = weekPlan
+  const checks = readLegacy<CheckMap>(LS_KEYS.checks)
+  if (checks !== undefined) data.checks = checks
+  const weights = readLegacy<WeightEntry[]>(LS_KEYS.weights)
+  if (weights !== undefined) data.weights = weights
+  const feedbacks = readLegacy<WeekFeedback[]>(LS_KEYS.feedback)
+  if (feedbacks !== undefined) data.feedbacks = feedbacks
   return Object.values(data).some((v) => v !== undefined) ? data : null
 }
