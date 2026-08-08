@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
+import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -7,7 +8,7 @@ import { Slider } from '@/components/ui/slider'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
-import { ClipboardCopy, MessageSquareHeart, Send } from 'lucide-react'
+import { ArrowRightCircle, ClipboardCopy, MessageSquareHeart, Send } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -15,18 +16,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { WeekFeedback, WeekPlan } from '@/types'
+import { buildNextWeekPlan } from '@/lib/planEngine'
+import type { Profile, WeekFeedback, WeekPlan } from '@/types'
 
 interface Props {
   feedbacks: WeekFeedback[]
   setFeedbacks: (v: WeekFeedback[] | ((p: WeekFeedback[]) => WeekFeedback[])) => void
   weekPlan: WeekPlan
+  setWeekPlan: (v: WeekPlan | ((p: WeekPlan) => WeekPlan)) => void
+  /** 当前用户画像，生成下周计划时走规则引擎 */
+  profile: Profile
+  /** 生成下周计划后切到计划 Tab */
+  onGoPlan: () => void
 }
 
 const SORENESS_OPTIONS = ['胸', '背', '肩', '手臂', '腿', '全身轻微', '无明显酸痛']
 const DIFFICULTY_LABELS = ['', '很轻松', '较轻松', '刚刚好', '偏累', '非常吃力']
 
-export default function Feedback({ feedbacks, setFeedbacks, weekPlan }: Props) {
+export default function Feedback({ feedbacks, setFeedbacks, weekPlan, setWeekPlan, profile, onGoPlan }: Props) {
   const [completion, setCompletion] = useState(80)
   const [difficulty, setDifficulty] = useState(3)
   const [soreness, setSoreness] = useState<string[]>([])
@@ -35,6 +42,8 @@ export default function Feedback({ feedbacks, setFeedbacks, weekPlan }: Props) {
   const [note, setNote] = useState('')
   const [saved, setSaved] = useState(false)
   const [copied, setCopied] = useState(false)
+  // 刚保存的反馈：周数仍等于当前计划周时，露出"生成下周计划"CTA
+  const [justSavedFb, setJustSavedFb] = useState<WeekFeedback | null>(null)
 
   const toggleSoreness = (s: string) =>
     setSoreness((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
@@ -51,8 +60,19 @@ export default function Feedback({ feedbacks, setFeedbacks, weekPlan }: Props) {
       note,
     }
     setFeedbacks((prev) => [fb, ...prev.filter((f) => f.week !== weekPlan.week)])
+    setJustSavedFb(fb)
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
+  }
+
+  // 用刚保存的反馈一键生成下周计划，并切到计划 Tab
+  const generateNext = () => {
+    if (!justSavedFb) return
+    const next = buildNextWeekPlan(profile, weekPlan, justSavedFb)
+    setWeekPlan(next)
+    setJustSavedFb(null)
+    toast.success(`🚀 第 ${next.week} 周计划已结合你的反馈生成，继续加油！`)
+    onGoPlan()
   }
 
   const buildSummary = (f: WeekFeedback) =>
@@ -64,7 +84,6 @@ export default function Feedback({ feedbacks, setFeedbacks, weekPlan }: Props) {
       `睡眠：${f.sleep} 小时/晚`,
       `饮食：${f.diet}`,
       f.note ? `备注：${f.note}` : '',
-      '请根据以上反馈帮我调整下周训练计划。',
     ]
       .filter(Boolean)
       .join('\n')
@@ -164,20 +183,27 @@ export default function Feedback({ feedbacks, setFeedbacks, weekPlan }: Props) {
           <Button onClick={save} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
             <Send className="mr-1 h-4 w-4" /> {saved ? '✓ 已保存' : '保存本周反馈'}
           </Button>
+
+          {/* 保存成功后：下周计划还没生成就露出 CTA（下周已生成时 weekPlan.week 会超过反馈周，自动隐藏） */}
+          {justSavedFb && justSavedFb.week === weekPlan.week && (
+            <Button onClick={generateNext} className="w-full bg-emerald-600 text-white hover:bg-emerald-600/90">
+              <ArrowRightCircle className="mr-1 h-4 w-4" /> 生成下周计划
+            </Button>
+          )}
         </CardContent>
       </Card>
 
-      {/* 历史 + 发给 Kimi */}
+      {/* 历史 + 反馈摘要 */}
       <div className="space-y-4">
         <Card className="border-pink-200 bg-pink-50/40 dark:border-pink-500/30 dark:bg-pink-500/10">
           <CardContent className="space-y-3 pt-4 text-sm">
             <p>
-              保存反馈后，可以把摘要直接发给 Kimi，我会结合你的体重/体脂趋势帮你定制下周计划；
-              点「生成下周计划」也会先参考这里的难度评分自动调整。
+              保存后点「生成下周计划」，系统会结合完成度、酸痛、睡眠和饮食自动调整下周训练；
+              也可以复制摘要留档备查。
             </p>
             <Button variant="outline" onClick={copyLatest} disabled={feedbacks.length === 0}>
               <ClipboardCopy className="mr-1 h-4 w-4" />
-              {copied ? '✓ 已复制，去对话里粘贴吧' : '复制最近反馈摘要'}
+              {copied ? '✓ 已复制' : '复制反馈摘要'}
             </Button>
           </CardContent>
         </Card>

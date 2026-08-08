@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   buildWeekPlanFromProfile,
+  buildNextWeekPlan,
   computeProgression,
   splitMuscleGroups,
   tuneByGoal,
@@ -10,7 +11,8 @@ import {
   describeProfile,
   currentMonday,
 } from '@/lib/planEngine'
-import type { Profile } from '@/types'
+import { buildWeekPlan } from '@/lib/store'
+import type { Profile, WeekFeedback, WeekPlan } from '@/types'
 
 /** 测试用画像：男 / 25 岁 / 175cm / 70kg / 增肌 / 新手 / 4 天 / 哑铃 / 跑步 */
 const BASE_PROFILE: Profile = {
@@ -28,6 +30,33 @@ const BASE_PROFILE: Profile = {
   sportHours: 2,
   injuries: [],
 }
+
+/** 测试用反馈：默认值不触发任何调整规则，按需覆盖字段 */
+const makeFb = (over: Partial<WeekFeedback> = {}): WeekFeedback => ({
+  week: 6,
+  date: '2026-08-02',
+  completion: 80,
+  difficulty: 3,
+  soreness: [],
+  sleep: '7-8',
+  diet: '基本达标',
+  note: '',
+  ...over,
+})
+
+/** 第一个力量训练日（BASE_PROFILE：周一 胸 + 三头，exercises[1] 是主项哑铃卧推） */
+const firstStrength = (plan: WeekPlan) => plan.days.find((d) => d.type === 'strength')!
+/** 主项动作的次数下界 */
+const loRepOf = (plan: WeekPlan) =>
+  Number(firstStrength(plan).exercises[1].sets.match(/×\s*(\d+)/)?.[1] ?? 0)
+/** 主项动作的组数 */
+const setsOf = (plan: WeekPlan) =>
+  Number(firstStrength(plan).exercises[1].sets.match(/^(\d+) 组/)?.[1] ?? 0)
+/** 某一天所有「N 组」动作的组数列表（跳过热身/拉伸等分钟制条目） */
+const setCounts = (day: WeekPlan['days'][number]) =>
+  day.exercises
+    .filter((e) => /^\d+ 组/.test(e.sets))
+    .map((e) => Number(e.sets.match(/^(\d+)/)?.[1]))
 
 /* ------------------------------------------------------------------ */
 /* computeProgression —— 渐进超负荷                                     */
@@ -273,9 +302,9 @@ describe('buildWeekPlanFromProfile', () => {
   })
 
   it('difficulty 透传到渐进参数（adjustmentNote 体现）', () => {
-    const hard = buildWeekPlanFromProfile(BASE_PROFILE, 7, 4)
+    const hard = buildWeekPlanFromProfile(BASE_PROFILE, 7, makeFb({ difficulty: 4 }))
     expect(hard.adjustmentNote).toContain('偏难')
-    const easy = buildWeekPlanFromProfile(BASE_PROFILE, 7, 2)
+    const easy = buildWeekPlanFromProfile(BASE_PROFILE, 7, makeFb({ difficulty: 2 }))
     expect(easy.adjustmentNote).toContain('较轻松')
   })
 
@@ -397,6 +426,146 @@ describe('buildWeekPlanFromProfile', () => {
         expect(names).not.toContain('靠墙静蹲')
       }
     }
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* buildWeekPlanFromProfile —— 每周反馈驱动调整                          */
+/* ------------------------------------------------------------------ */
+describe('buildWeekPlanFromProfile — 每周反馈驱动调整', () => {
+  it('完成度 <60%：进阶降一阶 + 组数上限 -1，并说明原因', () => {
+    const plan = buildWeekPlanFromProfile(BASE_PROFILE, 7, makeFb({ completion: 50 }))
+    // week=7 step=3，降量后 extra=2 → 主项 8+2=10 次起
+    expect(loRepOf(plan)).toBe(10)
+    // beginner 常规封顶 3 组，降量后 2 组
+    expect(setsOf(plan)).toBe(2)
+    expect(plan.adjustmentNote).toContain('上周完成度偏低（50%），本周训练量下调')
+  })
+
+  it('完成度低 + difficulty≥4：降阶不重复触发（只额外叠加组数上限 -1）', () => {
+    const hardOnly = buildWeekPlanFromProfile(BASE_PROFILE, 7, makeFb({ difficulty: 5 }))
+    const both = buildWeekPlanFromProfile(BASE_PROFILE, 7, makeFb({ difficulty: 5, completion: 40 }))
+    // 次数进阶相同（只降一阶，不双重降）
+    expect(loRepOf(both)).toBe(loRepOf(hardOnly))
+    // 组数上限仍因完成度低再降一档
+    expect(setsOf(hardOnly)).toBe(3)
+    expect(setsOf(both)).toBe(2)
+  })
+
+  it('完成度 ≥90% 且 difficulty≤2：在常规台阶上额外 +1 阶', () => {
+    const plan = buildWeekPlanFromProfile(BASE_PROFILE, 7, makeFb({ completion: 95, difficulty: 2 }))
+    // step=3；difficulty≤2 已 +1，完成度规则再 +1 → extra=5 → 8+5=13
+    expect(loRepOf(plan)).toBe(13)
+    expect(plan.adjustmentNote).toContain('上周完成度很高且感觉轻松，本周适度加量')
+  })
+
+  it('酸痛部位命中训练日：该日组数 -1（不低于 2）并标注 tip，其他日不受影响', () => {
+    const plan = buildWeekPlanFromProfile(BASE_PROFILE, 1, makeFb({ soreness: ['胸'] }))
+    const chestDay = plan.days[0]
+    expect(chestDay.focus).toContain('胸')
+    // week=1 beginner 常规 3 组 → 全部降为 2 组
+    expect(setCounts(chestDay).every((s) => s === 2)).toBe(true)
+    expect(chestDay.tip).toContain('（上周酸痛，减量恢复）')
+    // 周二背日不受影响
+    expect(setCounts(plan.days[1]).every((s) => s === 3)).toBe(true)
+    expect(plan.days[1].tip).not.toContain('减量恢复')
+  })
+
+  it('全身轻微酸痛：不减量，只在最后一个训练日加恢复提醒', () => {
+    const plan = buildWeekPlanFromProfile(BASE_PROFILE, 1, makeFb({ soreness: ['全身轻微'] }))
+    const allSets = plan.days.flatMap((d) => setCounts(d))
+    expect(allSets.every((s) => s === 3)).toBe(true)
+    const trainDays = plan.days.filter((d) => d.type === 'strength' || d.type === 'sport')
+    expect(trainDays[trainDays.length - 1].tip).toContain('充分热身、拉伸和恢复')
+  })
+
+  it('无明显酸痛：不做任何减量或提示', () => {
+    const plan = buildWeekPlanFromProfile(BASE_PROFILE, 1, makeFb({ soreness: ['无明显酸痛'] }))
+    expect(setsOf(plan)).toBe(3)
+    for (const d of plan.days) expect(d.tip ?? '').not.toContain('减量恢复')
+  })
+
+  it('睡眠 <6 小时：本周不加量（轻松 + 高完成度的加成被压住），休息日提示补觉', () => {
+    const normal = buildWeekPlanFromProfile(BASE_PROFILE, 7, makeFb({ difficulty: 3 }))
+    const sleepy = buildWeekPlanFromProfile(BASE_PROFILE, 7, makeFb({ difficulty: 2, completion: 95, sleep: '<6' }))
+    // 不加睡眠规则会走到 extra=5，被睡眠规则压回 step=3，与正常进阶持平
+    expect(loRepOf(sleepy)).toBe(loRepOf(normal))
+    expect(sleepy.adjustmentNote).toContain('睡眠不足会影响恢复，本周不加量')
+    const restDay = sleepy.days.find((d) => d.type === 'rest')!
+    expect(restDay.tip).toContain('睡够 7-9 小时')
+  })
+
+  it('睡眠 <6 小时：addSet 也被抑制（进阶用户第 5 周仍 3 组）', () => {
+    const plan = buildWeekPlanFromProfile(
+      { ...BASE_PROFILE, experience: 'intermediate' },
+      5,
+      makeFb({ sleep: '<6' }),
+    )
+    expect(setsOf(plan)).toBe(3)
+  })
+
+  it('饮食经常不够 + 增肌目标：训练日提示蛋白质', () => {
+    const plan = buildWeekPlanFromProfile(BASE_PROFILE, 3, makeFb({ diet: '经常不够' }))
+    const tips = plan.days.filter((d) => d.type === 'strength').map((d) => d.tip ?? '').join()
+    expect(tips).toContain('蛋白质要吃够')
+  })
+
+  it('饮食完全没注意 + 减脂目标：训练日提示热量缺口纪律', () => {
+    const plan = buildWeekPlanFromProfile(
+      { ...BASE_PROFILE, weightGoal: 'lose' },
+      3,
+      makeFb({ diet: '完全没注意' }),
+    )
+    const tips = plan.days.filter((d) => d.type === 'strength').map((d) => d.tip ?? '').join()
+    expect(tips).toContain('规律记录饮食')
+  })
+
+  it('饮食基本达标：不加饮食提示', () => {
+    const plan = buildWeekPlanFromProfile(BASE_PROFILE, 3, makeFb({ diet: '基本达标' }))
+    const tips = plan.days.filter((d) => d.type === 'strength').map((d) => d.tip ?? '').join()
+    expect(tips).not.toContain('蛋白质要吃够')
+  })
+
+  it('adjustmentNote：无反馈时保持原有进阶说明', () => {
+    const plan = buildWeekPlanFromProfile(BASE_PROFILE, 3)
+    expect(plan.adjustmentNote).toBe('第 3 周：在前一阶段基础上动作次数 +1（渐进超负荷）。')
+  })
+
+  it('adjustmentNote：有反馈但未触发任何规则 → 兜底文案', () => {
+    const plan = buildWeekPlanFromProfile(BASE_PROFILE, 3, makeFb())
+    expect(plan.adjustmentNote).toContain('根据上周反馈检查，本周保持原计划节奏。')
+  })
+
+  it('adjustmentNote：多条规则触发时用「；」拼接', () => {
+    const plan = buildWeekPlanFromProfile(BASE_PROFILE, 7, makeFb({ completion: 50, sleep: '<6' }))
+    expect(plan.adjustmentNote).toContain('训练量下调')
+    expect(plan.adjustmentNote).toContain('睡眠不足')
+    expect(plan.adjustmentNote).toContain('；')
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* buildNextWeekPlan —— 统一的生成下周入口                               */
+/* ------------------------------------------------------------------ */
+describe('buildNextWeekPlan', () => {
+  it('onboarded 用户走规则引擎，吃完整反馈', () => {
+    const from = buildWeekPlanFromProfile(BASE_PROFILE, 1)
+    const next = buildNextWeekPlan(BASE_PROFILE, from, makeFb({ completion: 50 }))
+    expect(next.week).toBe(2)
+    expect(next.adjustmentNote).toContain('训练量下调')
+  })
+
+  it('未 onboarded 用户回退老模板（只吃 difficulty）', () => {
+    const from = buildWeekPlan(2, 3)
+    const next = buildNextWeekPlan({ name: '我', heightCm: 170 }, from, makeFb({ difficulty: 4 }))
+    expect(next.week).toBe(3)
+    expect(next.adjustmentNote).toContain('偏难')
+  })
+
+  it('支持指定目标周（跨多周补齐），无反馈也可生成', () => {
+    const from = buildWeekPlanFromProfile(BASE_PROFILE, 1)
+    const next = buildNextWeekPlan(BASE_PROFILE, from, undefined, 4)
+    expect(next.week).toBe(4)
   })
 })
 

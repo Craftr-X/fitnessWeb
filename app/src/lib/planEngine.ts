@@ -17,11 +17,12 @@ import type {
   Experience,
   Profile,
   Sport,
+  WeekFeedback,
   WeekPlan,
   WeightGoal,
 } from '@/types'
-// currentMonday 复用 store 实现，避免双份维护；同时 re-export 保持本模块 API 稳定
-import { currentMonday, WEIGHT_GOAL_LABEL } from '@/lib/store'
+// currentMonday/buildWeekPlan 复用 store 实现，避免双份维护；同时 re-export 保持本模块 API 稳定
+import { buildWeekPlan, currentMonday, WEIGHT_GOAL_LABEL } from '@/lib/store'
 export { currentMonday }
 
 /* ------------------------------------------------------------------ */
@@ -35,6 +36,8 @@ interface Progression {
   addSet: boolean
   /** 本周调整说明 */
   note: string
+  /** 反馈触发的组数上限偏移（负=降量，在常规封顶之后再叠加，不低于 2 组） */
+  setCapDelta?: number
 }
 
 /**
@@ -399,7 +402,7 @@ function seedToExercise(
   if (seed.timed) {
     const secs = seed.baseLo + p.extra * 5
     const secsHi = seed.baseHi + p.extra * 5
-    const sets = p.addSet ? 4 : 3
+    const sets = Math.max(2, (p.addSet ? 4 : 3) + (p.setCapDelta ?? 0))
     return { name: seed.name, sets: `${sets} 组 × ${secs}-${secsHi} 秒`, note: seed.note }
   }
   const lo = Math.max(5, seed.baseLo + p.extra + tuning.repOffset)
@@ -407,7 +410,8 @@ function seedToExercise(
   let sets = (p.addSet ? 4 : 3) + tuning.setOffset
   // 新手保护：组数不低于 2，避免一开始就上量太大
   if (experience === 'beginner') sets = Math.min(sets, 3)
-  sets = Math.max(2, sets)
+  // 反馈触发的降量在常规封顶后再叠加（完成度低时组数上限 -1），保底 2 组
+  sets = Math.max(2, sets + (p.setCapDelta ?? 0))
   return { name: seed.name, sets: `${sets} 组 × ${lo}-${hi} 次`, note: seed.note }
 }
 
@@ -568,16 +572,136 @@ export function assembleWeek(
   return days
 }
 
+/* ------------------------------------------------------------------ */
+/* 每周反馈驱动：完成度/酸痛/睡眠/饮食 → 量化调整                        */
+/* （note 自由文本暂不参与，预留给未来的 LLM 层）                        */
+/* ------------------------------------------------------------------ */
+
+/** 酸痛选项 → 肌群（与 Feedback.tsx 的 SORENESS_OPTIONS 严格对齐；"全身轻微"/"无明显酸痛" 不映射肌群） */
+const SORENESS_GROUP: Record<string, MuscleGroup> = {
+  胸: 'chest',
+  背: 'back',
+  肩: 'shoulder',
+  手臂: 'arms',
+  腿: 'legs',
+}
+
+/** 睡眠不足 / 饮食不达标的反馈取值（与 Feedback.tsx 的 select value 严格对齐） */
+const SLEEP_LOW = '<6'
+const DIET_POOR = new Set(['经常不够', '完全没注意'])
+
+/** focus 文案 → 肌群（GROUP_LABEL 的反向映射，用于定位酸痛对应的训练日） */
+const FOCUS_GROUP: Record<string, MuscleGroup> = Object.fromEntries(
+  Object.entries(GROUP_LABEL).map(([g, label]) => [label, g as MuscleGroup]),
+)
+
+/**
+ * 反馈 → 渐进参数修正（完成度/睡眠对"量"的影响）。
+ * 与 computeProgression 串联：先按 difficulty 算基础进阶，再叠加完成度/睡眠规则。
+ */
+function tuneProgressionByFeedback(
+  base: Progression,
+  week: number,
+  feedback: WeekFeedback,
+): { progression: Progression; notes: string[] } {
+  const step = Math.min(Math.floor((week - 1) / 2), 4)
+  const notes: string[] = []
+  let { extra, addSet } = base
+  let setCapDelta: number | undefined
+  // difficulty>=4 已在 computeProgression 内降过一阶；完成度低不再重复降（降阶只触发一次）
+  let deloaded = feedback.difficulty >= 4
+
+  // 完成度 <60%：进阶降一阶 + 组数上限 -1
+  if (feedback.completion < 60) {
+    if (!deloaded) extra = Math.max(0, step - 1)
+    deloaded = true
+    setCapDelta = -1
+    notes.push(`上周完成度偏低（${feedback.completion}%），本周训练量下调`)
+  }
+  // 完成度 ≥90% 且感觉轻松：在常规台阶上再多进一阶
+  if (feedback.completion >= 90 && feedback.difficulty <= 2) {
+    extra += 1
+    notes.push('上周完成度很高且感觉轻松，本周适度加量')
+  }
+  // 睡眠 <6h：本周不加量（不加次数也不加组；降阶仍然生效）
+  if (feedback.sleep === SLEEP_LOW) {
+    extra = deloaded ? Math.max(0, step - 1) : step
+    addSet = false
+    notes.push('睡眠不足会影响恢复，本周不加量')
+  }
+
+  return { progression: { ...base, extra, addSet, setCapDelta }, notes }
+}
+
+/**
+ * 反馈 → 训练日级别调整（酸痛减量 + 睡眠/饮食提示）。
+ * days 是刚构建的新对象，就地修改；返回触发的说明文案。
+ */
+function applyFeedbackToDays(days: DayPlan[], feedback: WeekFeedback, goal: WeightGoal): string[] {
+  const notes: string[] = []
+
+  // 酸痛：对应肌群的训练日每个动作组数 -1（不低于 2 组）+ tip 标注
+  const soreGroups = new Set(
+    feedback.soreness
+      .map((s) => SORENESS_GROUP[s])
+      .filter((g): g is MuscleGroup => g !== undefined),
+  )
+  if (soreGroups.size > 0) {
+    for (const day of days) {
+      if (day.type !== 'strength') continue
+      const group = FOCUS_GROUP[day.focus]
+      if (!group || !soreGroups.has(group)) continue
+      day.exercises = day.exercises.map((ex) => {
+        const m = ex.sets.match(/^(\d+) 组/)
+        if (!m) return ex
+        return { ...ex, sets: ex.sets.replace(/^(\d+) 组/, `${Math.max(2, Number(m[1]) - 1)} 组`) }
+      })
+      day.tip = `${day.tip ?? ''}（上周酸痛，减量恢复）`
+    }
+    notes.push('针对上周酸痛部位减量恢复')
+  }
+
+  // 全身轻微酸痛：不减量，只在最后一个训练日加恢复提醒
+  if (feedback.soreness.includes('全身轻微')) {
+    const lastTrain = [...days].reverse().find((d) => d.type === 'strength' || d.type === 'sport')
+    if (lastTrain) lastTrain.tip = `${lastTrain.tip ?? ''} 上周全身轻微酸痛，注意充分热身、拉伸和恢复。`
+  }
+
+  // 睡眠不足：休息日 tip 提醒补觉
+  if (feedback.sleep === SLEEP_LOW) {
+    const restDay = days.find((d) => d.type === 'rest')
+    if (restDay) restDay.tip = `${restDay.tip ?? ''} 上周睡眠偏少，这周尽量睡够 7-9 小时，恢复优先。`
+  }
+
+  // 饮食不达标：按目标给训练日提示（只提示，不改量）
+  if (DIET_POOR.has(feedback.diet)) {
+    const dietTip =
+      goal === 'gain'
+        ? '增肌期蛋白质要吃够（每天每公斤体重 1.6-2g），肉蛋奶/豆制品安排上。'
+        : goal === 'lose'
+          ? '减脂期重在稳定的热量缺口，尽量规律记录饮食，别大起大落。'
+          : ''
+    if (dietTip) {
+      for (const day of days) {
+        if (day.type === 'strength') day.tip = `${day.tip ?? ''} ${dietTip}`
+      }
+      notes.push('结合上周饮食情况给出营养提醒')
+    }
+  }
+
+  return notes
+}
+
 /**
  * 规则引擎主函数：根据用户画像生成个性化一周计划。
  * @param profile  用户 onboarding 画像（新字段缺失时用安全默认值）
  * @param week     第几周（1 起）
- * @param difficulty 上周反馈难度 1-5（可选，用于渐进调节）
+ * @param feedback 上周反馈（可选）：完成度/难度/酸痛/睡眠/饮食都会参与调整
  */
 export function buildWeekPlanFromProfile(
   profile: Profile,
   week: number,
-  difficulty?: number,
+  feedback?: WeekFeedback | null,
 ): WeekPlan {
   const equipment: Equipment = profile.equipment ?? 'none'
   const experience: Experience = profile.experience ?? 'beginner'
@@ -587,7 +711,10 @@ export function buildWeekPlanFromProfile(
   const sportHours = profile.sportHours ?? 0
 
   const groups = splitMuscleGroups(trainDays, sport !== 'none' && sportHours > 0)
-  const progression = computeProgression(week, difficulty)
+  const base = computeProgression(week, feedback?.difficulty)
+  const { progression, notes } = feedback
+    ? tuneProgressionByFeedback(base, week, feedback)
+    : { progression: base, notes: [] as string[] }
   const tuning = tuneByGoal(goal)
 
   const days = assembleWeek(groups, {
@@ -599,8 +726,36 @@ export function buildWeekPlanFromProfile(
     sport,
     sportHours,
   })
+  if (feedback) notes.push(...applyFeedbackToDays(days, feedback, goal))
 
-  return { week, startDate: currentMonday(), days, adjustmentNote: progression.note }
+  // adjustmentNote：进阶说明 + 反馈触发的调整；有反馈但未触发任何规则时给兜底文案
+  const adjustmentNote = feedback
+    ? [
+        progression.note,
+        ...(notes.length > 0 ? notes : ['根据上周反馈检查，本周保持原计划节奏。']),
+      ].join('；')
+    : progression.note
+
+  return { week, startDate: currentMonday(), days, adjustmentNote }
+}
+
+/* ------------------------------------------------------------------ */
+/* 生成下周计划：Home 跨周 / WeeklyPlan 完成本周 / Feedback CTA 共用    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 统一的"生成下周计划"入口，避免多处调用发散。
+ * 已 onboarded 的用户走规则引擎（吃完整 WeekFeedback）；否则回退老模板（只吃 difficulty）。
+ */
+export function buildNextWeekPlan(
+  profile: Profile | undefined,
+  fromPlan: WeekPlan,
+  feedback?: WeekFeedback | null,
+  targetWeek = fromPlan.week + 1,
+): WeekPlan {
+  return profile?.onboarded && profile.weightGoal
+    ? buildWeekPlanFromProfile(profile, targetWeek, feedback)
+    : buildWeekPlan(targetWeek, feedback?.difficulty)
 }
 
 /* ------------------------------------------------------------------ */

@@ -5,11 +5,12 @@ import type { User } from '@supabase/supabase-js'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Spinner } from '@/components/ui/spinner'
 import { ArrowRight, Dumbbell, Flame, LogOut, MessageCircle } from 'lucide-react'
 import { useCountUp } from '@/hooks/useCountUp'
-import { buildWeekPlan, currentMonday, mergeOnboardingWeight, needsOnboarding, shouldBackfillOnboarded, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
-import { buildWeekPlanFromProfile } from '@/lib/planEngine'
+import { currentMonday, mergeOnboardingWeight, needsOnboarding, shouldBackfillOnboarded, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
+import { buildNextWeekPlan } from '@/lib/planEngine'
 import { useAuth } from '@/hooks/useAuth'
 import ThemeToggle from '@/components/ThemeToggle'
 import FeedbackDialog from '@/components/FeedbackDialog'
@@ -67,11 +68,7 @@ export default function Home({ user }: { user: User }) {
     // 多周未打开 App：跳到当前周；gap=1 为正常跨周
     const targetWeek = weekPlan.week + gap
     const lastFb = feedbacks.find((f) => f.week === weekPlan.week)
-    // 已 onboarded 的用户走规则引擎，保持个性化；否则用老模板
-    const next =
-      profile.onboarded && profile.weightGoal
-        ? buildWeekPlanFromProfile(profile, targetWeek, lastFb?.difficulty)
-        : buildWeekPlan(targetWeek, lastFb?.difficulty)
+    const next = buildNextWeekPlan(profile, weekPlan, lastFb, targetWeek)
     setWeekPlan(next)
     toast.success(
       gap === 1
@@ -189,20 +186,30 @@ export default function Home({ user }: { user: User }) {
           <span className="hidden max-w-40 truncate text-xs text-muted-foreground sm:block">
             {user.email}
           </span>
-          <FeedbackDialog
-            trigger={
-              <Button size="icon" variant="ghost" title="意见反馈" aria-label="意见反馈">
-                <MessageCircle className="h-4 w-4 text-muted-foreground" />
-              </Button>
-            }
-          />
+          <Tooltip>
+            <FeedbackDialog
+              trigger={
+                <TooltipTrigger asChild>
+                  <Button size="icon" variant="ghost" aria-label="意见反馈">
+                    <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </TooltipTrigger>
+              }
+            />
+            <TooltipContent>意见反馈</TooltipContent>
+          </Tooltip>
           <ThemeToggle />
           <Badge variant="secondary" className="bg-primary/10 text-primary">
             第 {weekPlan.week} 周
           </Badge>
-          <Button size="icon" variant="ghost" title="退出登录" onClick={handleSignOut}>
-            <LogOut className="h-4 w-4 text-muted-foreground" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="icon" variant="ghost" aria-label="退出登录" onClick={handleSignOut}>
+                <LogOut className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>退出登录</TooltipContent>
+          </Tooltip>
         </div>
       </header>
 
@@ -344,7 +351,14 @@ export default function Home({ user }: { user: User }) {
               <BodyData weights={weights} setWeights={setWeights} heightCm={profile.heightCm} />
             </TabsContent>
             <TabsContent value="feedback" className="fade-enter">
-              <Feedback feedbacks={feedbacks} setFeedbacks={setFeedbacks} weekPlan={weekPlan} />
+              <Feedback
+                feedbacks={feedbacks}
+                setFeedbacks={setFeedbacks}
+                weekPlan={weekPlan}
+                setWeekPlan={setWeekPlan}
+                profile={profile}
+                onGoPlan={() => setTab('plan')}
+              />
             </TabsContent>
             <TabsContent value="nutrition" className="fade-enter">
               <Nutrition weights={weights} weightGoal={profile.weightGoal} />

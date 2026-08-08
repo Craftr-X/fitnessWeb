@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ArrowRightCircle, BedDouble, CalendarClock, Copy, Dumbbell, Info, Leaf, Trophy } from 'lucide-react'
 import { toast } from 'sonner'
-import { buildWeekPlan, copyWeekPlan, currentMonday } from '@/lib/store'
-import { buildWeekPlanFromProfile } from '@/lib/planEngine'
+import { copyWeekPlan, currentMonday } from '@/lib/store'
+import { buildNextWeekPlan } from '@/lib/planEngine'
 import { burstAt, celebrateDayDone, celebrateWeekDone } from '@/lib/celebrate'
 import { getDemo } from '@/lib/demos'
 import ExerciseDemoButton from '@/components/ExerciseDemoButton'
@@ -86,11 +86,7 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, f
       return
     }
     const lastFb = feedbacks.find((f) => f.week === weekPlan.week)
-    // 已 onboarded 用户走规则引擎保持个性化，否则用老模板
-    const next =
-      profile?.onboarded && profile.weightGoal
-        ? buildWeekPlanFromProfile(profile, weekPlan.week + 1, lastFb?.difficulty)
-        : buildWeekPlan(weekPlan.week + 1, lastFb?.difficulty)
+    const next = buildNextWeekPlan(profile, weekPlan, lastFb)
     setWeekPlan(next)
     setConfirming(false)
     celebrateWeekDone()
@@ -145,7 +141,7 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, f
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
           <div className="flex flex-1 items-start gap-2 text-sm">
             <Info className="mt-0.5 h-4 w-4 shrink-0 opacity-80" />
-            <span className="text-white/90">{weekPlan.adjustmentNote} 想获得更个性化的调整，可在「每周反馈」页复制摘要发给 Kimi。</span>
+            <span className="text-white/90">{weekPlan.adjustmentNote}</span>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button
