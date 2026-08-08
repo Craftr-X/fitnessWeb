@@ -61,6 +61,8 @@ interface Props {
   onComplete: (profile: Profile, weekPlan: WeekPlan) => void
   /** 取消（仅老用户重新定制时显示） */
   onCancel?: () => void
+  /** 嵌入模式：去掉全屏背景和卡片边框阴影，用于嵌进 Dialog 等容器 */
+  embedded?: boolean
 }
 
 /**
@@ -68,7 +70,7 @@ interface Props {
  * 2 步向导：基础信息 → 训练目标与偏好。
  * 完成后调规则引擎生成个性化第 1 周计划。
  */
-export default function Onboarding({ existing, onComplete, onCancel }: Props) {
+export default function Onboarding({ existing, onComplete, onCancel, embedded }: Props) {
   const [step, setStep] = useState<Step>('basics')
   const [draft, setDraft] = useState<Draft>(() => ({
     gender: existing?.gender ?? 'male',
@@ -138,9 +140,8 @@ export default function Onboarding({ existing, onComplete, onCancel }: Props) {
     onComplete(profile, weekPlan)
   }
 
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-primary/5 via-background to-background p-4">
-      <Card className="w-full max-w-lg rounded-2xl shadow-lg">
+  const card = (
+    <Card className={embedded ? 'w-full border-0 shadow-none' : 'w-full max-w-lg rounded-2xl shadow-lg'}>
         <CardHeader className="items-center text-center">
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-500 text-white shadow-md shadow-teal-500/30">
             <Dumbbell className="h-6 w-6" />
@@ -399,6 +400,13 @@ export default function Onboarding({ existing, onComplete, onCancel }: Props) {
           </div>
         </CardContent>
       </Card>
+  )
+
+  if (embedded) return card
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-primary/5 via-background to-background p-4">
+      {card}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { Routes, Route } from 'react-router'
 import { Toaster } from './components/ui/sonner'
-import { Spinner } from './components/ui/spinner'
+import AppSplash from './components/AppSplash'
 import { useAuth } from './hooks/useAuth'
 import Home from './pages/Home'
 import Auth from './pages/Auth'
@@ -15,9 +15,7 @@ export default function App() {
           path="/"
           element={
             loading ? (
-              <div className="flex min-h-screen items-center justify-center">
-                <Spinner className="h-8 w-8" />
-              </div>
+              <AppSplash tip="正在恢复登录状态…" />
             ) : user ? (
               <Home user={user} />
             ) : (
