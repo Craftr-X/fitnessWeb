@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import {
   Activity,
   CalendarCheck,
@@ -264,18 +265,24 @@ export default function Overview({
         </CardContent>
       </Card>
 
-      {/* 重新定制：全屏覆盖 Onboarding，完成后回调 */}
-      {rebuilding && onRebuild && (
-        <div className="fixed inset-0 z-50 overflow-auto bg-background">
-          <Onboarding
-            existing={profile.onboarded ? profile : undefined}
-            onComplete={(p, plan) => {
-              onRebuild(p, plan)
-              setRebuilding(false)
-            }}
-            onCancel={() => setRebuilding(false)}
-          />
-        </div>
+      {/* 重新定制：弹窗内嵌 Onboarding，右上角 X / 点击遮罩关闭，完成后回调 */}
+      {onRebuild && (
+        <Dialog open={rebuilding} onOpenChange={setRebuilding}>
+          <DialogContent
+            className="max-h-[90vh] gap-0 overflow-y-auto p-0 sm:max-w-lg"
+            aria-describedby={undefined}
+          >
+            <DialogTitle className="sr-only">重新定制计划</DialogTitle>
+            <Onboarding
+              embedded
+              existing={profile.onboarded ? profile : undefined}
+              onComplete={(p, plan) => {
+                onRebuild(p, plan)
+                setRebuilding(false)
+              }}
+            />
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

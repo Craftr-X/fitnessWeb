@@ -13,6 +13,7 @@ import { currentMonday, mergeOnboardingWeight, needsOnboarding, shouldBackfillOn
 import { buildNextWeekPlan } from '@/lib/planEngine'
 import { useAuth } from '@/hooks/useAuth'
 import ThemeToggle from '@/components/ThemeToggle'
+import AppSplash from '@/components/AppSplash'
 import FeedbackDialog from '@/components/FeedbackDialog'
 import Onboarding from '@/pages/Onboarding'
 import type { Profile, WeekPlan } from '@/types'
@@ -149,12 +150,7 @@ export default function Home({ user }: { user: User }) {
   }
 
   if (!ready) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3">
-        <Spinner className="h-8 w-8" />
-        <p className="text-sm text-muted-foreground">正在同步你的数据…</p>
-      </div>
-    )
+    return <AppSplash />
   }
 
   return (
