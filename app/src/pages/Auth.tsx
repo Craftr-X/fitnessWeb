@@ -75,6 +75,7 @@ export default function Auth() {
   const [cooldown, setCooldown] = useState(0)
   const [message, setMessage] = useState<{ type: 'error' | 'info'; text: string } | null>(null)
   const cooldownTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+  const verifyingRef = useRef(false)
 
   // 60s 重发倒计时
   useEffect(() => {
@@ -144,16 +145,24 @@ export default function Auth() {
     setMessage({ type: 'info', text: '已重新发送验证码' })
   }
 
-  const handleVerify = async () => {
+  // code 由 onComplete 传入（自动提交）；手动点按钮时缺省读 state
+  const handleVerify = async (code?: string) => {
+    const t = code ?? token
+    // 防重入：自动提交与按钮点击可能同时触发
+    if (verifyingRef.current) return
     setMessage(null)
-    if (token.length !== OTP_LENGTH) {
+    if (t.length !== OTP_LENGTH) {
       setMessage({ type: 'error', text: `请输入 ${OTP_LENGTH} 位验证码` })
       return
     }
+    verifyingRef.current = true
     setSubmitting(true)
-    const err = await verifyOtp(email, token)
+    const err = await verifyOtp(email, t)
     setSubmitting(false)
+    verifyingRef.current = false
     if (err) {
+      // 清空验证码便于直接重输，也避免停留在 6 位导致重复自动提交
+      setToken('')
       setMessage({ type: 'error', text: err })
       return
     }
@@ -264,6 +273,7 @@ export default function Auth() {
                         value={token}
                         onChange={setToken}
                         disabled={submitting}
+                        onComplete={(code) => void handleVerify(code)}
                       >
                         <InputOTPGroup className="gap-2">
                           {[0, 1, 2, 3, 4, 5].map((i) => (
