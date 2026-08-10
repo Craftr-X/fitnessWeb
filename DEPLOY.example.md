@@ -62,9 +62,30 @@ npm run dev    # http://localhost:3000
 
 ## 五、Supabase 认证配置
 
-### 5.1 自定义 SMTP（Resend）
+### 5.1 自定义 SMTP
 
-需注册 Resend（https://resend.com）获取 API Key，然后在 Supabase Dashboard → Authentication → Email → SMTP Settings 配置：
+> **为什么必须配 SMTP**：Supabase 自 2024-09 起变更默认邮件服务策略，未配置自定义 SMTP 的项目，验证码邮件只投递给组织成员邮箱，其余地址一律拒发（表现：新用户注册收不到验证码）。详见 `docs/2026-08-06-otp-email-delivery-issue.md`。
+
+在 Supabase Dashboard → Authentication → Email Templates/SMTP Settings 配置。有两种方案：
+
+#### 方案 A：163 邮箱 SMTP（推荐起步，零成本、无需域名）
+
+注册一个 163 邮箱，在「设置 → POP3/SMTP/IMAP」开通 IMAP/SMTP 服务，获得**授权码**（非登录密码），然后配置：
+
+| 字段 | 值 |
+|------|------|
+| Host | `smtp.163.com` |
+| Port | `465` |
+| Username | 完整 163 邮箱地址 |
+| Password | 163 授权码（非登录密码） |
+| Sender Name | `FitUp` |
+| Sender Email | 同 Username 的 163 邮箱地址 |
+
+> ⚠️ 已知短板：新注册的 163 账号往 QQ 邮箱发信可能触发 554 DT:SPM 反垃圾拦截。如影响注册体验，切换到方案 B。
+
+#### 方案 B：Resend（正式方案，需自有域名）
+
+需注册 Resend（https://resend.com）并绑定已验证的自有域名（免费档 3,000 封/月，验证码量级足够）：
 
 | 字段 | 值 |
 |------|------|
@@ -73,7 +94,7 @@ npm run dev    # http://localhost:3000
 | Username | `resend` |
 | Password | `<你的 Resend API Key>` |
 | Sender Name | `FitUp` |
-| Sender Email | `onboarding@resend.dev`（测试域名）或你自己的域名 |
+| Sender Email | `noreply@mail.<你的域名>`（Resend 验证过的域名） |
 
 ### 5.2 邮件模板（OTP 6 位验证码）
 
@@ -90,7 +111,7 @@ FitUp 登录验证码：{{ .Token }}
 ```html
 <h2>FitUp 登录验证码</h2>
 <p>你的验证码是：<strong style="font-size:24px;letter-spacing:4px;">{{ .Token }}</strong></p>
-<p>验证码 10 分钟内有效，请勿泄露给他人。</p>
+<p>验证码 1 小时内有效，请勿泄露给他人。</p>
 <p style="color:#888;font-size:12px;">如果你没有请求此验证码，请忽略此邮件。</p>
 ```
 
@@ -99,7 +120,7 @@ FitUp 登录验证码：{{ .Token }}
 | 配置项 | 值 |
 |--------|------|
 | OTP 长度 | `6` 位 |
-| OTP 有效期 | `3600` 秒（10 分钟） |
+| OTP 有效期 | `3600` 秒（60 分钟） |
 | 自动创建用户 | `shouldCreateUser: true` |
 
 ---
