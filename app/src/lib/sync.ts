@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { LS_KEYS } from '@/lib/store'
-import type { CheckMap, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
+import type { CheckMap, ExerciseLogMap, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
 
 /** 一个用户的全部应用数据（整文档存储在 user_data.data jsonb 中） */
 export interface UserData {
@@ -9,6 +9,7 @@ export interface UserData {
   checks?: CheckMap
   weights?: WeightEntry[]
   feedbacks?: WeekFeedback[]
+  setLogs?: ExerciseLogMap
 }
 
 /** 拉取远端数据；没有行或出错时返回 null */
@@ -66,5 +67,7 @@ export function readLegacyData(): UserData | null {
   if (weights !== undefined) data.weights = weights
   const feedbacks = readLegacy<WeekFeedback[]>(LS_KEYS.feedback)
   if (feedbacks !== undefined) data.feedbacks = feedbacks
+  const setLogs = readLegacy<ExerciseLogMap>(LS_KEYS.setLogs)
+  if (setLogs !== undefined) data.setLogs = setLogs
   return Object.values(data).some((v) => v !== undefined) ? data : null
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { addDays, differenceInCalendarWeeks, format, startOfWeek } from 'date-fns'
-import type { CheckMap, DayPlan, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
+import type { CheckMap, DayPlan, Exercise, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
 import type { WeightGoal } from '@/types'
 import { loadUserData, readLegacyData, saveUserData } from '@/lib/sync'
 
@@ -10,10 +10,38 @@ export const LS_KEYS = {
   checks: 'fitup:checks',
   weights: 'fitup:weights',
   feedback: 'fitup:feedback',
+  setLogs: 'fitup:setLogs',
 }
 
 /** 登录用户的本地缓存 key（整文档，按用户隔离） */
 export const cloudCacheKey = (userId: string) => `fitup:u:${userId}`
+
+/** 未同步标记 key：本地有改动但尚未确认写入云端时置位（值为 '1'） */
+export const cloudDirtyKey = (userId: string) => `fitup:u:${userId}:dirty`
+
+export function isCloudDirty(userId: string): boolean {
+  try {
+    return localStorage.getItem(cloudDirtyKey(userId)) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function markCloudDirty(userId: string): void {
+  try {
+    localStorage.setItem(cloudDirtyKey(userId), '1')
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearCloudDirty(userId: string): void {
+  try {
+    localStorage.removeItem(cloudDirtyKey(userId))
+  } catch {
+    /* ignore */
+  }
+}
 
 /** 体重目标的中文展示（Home 头部 / Onboarding / planEngine 共享） */
 export const WEIGHT_GOAL_LABEL: Record<WeightGoal, string> = {
@@ -79,10 +107,10 @@ export function buildWeekPlan(week: number, difficulty?: number): WeekPlan {
       tip: '增肌重点日。俯卧撑若太轻松，把脚垫高或背个小书包负重。',
       exercises: [
         { name: '热身：开合跳 + 肩胸动态拉伸', sets: '5 分钟' },
-        { name: '俯卧撑（跪姿可退阶）', sets: `${addSet ? 4 : 3} 组 × ${r(8)}-${r(12)} 次`, note: '胸触地、核心收紧' },
-        { name: '上斜俯卧撑 / 哑铃上斜卧推', sets: `3 组 × ${r(10)} 次`, note: '手撑床沿/凳子练上胸' },
-        { name: '哑铃飞鸟（或毛巾飞鸟）', sets: `3 组 × ${r(12)} 次`, note: '感受胸部挤压' },
-        { name: '凳上臂屈伸', sets: `3 组 × ${r(10)} 次`, note: '练三头，瘦手臂先练它' },
+        { name: '俯卧撑（跪姿可退阶）', sets: `${addSet ? 4 : 3} 组 × ${r(8)}-${r(12)} 次`, note: '胸触地、核心收紧', loadType: 'bodyweight' },
+        { name: '上斜俯卧撑 / 哑铃上斜卧推', sets: `3 组 × ${r(10)} 次`, note: '手撑床沿/凳子练上胸', loadType: 'weighted' },
+        { name: '哑铃飞鸟（或毛巾飞鸟）', sets: `3 组 × ${r(12)} 次`, note: '感受胸部挤压', loadType: 'weighted' },
+        { name: '凳上臂屈伸', sets: `3 组 × ${r(10)} 次`, note: '练三头，瘦手臂先练它', loadType: 'bodyweight' },
         { name: '胸部 + 三头静态拉伸', sets: '3 分钟' },
       ],
     },
@@ -103,10 +131,10 @@ export function buildWeekPlan(week: number, difficulty?: number): WeekPlan {
       tip: '背是上身视觉宽度的关键。没有单杠就用哑铃划船替代引体。',
       exercises: [
         { name: '热身：弹力带/毛巾绕肩 + 猫式伸展', sets: '5 分钟' },
-        { name: '单臂哑铃划船', sets: `${addSet ? 4 : 3} 组 × 每侧 ${r(10)} 次`, note: '可用装满水的水瓶替代' },
-        { name: '俯身哑铃划船', sets: `3 组 × ${r(12)} 次` },
-        { name: '俯身反向飞鸟（练后束+上背）', sets: `3 组 × ${r(12)} 次`, note: '改善圆肩体态' },
-        { name: '哑铃弯举', sets: `3 组 × ${r(12)} 次` },
+        { name: '单臂哑铃划船', sets: `${addSet ? 4 : 3} 组 × 每侧 ${r(10)} 次`, note: '可用装满水的水瓶替代', loadType: 'weighted' },
+        { name: '俯身哑铃划船', sets: `3 组 × ${r(12)} 次`, loadType: 'weighted' },
+        { name: '俯身反向飞鸟（练后束+上背）', sets: `3 组 × ${r(12)} 次`, note: '改善圆肩体态', loadType: 'weighted' },
+        { name: '哑铃弯举', sets: `3 组 × ${r(12)} 次`, loadType: 'weighted' },
         { name: '背部 + 二头静态拉伸', sets: '3 分钟' },
       ],
     },
@@ -124,11 +152,11 @@ export function buildWeekPlan(week: number, difficulty?: number): WeekPlan {
       tip: '宽肩能让上身立刻显壮。侧平举用小重量多次数效果最好。',
       exercises: [
         { name: '热身：肩部环绕 + 招财猫式', sets: '5 分钟' },
-        { name: '哑铃肩上推举', sets: `${addSet ? 4 : 3} 组 × ${r(10)} 次`, note: '可坐椅子上做' },
-        { name: '哑铃侧平举', sets: `3 组 × ${r(15)} 次`, note: '小重量、慢速、到肩高' },
-        { name: '俯身侧平举（后束）', sets: `3 组 × ${r(12)} 次` },
-        { name: '平板支撑', sets: `3 组 × ${45 + extra * 5} 秒` },
-        { name: '卷腹', sets: `3 组 × ${r(15)} 次` },
+        { name: '哑铃肩上推举', sets: `${addSet ? 4 : 3} 组 × ${r(10)} 次`, note: '可坐椅子上做', loadType: 'weighted' },
+        { name: '哑铃侧平举', sets: `3 组 × ${r(15)} 次`, note: '小重量、慢速、到肩高', loadType: 'weighted' },
+        { name: '俯身侧平举（后束）', sets: `3 组 × ${r(12)} 次`, loadType: 'weighted' },
+        { name: '平板支撑', sets: `3 组 × ${45 + extra * 5} 秒`, loadType: 'timed' },
+        { name: '卷腹', sets: `3 组 × ${r(15)} 次`, loadType: 'bodyweight' },
         { name: '肩部拉伸', sets: '3 分钟' },
       ],
     },
@@ -192,6 +220,140 @@ export function mergeOnboardingWeight(
   // 占位 entry 恰是当天 → 直接覆盖（新用户首次进入的常见路径）
   // 占位 entry 非当天（如隔几天才完成 onboarding）→ 前插当天记录，保留占位作历史首点
   return prev.length === 1 && prev[0].date === today ? [entry] : [entry, ...prev]
+}
+
+/* ------------------------------------------------------------------ */
+/* 训记式重量记录：解析计划组数、按动作名存取历史记录                  */
+/* ------------------------------------------------------------------ */
+
+/** 每个动作名最多保留的历史记录条数（防止云端文档无限增长） */
+export const EXERCISE_LOG_CAP = 30
+
+export interface SetTarget {
+  /** 计划组数 */
+  count: number
+  /** 计划每组目标描述，如 "8-12 次"、"45 秒"、"每侧 10 次" */
+  repsHint: string
+}
+
+/**
+ * 解析 Exercise.sets 描述中的组数目标。
+ * "3 组 × 8-12 次" → { count: 3, repsHint: "8-12 次" }；
+ * "5 分钟"、"3 小时" 这类纯时长描述 → null（该动作不适合按组记重量）。
+ */
+export function parseSetTarget(sets: string): SetTarget | null {
+  const m = sets.match(/(\d+)\s*组\s*[×xX*]?\s*(.*)/)
+  if (!m) return null
+  const count = parseInt(m[1], 10)
+  if (!Number.isFinite(count) || count <= 0) return null
+  return { count, repsHint: m[2].trim() }
+}
+
+/** 名称中含这些关键词的动作按负重处理（用于旧数据缺 loadType 时的兜底推断） */
+const WEIGHTED_KEYWORDS =
+  /(哑铃|杠铃|绳索|蝴蝶机|高位下拉|腿举|牧师椅|飞鸟|划船|卧推|推举|弯举|硬拉|负重|俄罗斯转体)/
+
+/**
+ * 推断动作负荷类型（结构化字段 loadType 优先）：
+ * - sets 描述含"秒" → timed（平板支撑等）
+ * - 名称含负重关键词 → weighted；明显的自重例外（毛巾/装水水瓶/引体/悬垂举腿等）→ bodyweight
+ * - 其余 → bodyweight（保守：宁可少记重量，不强迫自重动作填重量）
+ */
+export function inferLoadType(ex: Exercise): LoadType {
+  if (ex.loadType) return ex.loadType
+  if (ex.sets.includes('秒')) return 'timed'
+  // 明显的自重例外优先于关键词：毛巾/水瓶开头、引体、悬垂举腿
+  //（"哑铃飞鸟（或毛巾飞鸟）"开头是哑铃，不受影响）
+  if (/^(毛巾)/.test(ex.name) || /(水瓶|引体向上|悬垂举腿)/.test(ex.name)) return 'bodyweight'
+  if (WEIGHTED_KEYWORDS.test(ex.name)) return 'weighted'
+  return 'bodyweight'
+}
+
+/**
+ * 写入某动作某一天的记录：同一天覆盖，否则按日期升序插入，超出上限裁掉最旧的。
+ * 传入 weekStart（本周一 yyyy-MM-dd）时，丢弃早于本周的记录——产品决策：
+ * 重量记录暂时只保留当前周数据。
+ */
+export function upsertExerciseLog(
+  map: ExerciseLogMap,
+  name: string,
+  record: ExerciseLogRecord,
+  weekStart?: string,
+): ExerciseLogMap {
+  const list = map[name] ?? []
+  const idx = list.findIndex((r) => r.date === record.date)
+  let next =
+    idx >= 0
+      ? list.map((r, i) => (i === idx ? record : r))
+      : [...list, record].sort((a, b) => (a.date < b.date ? -1 : 1))
+  if (weekStart) next = next.filter((r) => r.date >= weekStart)
+  return { ...map, [name]: next.slice(-EXERCISE_LOG_CAP) }
+}
+
+/** 取某动作某一天的记录（没有则 undefined） */
+export function getLogForDate(
+  map: ExerciseLogMap,
+  name: string,
+  date: string,
+): ExerciseLogRecord | undefined {
+  return map[name]?.find((r) => r.date === date)
+}
+
+/** 取某动作在指定日期之前最近一次的训练记录（用于"上次重量"预填） */
+export function getLastLogBefore(
+  map: ExerciseLogMap,
+  name: string,
+  date: string,
+): ExerciseLogRecord | undefined {
+  const list = map[name]
+  if (!list) return undefined
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (list[i].date < date) return list[i]
+  }
+  return undefined
+}
+
+export interface ExerciseWeekStats {
+  /** 单次训练最大容量 kg（Σ 重量×次数；无重量记录为 0） */
+  maxVolume: number
+  /** 单组最大重量 kg */
+  maxWeight: number
+  /** 最佳 1RM 预测 kg（Epley 公式：重量 × (1 + 次数/30)，需重量和次数都填） */
+  best1RM: number
+  /** 总次数（自重/时间类动作的统计维度；timed 动作即总秒数） */
+  totalReps: number
+  /** 单组最多次数（timed 动作即单组最长秒数） */
+  maxReps: number
+}
+
+/**
+ * 汇总一组训练记录的纪录数据（对齐训记"图表"页：容量 / 重量 / 1RM + 自重次数维度）。
+ * 通常传入本周记录；空数组返回全 0。
+ */
+export function exerciseWeekStats(records: ExerciseLogRecord[]): ExerciseWeekStats {
+  let maxVolume = 0
+  let maxWeight = 0
+  let best1RM = 0
+  let totalReps = 0
+  let maxReps = 0
+  for (const rec of records) {
+    let volume = 0
+    for (const s of rec.sets) {
+      const w = s.weightKg ?? 0
+      const r = s.reps ?? 0
+      volume += w * r
+      totalReps += r
+      if (r > maxReps) maxReps = r
+      if (w > maxWeight) maxWeight = w
+      if (s.weightKg != null && s.reps != null && s.reps > 0) {
+        const e1rm = s.weightKg * (1 + s.reps / 30)
+        if (e1rm > best1RM) best1RM = e1rm
+      }
+    }
+    if (volume > maxVolume) maxVolume = volume
+  }
+  // 1RM 保留 1 位小数（Epley 会产出长小数）；容量/重量本身来自用户输入，原样返回
+  return { maxVolume, maxWeight, best1RM: Math.round(best1RM * 10) / 10, totalReps, maxReps }
 }
 
 /* ------------------------------------------------------------------ */
@@ -265,6 +427,7 @@ export interface CloudState {
   checks: CheckMap
   weights: WeightEntry[]
   feedbacks: WeekFeedback[]
+  setLogs: ExerciseLogMap
 }
 
 export type Setter<T> = (v: T | ((p: T) => T)) => void
@@ -275,6 +438,7 @@ export interface CloudStore {
   checks: [CheckMap, Setter<CheckMap>]
   weights: [WeightEntry[], Setter<WeightEntry[]>]
   feedbacks: [WeekFeedback[], Setter<WeekFeedback[]>]
+  setLogs: [ExerciseLogMap, Setter<ExerciseLogMap>]
   /** 远端数据加载（或迁移）完成前为 false，界面应显示加载态 */
   ready: boolean
   /** 本次登录触发了旧本地数据迁移 */
@@ -292,6 +456,7 @@ function defaultCloudState(): CloudState {
     checks: {},
     weights: [{ date: format(new Date(), 'yyyy-MM-dd'), weight: 50.5, bodyFat: null }],
     feedbacks: [],
+    setLogs: {},
   }
 }
 
@@ -310,6 +475,11 @@ function readCache(userId: string): CloudState | null {
  * 云端同步存储：登录用户的单一数据源。
  * 启动时先用本地缓存秒开，再拉远端覆盖；远端为空则自动迁移旧版本地数据。
  * 之后每次变更写缓存并防抖 800ms 同步到 Supabase。
+ *
+ * 防丢数据：变更在防抖窗口内（或断网/保存失败时）只落了本地缓存，若下次启动
+ * 直接让远端覆盖，这部分改动就丢了。因此每次变更先置「未同步标记」，保存成功
+ * 才清除；启动时检测到标记就以本地缓存为准、跳过远端拉取，由持久化 effect 重推。
+ * 注意整文档 last-write-wins：本机有未同步改动时，重推会覆盖期间其他设备的写入。
  */
 export function useCloudStorage(userId: string): CloudStore {
   const [state, setState] = useState<CloudState>(() => readCache(userId) ?? defaultCloudState())
@@ -324,6 +494,13 @@ export function useCloudStorage(userId: string): CloudStore {
   useEffect(() => {
     let cancelled = false
     void (async () => {
+      // 本地有未确认同步的改动：缓存比远端新，跳过拉取（否则远端旧数据会覆盖
+      // 新改动）。state 已由 useState 初始化读自缓存，直接 ready，交给下面的
+      // 持久化 effect 重推并清标记。缓存缺失（如被单独清除）时退回正常路径。
+      if (isCloudDirty(userId) && readCache(userId)) {
+        if (!cancelled) setReady(true)
+        return
+      }
       const remote = await loadUserData(userId)
       if (cancelled) return
       if (remote && Object.values(remote).some((v) => v !== undefined)) {
@@ -350,14 +527,23 @@ export function useCloudStorage(userId: string): CloudStore {
     } catch {
       /* ignore */
     }
+    // 先置未同步标记，保存成功后才清除：标记存在即代表"缓存里有云端还没有的数据"
+    markCloudDirty(userId)
+    const snapshot = state
     const timer = setTimeout(() => {
-      void saveUserData(userId, state)
+      void saveUserData(userId, snapshot).then((ok) => {
+        // 保存期间又有了新变更（stateRef 已指向更新的状态）时不能清标记：
+        // 新一轮防抖保存会负责清，或由下次启动重推
+        if (ok && stateRef.current === snapshot) clearCloudDirty(userId)
+      })
     }, 800)
     return () => clearTimeout(timer)
   }, [state, ready, userId])
 
   const flush = useCallback(async () => {
-    await saveUserData(userId, stateRef.current)
+    const snapshot = stateRef.current
+    const ok = await saveUserData(userId, snapshot)
+    if (ok && stateRef.current === snapshot) clearCloudDirty(userId)
   }, [userId])
 
   const makeSetter = useCallback(
@@ -376,6 +562,7 @@ export function useCloudStorage(userId: string): CloudStore {
     checks: [state.checks, makeSetter('checks')],
     weights: [state.weights, makeSetter('weights')],
     feedbacks: [state.feedbacks, makeSetter('feedbacks')],
+    setLogs: [state.setLogs, makeSetter('setLogs')],
     ready,
     migrated,
     flush,

@@ -1,7 +1,12 @@
+/** 动作负荷类型：负重（记重量+次数）/ 自重（只记次数）/ 时间（只记秒数） */
+export type LoadType = 'weighted' | 'bodyweight' | 'timed'
+
 export interface Exercise {
   name: string
   sets: string
   note?: string
+  /** 负荷类型；缺省时由 inferLoadType 按名称/组次描述推断（兼容旧云端数据） */
+  loadType?: LoadType
 }
 
 export interface DayPlan {
@@ -25,6 +30,24 @@ export interface WeightEntry {
   weight: number
   bodyFat?: number | null
 }
+
+/** 一组的实际完成记录（训记式重量记录） */
+export interface WorkoutSet {
+  /** 实际使用重量 kg；null = 自重 / 未填 */
+  weightKg: number | null
+  /** 实际完成次数（时间类动作存秒数）；null = 未填 */
+  reps: number | null
+}
+
+/** 某动作某一天的完整训练记录 */
+export interface ExerciseLogRecord {
+  date: string // YYYY-MM-DD
+  week: number
+  sets: WorkoutSet[]
+}
+
+/** 按动作名索引的历史记录，records 按日期升序，只保留最近若干条 */
+export type ExerciseLogMap = Record<string, ExerciseLogRecord[]>
 
 export interface WeekFeedback {
   week: number

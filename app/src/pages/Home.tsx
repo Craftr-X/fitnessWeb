@@ -42,6 +42,7 @@ export default function Home({ user }: { user: User }) {
   const [checks, setChecks] = cloud.checks
   const [weights, setWeights] = cloud.weights
   const [feedbacks, setFeedbacks] = cloud.feedbacks
+  const [setLogs, setSetLogs] = cloud.setLogs
   const [tab, setTab] = useState('overview')
 
   // 判断是否需要 onboarding：未 onboarded 且没有任何使用痕迹（真·新用户）
@@ -338,6 +339,8 @@ export default function Home({ user }: { user: User }) {
                 setWeekPlan={setWeekPlan}
                 checks={checks}
                 setChecks={setChecks}
+                setLogs={setLogs}
+                setSetLogs={setSetLogs}
                 feedbacks={feedbacks}
                 onGoFeedback={() => setTab('feedback')}
                 profile={profile}

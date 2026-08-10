@@ -609,3 +609,43 @@ describe('describeProfile', () => {
     expect(describeProfile({ name: '', heightCm: 0 })).toBe('')
   })
 })
+
+/* ------------------------------------------------------------------ */
+/* loadType 生成：器械池 → weighted，徒手池 → bodyweight，timed → timed，*/
+/* 健身房池里的自重例外（引体/悬垂举腿）→ bodyweight                      */
+/* ------------------------------------------------------------------ */
+describe('生成动作的 loadType 标注', () => {
+  const strengthExercises = (plan: WeekPlan) =>
+    plan.days.filter((d) => d.type === 'strength').flatMap((d) => d.exercises)
+
+  it('哑铃池动作 → weighted', () => {
+    const plan = buildWeekPlanFromProfile(BASE_PROFILE, 1)
+    const main = strengthExercises(plan).filter((e) => e.name.includes('哑铃'))
+    expect(main.length).toBeGreaterThan(0)
+    expect(main.every((e) => e.loadType === 'weighted')).toBe(true)
+  })
+
+  it('徒手池动作 → bodyweight，时间类 → timed', () => {
+    const plan = buildWeekPlanFromProfile({ ...BASE_PROFILE, equipment: 'none' }, 1)
+    const exs = strengthExercises(plan)
+    const pushup = exs.find((e) => e.name.includes('俯卧撑'))
+    expect(pushup?.loadType).toBe('bodyweight')
+  })
+
+  it('健身房池里的自重例外 → bodyweight', () => {
+    const plan = buildWeekPlanFromProfile({ ...BASE_PROFILE, equipment: 'gym' }, 1)
+    const exs = strengthExercises(plan)
+    const pullup = exs.find((e) => e.name.includes('引体向上'))
+    if (pullup) expect(pullup.loadType).toBe('bodyweight')
+    // 器械动作仍 weighted
+    const barbell = exs.find((e) => e.name.includes('杠铃'))
+    expect(barbell?.loadType).toBe('weighted')
+  })
+
+  it('时间类动作（平板支撑）→ timed', () => {
+    const plan = buildWeekPlanFromProfile({ ...BASE_PROFILE, trainDaysPerWeek: 6, sport: 'none', sportHours: 0 }, 1)
+    const exs = strengthExercises(plan)
+    const plank = exs.find((e) => e.name.includes('平板支撑'))
+    if (plank) expect(plank.loadType).toBe('timed')
+  })
+})
