@@ -9,7 +9,6 @@ import {
   mergeOnboardingWeight,
   hasUsageTrace,
   needsOnboarding,
-  shouldBackfillOnboarded,
   parseSetTarget,
   upsertExerciseLog,
   getLogForDate,
@@ -332,7 +331,7 @@ describe('mergeOnboardingWeight', () => {
 })
 
 /* ------------------------------------------------------------------ */
-/* 新老用户判定 —— hasUsageTrace / needsOnboarding / shouldBackfill    */
+/* 新老用户判定 —— hasUsageTrace / needsOnboarding                     */
 /* ------------------------------------------------------------------ */
 
 // 初始状态：defaultCloudState 的默认值（无任何使用痕迹）
@@ -371,68 +370,196 @@ describe('hasUsageTrace', () => {
 })
 
 describe('needsOnboarding', () => {
-  const newUserState = { ready: true, onboarded: undefined, trace: INITIAL_TRACE }
-  const readyState = (overrides: Partial<typeof newUserState>) => ({ ...newUserState, ...overrides })
-
-  it('真·新用户（ready + 未 onboarded + 无痕迹）：true', () => {
-    expect(needsOnboarding(readyState({}))).toBe(true)
+  it('真·新用户（ready + 未 onboarded）：true', () => {
+    expect(needsOnboarding({ ready: true, onboarded: undefined })).toBe(true)
   })
 
   it('数据未就绪（ready=false）：false', () => {
-    expect(needsOnboarding(readyState({ ready: false }))).toBe(false)
-  })
-
-  it('老用户（有使用痕迹）：false', () => {
-    expect(needsOnboarding(readyState({ trace: { ...INITIAL_TRACE, checks: { '1:0:0': true } } }))).toBe(false)
+    expect(needsOnboarding({ ready: false, onboarded: undefined })).toBe(false)
   })
 
   it('已 onboarded：false', () => {
-    expect(needsOnboarding(readyState({ onboarded: true }))).toBe(false)
+    expect(needsOnboarding({ ready: true, onboarded: true })).toBe(false)
+  })
+
+  // 软迁移：onboarding 是生成计划的唯一入口，不再静默补 onboarded 标志。
+  // 老用户（有使用痕迹）同样进引导，完成即迁移到规则引擎计划——与是否有痕迹无关。
+  it('老用户（未 onboarded，可能有使用痕迹）：一律 true（锁定迁移行为）', () => {
+    expect(needsOnboarding({ ready: true, onboarded: undefined })).toBe(true)
+    expect(needsOnboarding({ ready: true, onboarded: false })).toBe(true)
   })
 })
 
-describe('shouldBackfillOnboarded', () => {
-  const oldUserState = {
-    ready: true,
-    onboarded: undefined,
-    trace: { ...INITIAL_TRACE, checks: { '1:0:0': true } },
-  }
-  const state = (overrides: Partial<typeof oldUserState>) => ({ ...oldUserState, ...overrides })
-
-  it('老用户（ready + 未 onboarded + 有痕迹）：true', () => {
-    expect(shouldBackfillOnboarded(state({}))).toBe(true)
+/* ------------------------------------------------------------------ */
+/* parseSetTarget —— 从 sets 描述解析组数目标（重量记录入口判定）       */
+/* ------------------------------------------------------------------ */
+describe('parseSetTarget', () => {
+  it('常规次数动作："3 组 × 8-12 次"', () => {
+    expect(parseSetTarget('3 组 × 8-12 次')).toEqual({ count: 3, repsHint: '8-12 次' })
   })
 
-  it('真·新用户（无痕迹）：false', () => {
-    expect(shouldBackfillOnboarded(state({ trace: INITIAL_TRACE }))).toBe(false)
+  it('时间类动作："3 组 × 45 秒"', () => {
+    expect(parseSetTarget('3 组 × 45 秒')).toEqual({ count: 3, repsHint: '45 秒' })
   })
 
-  it('数据未就绪：false', () => {
-    expect(shouldBackfillOnboarded(state({ ready: false }))).toBe(false)
+  it('带修饰语："4 组 × 每侧 10 次"', () => {
+    expect(parseSetTarget('4 组 × 每侧 10 次')).toEqual({ count: 4, repsHint: '每侧 10 次' })
   })
 
-  it('已 onboarded：false', () => {
-    expect(shouldBackfillOnboarded(state({ onboarded: true }))).toBe(false)
+  it('纯时长描述不解析："5 分钟" / "3 小时" / "轻松配速"', () => {
+    expect(parseSetTarget('5 分钟')).toBeNull()
+    expect(parseSetTarget('3 小时')).toBeNull()
+    expect(parseSetTarget('轻松配速')).toBeNull()
+  })
+
+  it('组数为 0 或非法：null', () => {
+    expect(parseSetTarget('0 组 × 10 次')).toBeNull()
   })
 })
 
-describe('needsOnboarding 与 shouldBackfillOnboarded 互斥', () => {
-  it('真·新用户：needsOnboarding=true，shouldBackfill=false', () => {
-    const obState = { ready: true, onboarded: undefined, trace: INITIAL_TRACE }
-    expect(needsOnboarding(obState)).toBe(true)
-    expect(shouldBackfillOnboarded(obState)).toBe(false)
+/* ------------------------------------------------------------------ */
+/* upsertExerciseLog / getLogForDate / getLastLogBefore —— 动作历史记录 */
+/* ------------------------------------------------------------------ */
+describe('ExerciseLog helpers', () => {
+  const rec = (date: string, weightKg: number | null, reps: number | null) => ({
+    date,
+    week: 1,
+    sets: [{ weightKg, reps }],
   })
 
-  it('老用户：needsOnboarding=false，shouldBackfill=true', () => {
-    const obState = { ready: true, onboarded: undefined, trace: { ...INITIAL_TRACE, checks: { '1:0:0': true } } }
-    expect(needsOnboarding(obState)).toBe(false)
-    expect(shouldBackfillOnboarded(obState)).toBe(true)
+  it('新日期追加并按日期升序排列', () => {
+    let map: ExerciseLogMap = {}
+    map = upsertExerciseLog(map, '俯卧撑', rec('2026-08-05', 10, 12))
+    map = upsertExerciseLog(map, '俯卧撑', rec('2026-08-03', 8, 10))
+    expect(map['俯卧撑'].map((r) => r.date)).toEqual(['2026-08-03', '2026-08-05'])
   })
 
-  it('已 onboarded 用户：两者都 false', () => {
-    const obState = { ready: true, onboarded: true, trace: INITIAL_TRACE }
-    expect(needsOnboarding(obState)).toBe(false)
-    expect(shouldBackfillOnboarded(obState)).toBe(false)
+  it('同一天覆盖而不是追加', () => {
+    let map: ExerciseLogMap = {}
+    map = upsertExerciseLog(map, '俯卧撑', rec('2026-08-05', 10, 12))
+    map = upsertExerciseLog(map, '俯卧撑', rec('2026-08-05', 12.5, 10))
+    expect(map['俯卧撑']).toHaveLength(1)
+    expect(map['俯卧撑'][0].sets[0]).toEqual({ weightKg: 12.5, reps: 10 })
+  })
+
+  it('超出上限裁掉最旧的记录', () => {
+    let map: ExerciseLogMap = {}
+    for (let i = 1; i <= EXERCISE_LOG_CAP + 5; i++) {
+      const date = `2026-08-${String(i).padStart(2, '0')}`
+      map = upsertExerciseLog(map, '俯卧撑', rec(date, 10, 10))
+    }
+    expect(map['俯卧撑']).toHaveLength(EXERCISE_LOG_CAP)
+    expect(map['俯卧撑'][0].date).toBe('2026-08-06')
+  })
+
+  it('传入 weekStart 时丢弃早于本周的记录（只保留当前周数据）', () => {
+    let map: ExerciseLogMap = {}
+    map = upsertExerciseLog(map, '俯卧撑', rec('2026-08-03', 8, 10)) // 上周一
+    map = upsertExerciseLog(map, '俯卧撑', rec('2026-08-09', 9, 10)) // 上周日
+    // 本周一（2026-08-10）写入新记录，weekStart = 本周一
+    map = upsertExerciseLog(map, '俯卧撑', rec('2026-08-10', 10, 12), '2026-08-10')
+    expect(map['俯卧撑'].map((r) => r.date)).toEqual(['2026-08-10'])
+  })
+
+  it('传入 weekStart 时保留本周内的历史记录', () => {
+    let map: ExerciseLogMap = {}
+    map = upsertExerciseLog(map, '俯卧撑', rec('2026-08-10', 10, 12)) // 周一
+    map = upsertExerciseLog(map, '俯卧撑', rec('2026-08-12', 12, 10), '2026-08-10') // 周三
+    expect(map['俯卧撑'].map((r) => r.date)).toEqual(['2026-08-10', '2026-08-12'])
+  })
+
+  it('getLogForDate 精确取当天记录', () => {
+    const map = upsertExerciseLog({}, '俯卧撑', rec('2026-08-05', 10, 12))
+    expect(getLogForDate(map, '俯卧撑', '2026-08-05')?.sets[0].weightKg).toBe(10)
+    expect(getLogForDate(map, '俯卧撑', '2026-08-06')).toBeUndefined()
+    expect(getLogForDate(map, '不存在的动作', '2026-08-05')).toBeUndefined()
+  })
+
+  it('getLastLogBefore 取指定日期之前最近一次记录', () => {
+    let map: ExerciseLogMap = {}
+    map = upsertExerciseLog(map, '俯卧撑', rec('2026-08-03', 8, 10))
+    map = upsertExerciseLog(map, '俯卧撑', rec('2026-08-05', 10, 12))
+    expect(getLastLogBefore(map, '俯卧撑', '2026-08-10')?.date).toBe('2026-08-05')
+    expect(getLastLogBefore(map, '俯卧撑', '2026-08-05')?.date).toBe('2026-08-03')
+    expect(getLastLogBefore(map, '俯卧撑', '2026-08-03')).toBeUndefined()
+    expect(getLastLogBefore(map, '不存在的动作', '2026-08-10')).toBeUndefined()
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* exerciseWeekStats —— 容量 / 重量 / 1RM 三条纪录（对齐训记图表页）     */
+/* ------------------------------------------------------------------ */
+describe('exerciseWeekStats', () => {
+  it('空记录返回全 0', () => {
+    expect(exerciseWeekStats([])).toEqual({ maxVolume: 0, maxWeight: 0, best1RM: 0, totalReps: 0, maxReps: 0 })
+  })
+
+  it('容量取单次训练最大值，重量取单组最大值', () => {
+    const stats = exerciseWeekStats([
+      // 容量 = 10×12 × 2 = 240
+      { date: '2026-08-10', week: 1, sets: [{ weightKg: 10, reps: 12 }, { weightKg: 10, reps: 12 }] },
+      // 容量 = 20×6 = 120，但最大重量 20
+      { date: '2026-08-12', week: 1, sets: [{ weightKg: 20, reps: 6 }] },
+    ])
+    expect(stats.maxVolume).toBe(240)
+    expect(stats.maxWeight).toBe(20)
+  })
+
+  it('1RM 用 Epley 公式：重量 × (1 + 次数/30)，取最佳并保留 1 位小数', () => {
+    // 10kg × 12 次 → 10 × 1.4 = 14；20kg × 6 次 → 20 × 1.2 = 24
+    const stats = exerciseWeekStats([
+      { date: '2026-08-10', week: 1, sets: [{ weightKg: 10, reps: 12 }] },
+      { date: '2026-08-12', week: 1, sets: [{ weightKg: 20, reps: 6 }] },
+    ])
+    expect(stats.best1RM).toBe(24)
+  })
+
+  it('自重组（weightKg null）不计入重量纪录和 1RM', () => {
+    const stats = exerciseWeekStats([
+      { date: '2026-08-10', week: 1, sets: [{ weightKg: null, reps: 15 }] },
+    ])
+    expect(stats).toEqual({ maxVolume: 0, maxWeight: 0, best1RM: 0, totalReps: 15, maxReps: 15 })
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* inferLoadType —— 负荷类型推断（旧数据无 loadType 字段时的兜底）       */
+/* ------------------------------------------------------------------ */
+describe('inferLoadType', () => {
+  const ex = (name: string, sets: string, loadType?: 'weighted' | 'bodyweight' | 'timed') => ({
+    name,
+    sets,
+    loadType,
+  })
+
+  it('结构化字段优先', () => {
+    expect(inferLoadType(ex('随便什么动作', '3 组 × 10 次', 'weighted'))).toBe('weighted')
+  })
+
+  it('sets 含"秒" → timed', () => {
+    expect(inferLoadType(ex('平板支撑', '3 组 × 45 秒'))).toBe('timed')
+  })
+
+  it('哑铃/杠铃/器械关键词 → weighted', () => {
+    expect(inferLoadType(ex('哑铃弯举', '3 组 × 12 次'))).toBe('weighted')
+    expect(inferLoadType(ex('杠铃深蹲', '3 组 × 8-10 次'))).toBe('weighted')
+    expect(inferLoadType(ex('高位下拉', '3 组 × 10-12 次'))).toBe('weighted')
+    expect(inferLoadType(ex('俯身反向飞鸟（练后束+上背）', '3 组 × 12 次'))).toBe('weighted')
+    expect(inferLoadType(ex('负重卷腹', '3 组 × 15-20 次'))).toBe('weighted')
+    expect(inferLoadType(ex('哑铃飞鸟（或毛巾飞鸟）', '3 组 × 12 次'))).toBe('weighted')
+  })
+
+  it('自重例外优先于关键词：毛巾开头 / 水瓶 / 引体 / 悬垂举腿 → bodyweight', () => {
+    expect(inferLoadType(ex('毛巾飞鸟', '3 组 × 12-15 次'))).toBe('bodyweight')
+    expect(inferLoadType(ex('侧平举（装水水瓶）', '3 组 × 12-15 次'))).toBe('bodyweight')
+    expect(inferLoadType(ex('引体向上（可弹力带辅助）', '3 组 × 6-10 次'))).toBe('bodyweight')
+    expect(inferLoadType(ex('悬垂举腿', '3 组 × 10-12 次'))).toBe('bodyweight')
+  })
+
+  it('无关键词的普通动作 → bodyweight（保守，不强迫自重动作填重量）', () => {
+    expect(inferLoadType(ex('俯卧撑（跪姿可退阶）', '3 组 × 8-12 次'))).toBe('bodyweight')
+    expect(inferLoadType(ex('徒手深蹲', '3 组 × 15-20 次'))).toBe('bodyweight')
+    expect(inferLoadType(ex('卷腹', '3 组 × 15 次'))).toBe('bodyweight')
   })
 })
 

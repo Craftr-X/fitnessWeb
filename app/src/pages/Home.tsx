@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Spinner } from '@/components/ui/spinner'
 import { ArrowRight, Dumbbell, Flame, LogOut, MessageCircle } from 'lucide-react'
 import { useCountUp } from '@/hooks/useCountUp'
-import { currentMonday, mergeOnboardingWeight, needsOnboarding, shouldBackfillOnboarded, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
+import { currentMonday, hasUsageTrace, mergeOnboardingWeight, needsOnboarding, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
 import { buildNextWeekPlan } from '@/lib/planEngine'
 import { useAuth } from '@/hooks/useAuth'
 import ThemeToggle from '@/components/ThemeToggle'
@@ -45,20 +45,12 @@ export default function Home({ user }: { user: User }) {
   const [setLogs, setSetLogs] = cloud.setLogs
   const [tab, setTab] = useState('overview')
 
-  // 判断是否需要 onboarding：未 onboarded 且没有任何使用痕迹（真·新用户）
-  // 老用户（账号体系上线前已有数据）虽然有 profile.onboarded 缺失，但有使用痕迹 → 不强制填表
+  // 未 onboarded 一律走引导：真·新用户首次配置；老用户（账号体系上线前已有数据）
+  // 借此软迁移到规则引擎计划——onboarding 是生成计划的唯一入口
   const trace = { checks, feedbacks, weights, weekPlan }
-  const obState = { ready, onboarded: profile.onboarded, trace }
-  const needsOnboardingVal = needsOnboarding(obState)
-
-  // 老用户静默补 onboarded 标志（避免每次进来都判断）
-  const backfillNotified = useRef(false)
-  useEffect(() => {
-    if (!shouldBackfillOnboarded(obState) || backfillNotified.current) return
-    backfillNotified.current = true
-    setProfile((p) => ({ ...p, onboarded: true }))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, profile.onboarded])
+  const needsOnboardingVal = needsOnboarding({ ready, onboarded: profile.onboarded })
+  // 老用户迁移：走引导时带上已有画像预填（最新真实体重取自 weights，占位 entry 不算）
+  const isLegacyMigration = needsOnboardingVal && hasUsageTrace(trace)
 
   // 进入新自然周后自动生成新一周计划：跨多周时一次性补齐到当前周
   const rolledOver = useRef(false) // 防止 StrictMode 下 effect 双跑重复弹提示
@@ -99,15 +91,23 @@ export default function Home({ user }: { user: User }) {
   const handleOnboard = (newProfile: Profile, newPlan: WeekPlan) => {
     setProfile({ ...newProfile, onboarded: true })
     setWeekPlan(newPlan)
+    // 旧打卡 key（周:日:动作序号）会错配到新计划，直接清空；
+    // 历史完成度已快照在 feedbacks.completion，体重历史保留
+    setChecks({})
     syncWeightFromProfile(newProfile.weightKg ?? 0)
     rolledOver.current = true // 防止刚生成的计划立即触发 rollover
-    toast.success('🎉 你的专属健身计划已生成！')
+    toast.success(
+      isLegacyMigration
+        ? '🎉 已按你的画像生成新计划！历史体重与反馈已保留。'
+        : '🎉 你的专属健身计划已生成！',
+    )
   }
 
   // 重新定制完成（老用户）：重置为第 1 周
   const handleRebuild = (newProfile: Profile, newPlan: WeekPlan) => {
     setProfile({ ...newProfile, onboarded: true })
     setWeekPlan(newPlan)
+    setChecks({}) // 同 handleOnboard：防止旧打卡错配到新计划
     syncWeightFromProfile(newProfile.weightKg ?? 0)
     toast.success('🔄 计划已按你的最新情况重新生成！')
   }
@@ -145,9 +145,12 @@ export default function Home({ user }: { user: User }) {
   const animatedWeight = useCountUp(latestWeight ?? 0)
   const animatedWeeks = useCountUp(feedbacks.length)
 
-  // 新用户首次进入：走 onboarding 引导
+  // 新用户首次进入 / 老用户软迁移：走 onboarding 引导（老用户带画像预填）
   if (needsOnboardingVal) {
-    return <Onboarding onComplete={handleOnboard} />
+    const existing: Profile | undefined = isLegacyMigration
+      ? { ...profile, weightKg: weights.length > 1 ? latestWeight : profile.weightKg }
+      : undefined
+    return <Onboarding existing={existing} onComplete={handleOnboard} />
   }
 
   if (!ready) {
