@@ -15,6 +15,7 @@ import type {
   Equipment,
   Exercise,
   Experience,
+  LoadType,
   Profile,
   Sport,
   WeekFeedback,
@@ -113,6 +114,11 @@ interface ExerciseSeed {
   timed?: boolean
   /** 固定组数倍率：1=正常（受 addSet 影响），0=不受 addSet 影响（如热身/拉伸） */
   setTier?: 0 | 1
+  /**
+   * 负荷类型覆盖：缺省时按 timed → 'timed'、器械 none → 'bodyweight'、其余 → 'weighted' 推断。
+   * 健身房池里的自重动作（引体向上、悬垂举腿等）需显式标 'bodyweight'。
+   */
+  loadType?: LoadType
   note?: string
 }
 
@@ -146,7 +152,7 @@ const POOL: Record<MuscleGroup, Partial<Record<Equipment, ExerciseSeed[]>>> = {
       { name: '俯身哑铃反向飞鸟（后束）', baseLo: 12, baseHi: 15, note: '改善体态' },
     ],
     gym: [
-      { name: '引体向上（练不了用弹力带辅助）', baseLo: 6, baseHi: 10 },
+      { name: '引体向上（可弹力带辅助）', baseLo: 6, baseHi: 10, loadType: 'bodyweight' },
       { name: '高位下拉', baseLo: 10, baseHi: 12 },
       { name: '杠铃划船', baseLo: 10, baseHi: 12 },
     ],
@@ -214,7 +220,7 @@ const POOL: Record<MuscleGroup, Partial<Record<Equipment, ExerciseSeed[]>>> = {
       { name: '俄罗斯转体（持哑铃）', baseLo: 15, baseHi: 20 },
     ],
     gym: [
-      { name: '悬垂举腿', baseLo: 10, baseHi: 12 },
+      { name: '悬垂举腿', baseLo: 10, baseHi: 12, loadType: 'bodyweight' },
       { name: '绳索卷腹', baseLo: 15, baseHi: 20 },
       { name: '平板支撑', baseLo: 45, baseHi: 60, timed: true },
     ],
@@ -222,8 +228,8 @@ const POOL: Record<MuscleGroup, Partial<Record<Equipment, ExerciseSeed[]>>> = {
   push: {
     none: [
       { name: '俯卧撑（跪姿可退阶）', baseLo: 8, baseHi: 12 },
-      { name: '凳上臂屈伸（三头）', baseLo: 10, baseHi: 12 },
-      { name: '折刀俯卧撑（肩）', baseLo: 8, baseHi: 12 },
+      { name: '凳上臂屈伸（练三头）', baseLo: 10, baseHi: 12 },
+      { name: '折刀俯卧撑（练肩）', baseLo: 8, baseHi: 12 },
     ],
     dumbbell: [
       { name: '哑铃卧推', baseLo: 8, baseHi: 12 },
@@ -238,17 +244,17 @@ const POOL: Record<MuscleGroup, Partial<Record<Equipment, ExerciseSeed[]>>> = {
   },
   pull: {
     none: [
-      { name: '俯卧 Y-T-W 抬起', baseLo: 10, baseHi: 12 },
-      { name: '超人式', baseLo: 12, baseHi: 15 },
+      { name: '俯卧 Y-T-W 抬起（练上背）', baseLo: 10, baseHi: 12 },
+      { name: '超人式（练下背）', baseLo: 12, baseHi: 15 },
       { name: '反向雪天使', baseLo: 12, baseHi: 15 },
     ],
     dumbbell: [
       { name: '单臂哑铃划船', baseLo: 10, baseHi: 12 },
       { name: '哑铃弯举', baseLo: 12, baseHi: 15 },
-      { name: '俯身哑铃反向飞鸟', baseLo: 12, baseHi: 15 },
+      { name: '俯身哑铃反向飞鸟（后束）', baseLo: 12, baseHi: 15 },
     ],
     gym: [
-      { name: '引体向上', baseLo: 6, baseHi: 10 },
+      { name: '引体向上（可弹力带辅助）', baseLo: 6, baseHi: 10, loadType: 'bodyweight' },
       { name: '高位下拉', baseLo: 10, baseHi: 12 },
       { name: '杠铃划船', baseLo: 10, baseHi: 12 },
     ],
@@ -257,7 +263,7 @@ const POOL: Record<MuscleGroup, Partial<Record<Equipment, ExerciseSeed[]>>> = {
     none: [
       { name: '徒手深蹲', baseLo: 15, baseHi: 20 },
       { name: '俯卧撑（跪姿可退阶）', baseLo: 8, baseHi: 12 },
-      { name: '俯卧 Y-T-W 抬起', baseLo: 10, baseHi: 12 },
+      { name: '俯卧 Y-T-W 抬起（练上背）', baseLo: 10, baseHi: 12 },
       { name: '平板支撑', baseLo: 45, baseHi: 60, timed: true },
     ],
     dumbbell: [
@@ -269,7 +275,7 @@ const POOL: Record<MuscleGroup, Partial<Record<Equipment, ExerciseSeed[]>>> = {
     gym: [
       { name: '杠铃深蹲', baseLo: 8, baseHi: 10 },
       { name: '杠铃卧推', baseLo: 8, baseHi: 12 },
-      { name: '引体向上 / 高位下拉', baseLo: 8, baseHi: 12 },
+      { name: '引体向上 / 高位下拉', baseLo: 8, baseHi: 12, loadType: 'bodyweight' },
       { name: '肩上推举', baseLo: 8, baseHi: 12 },
     ],
   },
@@ -394,16 +400,20 @@ function seedToExercise(
   p: Progression,
   tuning: GoalTuning,
   experience: Experience,
+  equipment: Equipment,
 ): Exercise {
   // 热身/拉伸类（setTier=0）保持原样，不进阶
   if (seed.setTier === 0) {
     return { name: seed.name, sets: `${seed.baseLo} 分钟`, note: seed.note }
   }
+  // 负荷类型：显式标注优先；否则时间类 → timed，徒手池 → bodyweight，哑铃/健身房池 → weighted
+  const loadType: LoadType =
+    seed.loadType ?? (seed.timed ? 'timed' : equipment === 'none' ? 'bodyweight' : 'weighted')
   if (seed.timed) {
     const secs = seed.baseLo + p.extra * 5
     const secsHi = seed.baseHi + p.extra * 5
     const sets = Math.max(2, (p.addSet ? 4 : 3) + (p.setCapDelta ?? 0))
-    return { name: seed.name, sets: `${sets} 组 × ${secs}-${secsHi} 秒`, note: seed.note }
+    return { name: seed.name, sets: `${sets} 组 × ${secs}-${secsHi} 秒`, note: seed.note, loadType }
   }
   const lo = Math.max(5, seed.baseLo + p.extra + tuning.repOffset)
   const hi = Math.max(lo + 2, seed.baseHi + p.extra + tuning.repOffset)
@@ -412,7 +422,7 @@ function seedToExercise(
   if (experience === 'beginner') sets = Math.min(sets, 3)
   // 反馈触发的降量在常规封顶后再叠加（完成度低时组数上限 -1），保底 2 组
   sets = Math.max(2, sets + (p.setCapDelta ?? 0))
-  return { name: seed.name, sets: `${sets} 组 × ${lo}-${hi} 次`, note: seed.note }
+  return { name: seed.name, sets: `${sets} 组 × ${lo}-${hi} 次`, note: seed.note, loadType }
 }
 
 /* ------------------------------------------------------------------ */
@@ -442,7 +452,7 @@ function buildStrengthDay(
   injuries: string[] | undefined,
 ): DayPlan {
   const pool = filterByInjury(group, poolFor(group, equipment), injuries)
-  const main = pool.map((seed) => seedToExercise(seed, p, tuning, experience))
+  const main = pool.map((seed) => seedToExercise(seed, p, tuning, experience, equipment))
   const stretch: Exercise = { name: `${STRETCH_PREFIX[group]}静态拉伸`, sets: '3 分钟' }
   return {
     day: dayName,
