@@ -53,7 +53,7 @@ export const WEIGHT_GOAL_LABEL: Record<WeightGoal, string> = {
 
 export const DEFAULT_PROFILE: Profile = {
   name: '我',
-  heightCm: 163,
+  heightCm: 170,
 }
 
 export function currentMonday(): string {
@@ -357,7 +357,7 @@ export function exerciseWeekStats(records: ExerciseLogRecord[]): ExerciseWeekSta
 }
 
 /* ------------------------------------------------------------------ */
-/* 新老用户判定：决定首页走 onboarding 引导 / 静默补标志 / 直接进主界面 */
+/* 新老用户判定：决定首页是否走 onboarding 引导、老用户迁移时是否预填   */
 /* ------------------------------------------------------------------ */
 
 export interface UsageTrace {
@@ -367,15 +367,10 @@ export interface UsageTrace {
   weekPlan: WeekPlan
 }
 
-export interface OnboardingState {
-  ready: boolean
-  onboarded: boolean | undefined
-  trace: UsageTrace
-}
-
 /**
  * 是否有使用痕迹：任一维度非初始默认值即算。
- * 用于区分"真·新用户"和"账号体系上线前已有数据的老用户"。
+ * 用于区分"真·新用户"和"账号体系上线前已有数据的老用户"——
+ * 老用户走 onboarding 软迁移时按已有画像预填。
  * weights.length>1：默认占位 entry 不算痕迹，至少 2 条才算。
  */
 export function hasUsageTrace(trace: UsageTrace): boolean {
@@ -388,18 +383,12 @@ export function hasUsageTrace(trace: UsageTrace): boolean {
 }
 
 /**
- * 是否需要走 onboarding 引导：数据就绪 + 未 onboarded + 无任何使用痕迹（真·新用户）。
+ * 是否需要走 onboarding 引导：数据就绪 + 未 onboarded。
+ * 老用户（有使用痕迹）同样要走——onboarding 是生成计划的唯一入口，
+ * 完成即把老模板计划软迁移为规则引擎计划（历史体重/反馈保留，旧打卡清空）。
  */
-export function needsOnboarding(state: OnboardingState): boolean {
-  return state.ready && !state.onboarded && !hasUsageTrace(state.trace)
-}
-
-/**
- * 是否需要静默补 onboarded 标志：数据就绪 + 未 onboarded + 有使用痕迹（老用户）。
- * 与 needsOnboarding 互斥（一个要 trace，一个不要）。
- */
-export function shouldBackfillOnboarded(state: OnboardingState): boolean {
-  return state.ready && !state.onboarded && hasUsageTrace(state.trace)
+export function needsOnboarding(state: { ready: boolean; onboarded: boolean | undefined }): boolean {
+  return state.ready && !state.onboarded
 }
 
 /** 计算 BMI */

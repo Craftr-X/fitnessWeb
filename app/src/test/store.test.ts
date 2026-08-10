@@ -9,7 +9,6 @@ import {
   mergeOnboardingWeight,
   hasUsageTrace,
   needsOnboarding,
-  shouldBackfillOnboarded,
   parseSetTarget,
   upsertExerciseLog,
   getLogForDate,
@@ -332,7 +331,7 @@ describe('mergeOnboardingWeight', () => {
 })
 
 /* ------------------------------------------------------------------ */
-/* 新老用户判定 —— hasUsageTrace / needsOnboarding / shouldBackfill    */
+/* 新老用户判定 —— hasUsageTrace / needsOnboarding                     */
 /* ------------------------------------------------------------------ */
 
 // 初始状态：defaultCloudState 的默认值（无任何使用痕迹）
@@ -371,68 +370,23 @@ describe('hasUsageTrace', () => {
 })
 
 describe('needsOnboarding', () => {
-  const newUserState = { ready: true, onboarded: undefined, trace: INITIAL_TRACE }
-  const readyState = (overrides: Partial<typeof newUserState>) => ({ ...newUserState, ...overrides })
-
-  it('真·新用户（ready + 未 onboarded + 无痕迹）：true', () => {
-    expect(needsOnboarding(readyState({}))).toBe(true)
+  it('真·新用户（ready + 未 onboarded）：true', () => {
+    expect(needsOnboarding({ ready: true, onboarded: undefined })).toBe(true)
   })
 
   it('数据未就绪（ready=false）：false', () => {
-    expect(needsOnboarding(readyState({ ready: false }))).toBe(false)
-  })
-
-  it('老用户（有使用痕迹）：false', () => {
-    expect(needsOnboarding(readyState({ trace: { ...INITIAL_TRACE, checks: { '1:0:0': true } } }))).toBe(false)
+    expect(needsOnboarding({ ready: false, onboarded: undefined })).toBe(false)
   })
 
   it('已 onboarded：false', () => {
-    expect(needsOnboarding(readyState({ onboarded: true }))).toBe(false)
-  })
-})
-
-describe('shouldBackfillOnboarded', () => {
-  const oldUserState = {
-    ready: true,
-    onboarded: undefined,
-    trace: { ...INITIAL_TRACE, checks: { '1:0:0': true } },
-  }
-  const state = (overrides: Partial<typeof oldUserState>) => ({ ...oldUserState, ...overrides })
-
-  it('老用户（ready + 未 onboarded + 有痕迹）：true', () => {
-    expect(shouldBackfillOnboarded(state({}))).toBe(true)
+    expect(needsOnboarding({ ready: true, onboarded: true })).toBe(false)
   })
 
-  it('真·新用户（无痕迹）：false', () => {
-    expect(shouldBackfillOnboarded(state({ trace: INITIAL_TRACE }))).toBe(false)
-  })
-
-  it('数据未就绪：false', () => {
-    expect(shouldBackfillOnboarded(state({ ready: false }))).toBe(false)
-  })
-
-  it('已 onboarded：false', () => {
-    expect(shouldBackfillOnboarded(state({ onboarded: true }))).toBe(false)
-  })
-})
-
-describe('needsOnboarding 与 shouldBackfillOnboarded 互斥', () => {
-  it('真·新用户：needsOnboarding=true，shouldBackfill=false', () => {
-    const obState = { ready: true, onboarded: undefined, trace: INITIAL_TRACE }
-    expect(needsOnboarding(obState)).toBe(true)
-    expect(shouldBackfillOnboarded(obState)).toBe(false)
-  })
-
-  it('老用户：needsOnboarding=false，shouldBackfill=true', () => {
-    const obState = { ready: true, onboarded: undefined, trace: { ...INITIAL_TRACE, checks: { '1:0:0': true } } }
-    expect(needsOnboarding(obState)).toBe(false)
-    expect(shouldBackfillOnboarded(obState)).toBe(true)
-  })
-
-  it('已 onboarded 用户：两者都 false', () => {
-    const obState = { ready: true, onboarded: true, trace: INITIAL_TRACE }
-    expect(needsOnboarding(obState)).toBe(false)
-    expect(shouldBackfillOnboarded(obState)).toBe(false)
+  // 软迁移：onboarding 是生成计划的唯一入口，不再静默补 onboarded 标志。
+  // 老用户（有使用痕迹）同样进引导，完成即迁移到规则引擎计划——与是否有痕迹无关。
+  it('老用户（未 onboarded，可能有使用痕迹）：一律 true（锁定迁移行为）', () => {
+    expect(needsOnboarding({ ready: true, onboarded: undefined })).toBe(true)
+    expect(needsOnboarding({ ready: true, onboarded: false })).toBe(true)
   })
 })
 
