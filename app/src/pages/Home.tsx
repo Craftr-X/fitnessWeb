@@ -49,7 +49,7 @@ export default function Home({ user }: { user: User }) {
   // 借此软迁移到规则引擎计划——onboarding 是生成计划的唯一入口
   const trace = { checks, feedbacks, weights, weekPlan }
   const needsOnboardingVal = needsOnboarding({ ready, onboarded: profile.onboarded })
-  // 老用户迁移：走引导时带上已有画像预填（最新真实体重取自 weights，占位 entry 不算）
+  // 老用户迁移：走引导时带上已有画像预填（最新真实体重取自 weights，仅 onboarding 写入的 1 条不算）
   const isLegacyMigration = needsOnboardingVal && hasUsageTrace(trace)
 
   // 进入新自然周后自动生成新一周计划：跨多周时一次性补齐到当前周

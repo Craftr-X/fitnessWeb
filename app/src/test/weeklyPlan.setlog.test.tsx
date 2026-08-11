@@ -4,9 +4,42 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { addDays, format } from 'date-fns'
 import WeeklyPlan from '@/sections/WeeklyPlan'
-import { buildWeekPlan } from '@/lib/store'
+import { currentMonday } from '@/lib/planEngine'
 import { Toaster } from '@/components/ui/sonner'
-import type { CheckMap, ExerciseLogMap } from '@/types'
+import type { CheckMap, ExerciseLogMap, WeekPlan } from '@/types'
+
+const WEIGHTED_EX = '哑铃弯举'
+const BODYWEIGHT_EX = '俯卧撑（跪姿可退阶）'
+const TIMED_EX = '平板支撑'
+
+/**
+ * 测试用固定计划：覆盖三种负荷类型（weighted/bodyweight/timed），
+ * 动作名 + sets 描述与原 buildWeekPlan 模板保持一致，便于断言。
+ */
+const TEST_PLAN: WeekPlan = {
+  week: 1,
+  startDate: currentMonday(),
+  days: [
+    {
+      day: '周一',
+      focus: '胸 + 三头',
+      type: 'strength',
+      exercises: [
+        { name: '热身：开合跳 + 肩胸动态拉伸', sets: '5 分钟' },
+        { name: WEIGHTED_EX, sets: '3 组 × 12 次', loadType: 'weighted' },
+        { name: BODYWEIGHT_EX, sets: '3 组 × 8-12 次', loadType: 'bodyweight' },
+        { name: TIMED_EX, sets: '3 组 × 60 秒', loadType: 'timed' },
+      ],
+    },
+    ...Array.from({ length: 6 }, (_, i) => ({
+      day: ['周二', '周三', '周四', '周五', '周六', '周日'][i],
+      focus: '休息',
+      type: 'rest' as const,
+      exercises: [],
+    })),
+  ],
+  adjustmentNote: '测试',
+}
 
 /**
  * WeeklyPlan 训记式重量记录弹窗的交互测试（三种负荷类型）。
@@ -16,7 +49,7 @@ import type { CheckMap, ExerciseLogMap } from '@/types'
  */
 
 function Harness({ initialLogs = {} }: { initialLogs?: ExerciseLogMap }) {
-  const [weekPlan] = useState(() => buildWeekPlan(1))
+  const [weekPlan] = useState(() => TEST_PLAN)
   const [checks, setChecks] = useState<CheckMap>({})
   const [setLogs, setSetLogs] = useState<ExerciseLogMap>(initialLogs)
   return (
@@ -38,14 +71,10 @@ function Harness({ initialLogs = {} }: { initialLogs?: ExerciseLogMap }) {
 
 type User = ReturnType<typeof userEvent.setup>
 
-const WEIGHTED_EX = '哑铃弯举'
-const BODYWEIGHT_EX = '俯卧撑（跪姿可退阶）'
-const TIMED_EX = '平板支撑'
-
 const today = new Date()
 const todayStr = format(today, 'yyyy-MM-dd')
 /** 本周日：一定落在本周内（>= startDate）且不是今天，用于本周历史用例 */
-const sundayStr = format(addDays(new Date(buildWeekPlan(1).startDate + 'T00:00:00'), 6), 'yyyy-MM-dd')
+const sundayStr = format(addDays(new Date(TEST_PLAN.startDate + 'T00:00:00'), 6), 'yyyy-MM-dd')
 
 /** 指定动作所在的动作行容器 */
 function rowFor(name: string): HTMLElement {

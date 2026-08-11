@@ -50,7 +50,7 @@ export default function Overview({
 }: Props) {
   const [rebuilding, setRebuilding] = useState(false)
   const latest = weights[weights.length - 1]
-  const weight = latest?.weight ?? 50.5
+  const weight = latest?.weight ?? profile.weightKg ?? 0
   const bmiValue = bmi(weight, profile.heightCm)
   const [pMin, pMax] = proteinRange(weight)
 
@@ -118,7 +118,9 @@ export default function Overview({
         <CardContent className="space-y-3">
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="rounded-xl bg-gradient-to-b from-orange-500/10 to-transparent p-3">
-              <div className="text-2xl font-bold tabular-nums text-orange-600 dark:text-orange-400">{animatedWeight.toFixed(2)}</div>
+              <div className="text-2xl font-bold tabular-nums text-orange-600 dark:text-orange-400">
+                {weight === 0 ? '—' : animatedWeight.toFixed(2)}
+              </div>
               <div className="text-xs text-muted-foreground">体重 kg</div>
             </div>
             <div className="rounded-xl bg-gradient-to-b from-sky-500/10 to-transparent p-3">
@@ -128,8 +130,12 @@ export default function Overview({
               <div className="text-xs text-muted-foreground">体脂 %</div>
             </div>
             <div className="rounded-xl bg-gradient-to-b from-emerald-500/10 to-transparent p-3">
-              <div className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{animatedBmi.toFixed(1)}</div>
-              <div className="text-xs text-muted-foreground">BMI（{bmiLabel(bmiValue)}）</div>
+              <div className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                {weight === 0 ? '—' : animatedBmi.toFixed(1)}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {weight === 0 ? '未记录体重' : `BMI（${bmiLabel(bmiValue)}）`}
+              </div>
             </div>
           </div>
           <div className="flex items-center justify-between text-sm">
@@ -148,12 +154,18 @@ export default function Overview({
           </div>
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
             <TrendingUp className="h-4 w-4" />
-            自开始记录以来体重{' '}
-            <span className={weightDelta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}>
-              {weightDelta >= 0 ? '+' : ''}
-              {weightDelta.toFixed(2)} kg
-            </span>
-            （增肌期希望缓慢上涨）
+            {weights.length === 0 ? (
+              '未记录体重'
+            ) : (
+              <>
+                自开始记录以来体重{' '}
+                <span className={weightDelta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}>
+                  {weightDelta >= 0 ? '+' : ''}
+                  {weightDelta.toFixed(2)} kg
+                </span>
+                （增肌期希望缓慢上涨）
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -235,7 +247,9 @@ export default function Overview({
             </li>
             <li className="flex gap-2">
               <Flame className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
-              每天蛋白质 {pMin}–{pMax} g（约 {Math.round(weight * 1.6 / 30)} 个鸡蛋 + 一份鸡胸/鱼肉）。
+              {weight === 0
+                ? '请先记录体重，再计算每日蛋白质目标。'
+                : <>每天蛋白质 {pMin}–{pMax} g（约 {Math.round(weight * 1.6 / 30)} 个鸡蛋 + 一份鸡胸/鱼肉）。</>}
             </li>
             <li className="flex gap-2">
               <TrendingUp className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />

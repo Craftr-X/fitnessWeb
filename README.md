@@ -12,7 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![Tests](https://img.shields.io/badge/Tests-137%20passed-brightgreen)](#-常用命令)
+[![Tests](https://img.shields.io/badge/Tests-171%20passed-brightgreen)](#-常用命令)
 
 [功能特性](#-功能特性) · [在线预览](#-应用截图) · [快速开始](#-快速开始) · [部署](#-部署) · [项目结构](#-项目结构)
 
@@ -69,7 +69,7 @@
 | 后端 | Supabase（Auth + Postgres + RLS） |
 | 表单 | React Hook Form、Zod |
 | 可视化 | Recharts |
-| 测试 | Vitest + Testing Library（137 个单元测试） |
+| 测试 | Vitest + Testing Library（171 个单元测试） |
 | CI/CD | GitHub Actions（lint + test + build → Pages 部署） |
 
 ## 🚀 快速开始
@@ -99,7 +99,7 @@ Supabase 配置（建表 + RLS + Auth）详见 [`app/README.md`](app/README.md)�
 cd app
 npm run dev        # 开发服务器
 npm run build      # 类型检查 + 生产构建
-npm run test       # 单元测试（137 个）
+npm run test       # 单元测试（171 个）
 npm run lint       # ESLint
 ```
 

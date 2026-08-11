@@ -1,7 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import {
-  buildWeekPlan,
-  copyWeekPlan,
   bmi,
   bmiLabel,
   proteinRange,
@@ -88,171 +86,6 @@ describe('proteinRange', () => {
 })
 
 /* ------------------------------------------------------------------ */
-/* buildWeekPlan —— 渐进超负荷计划生成                                */
-/* ------------------------------------------------------------------ */
-describe('buildWeekPlan', () => {
-  /* ---- 基础进阶 step = floor((week-1)/2)，上限 4 ---- */
-  it('第 1 周：step=0，次数不进阶', () => {
-    const plan = buildWeekPlan(1)
-    // 周一俯卧撑 r(8)=8, r(12)=12 → "3 组 × 8-12 次"
-    expect(plan.days[0].exercises[1].sets).toBe('3 组 × 8-12 次')
-  })
-
-  it('第 2 周：step 仍为 0', () => {
-    const plan = buildWeekPlan(2)
-    expect(plan.days[0].exercises[1].sets).toBe('3 组 × 8-12 次')
-  })
-
-  it('第 3 周：step=1，次数 +1', () => {
-    const plan = buildWeekPlan(3)
-    expect(plan.days[0].exercises[1].sets).toBe('3 组 × 9-13 次')
-  })
-
-  it('第 9 周：step=4（达到上限），week>=5 且无反馈 → addSet=true', () => {
-    const plan = buildWeekPlan(9)
-    // week>=5 且 difficulty=undefined → addSet=true → 4 组
-    expect(plan.days[0].exercises[1].sets).toBe('4 组 × 12-16 次')
-    // 平板支撑不受 addSet 影响，始终 3 组；秒数 45 + extra*5 = 45 + 4*5 = 65
-    expect(plan.days[4].exercises[4].sets).toBe('3 组 × 65 秒')
-  })
-
-  it('第 11 周：step 仍为 4（上限封顶），addSet=true', () => {
-    const plan = buildWeekPlan(11)
-    expect(plan.days[0].exercises[1].sets).toBe('4 组 × 12-16 次')
-  })
-
-  /* ---- addSet 逻辑：week>=5 且 difficulty<=3 或无反馈 ---- */
-  it('第 4 周（week<5）：addSet=false，组数仍为 3', () => {
-    const plan = buildWeekPlan(4)
-    expect(plan.days[0].exercises[1].sets).toContain('3 组')
-  })
-
-  it('第 5 周无反馈：addSet=true，组数升到 4', () => {
-    const plan = buildWeekPlan(5)
-    expect(plan.days[0].exercises[1].sets).toContain('4 组')
-  })
-
-  it('第 5 周 difficulty=3（≤3）：addSet=true', () => {
-    const plan = buildWeekPlan(5, 3)
-    expect(plan.days[0].exercises[1].sets).toContain('4 组')
-  })
-
-  it('第 5 周 difficulty=4（≥4）：addSet=false（偏难不加组）', () => {
-    const plan = buildWeekPlan(5, 4)
-    expect(plan.days[0].exercises[1].sets).toContain('3 组')
-  })
-
-  /* ---- difficulty 分支：extra 与 note 调整 ---- */
-  it('difficulty>=4：extra = max(0, step-1)，降低进阶幅度', () => {
-    // week=7, step=3, difficulty=4 → extra=max(0, 2)=2
-    const plan = buildWeekPlan(7, 4)
-    // r(8)=8+2=10, r(12)=12+2=14
-    expect(plan.days[0].exercises[1].sets).toBe('3 组 × 10-14 次')
-    expect(plan.adjustmentNote).toContain('偏难')
-  })
-
-  it('difficulty<=2：extra = step+1，额外加量', () => {
-    // week=7, step=3, difficulty=2 → extra=4
-    const plan = buildWeekPlan(7, 2)
-    expect(plan.days[0].exercises[1].sets).toBe('4 组 × 12-16 次')
-    expect(plan.adjustmentNote).toContain('较轻松')
-  })
-
-  it('difficulty=3：正常进阶（extra=step）', () => {
-    // week=7, step=3, difficulty=3 → extra=3
-    const plan = buildWeekPlan(7, 3)
-    expect(plan.days[0].exercises[1].sets).toBe('4 组 × 11-15 次')
-    expect(plan.adjustmentNote).toContain('难度适中')
-  })
-
-  it('difficulty=1（最低）：extra = step+1', () => {
-    // week=3, step=1, difficulty=1 → extra=2
-    const plan = buildWeekPlan(3, 1)
-    // r(8)=10, r(12)=14
-    expect(plan.days[0].exercises[1].sets).toBe('3 组 × 10-14 次')
-  })
-
-  it('difficulty=5（最高）：extra = max(0, step-1)', () => {
-    // week=3, step=1, difficulty=5 → extra=max(0,0)=0
-    const plan = buildWeekPlan(3, 5)
-    expect(plan.days[0].exercises[1].sets).toBe('3 组 × 8-12 次')
-  })
-
-  /* ---- 结构完整性 ---- */
-  it('返回完整 7 天计划', () => {
-    const plan = buildWeekPlan(1)
-    expect(plan.days).toHaveLength(7)
-    expect(plan.days.map((d) => d.day)).toEqual([
-      '周一', '周二', '周三', '周四', '周五', '周六', '周日',
-    ])
-  })
-
-  it('每天的 type 在合法枚举内', () => {
-    const plan = buildWeekPlan(1)
-    const validTypes = ['strength', 'sport', 'rest', 'recovery']
-    for (const d of plan.days) {
-      expect(validTypes).toContain(d.type)
-    }
-  })
-
-  it('week 字段等于传入参数', () => {
-    expect(buildWeekPlan(1).week).toBe(1)
-    expect(buildWeekPlan(7).week).toBe(7)
-  })
-
-  it('startDate 是 yyyy-MM-dd 格式', () => {
-    const plan = buildWeekPlan(1)
-    expect(plan.startDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-  })
-
-  it('每次调用返回独立对象（无共享引用）', () => {
-    const a = buildWeekPlan(1)
-    const b = buildWeekPlan(1)
-    expect(a).not.toBe(b)
-    expect(a.days).not.toBe(b.days)
-    expect(a.days[0].exercises).not.toBe(b.days[0].exercises)
-  })
-})
-
-/* ------------------------------------------------------------------ */
-/* copyWeekPlan —— 原样复制下一周                                    */
-/* ------------------------------------------------------------------ */
-describe('copyWeekPlan', () => {
-  const source: WeekPlan = {
-    week: 3,
-    startDate: '2026-01-05',
-    adjustmentNote: '原周说明',
-    days: [
-      {
-        day: '周一',
-        focus: '测试',
-        type: 'strength',
-        exercises: [{ name: '测试动作', sets: '3 组' }],
-      },
-      ...Array(6).fill({ day: '周二', focus: '休', type: 'rest' as const, exercises: [] }),
-    ],
-  }
-
-  it('week +1', () => {
-    expect(copyWeekPlan(source).week).toBe(4)
-  })
-
-  it('不复制源 adjustmentNote，改用固定文案', () => {
-    expect(copyWeekPlan(source).adjustmentNote).toBe('沿用上周计划，未做进阶调整。')
-  })
-
-  it('深拷贝 exercises（修改副本不影响源）', () => {
-    const copy = copyWeekPlan(source)
-    copy.days[0].exercises[0].name = '改了'
-    expect(source.days[0].exercises[0].name).toBe('测试动作')
-  })
-
-  it('startDate 是 yyyy-MM-dd 格式', () => {
-    expect(copyWeekPlan(source).startDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-  })
-})
-
-/* ------------------------------------------------------------------ */
 /* weeksBetween —— 两个周一日期相隔的自然周数                         */
 /* ------------------------------------------------------------------ */
 describe('weeksBetween', () => {
@@ -286,49 +119,38 @@ describe('weeksBetween', () => {
 
 /* ------------------------------------------------------------------ */
 /* mergeOnboardingWeight —— onboarding 体重落到 weights 数组           */
-/* 锁定 P0：新用户填的体重必须出现在 weights，否则首页 BMI/热量仍按     */
-/* 50.5kg 占位值展示                                                   */
+/* 新逻辑：空数组时插入当天 entry；已有记录则不动（用户在 BodyData 自记）*/
 /* ------------------------------------------------------------------ */
 describe('mergeOnboardingWeight', () => {
-  const PLACEHOLDER: WeightEntry = { date: '2026-01-01', weight: 50.5, bodyFat: null }
-
   it('无效体重（<=0）：原样返回，不写入', () => {
-    expect(mergeOnboardingWeight([PLACEHOLDER], 0, '2026-08-05')).toEqual([PLACEHOLDER])
-    expect(mergeOnboardingWeight([PLACEHOLDER], -5, '2026-08-05')).toEqual([PLACEHOLDER])
+    expect(mergeOnboardingWeight([], 0, '2026-08-05')).toEqual([])
+    expect(mergeOnboardingWeight([], -5, '2026-08-05')).toEqual([])
   })
 
-  it('已有真实历史记录（length>1）：不动', () => {
-    const history: WeightEntry[] = [
+  it('已有真实历史记录（length>=1）：不动', () => {
+    // 单条记录（如刚完成 onboarding 的用户）
+    const single: WeightEntry[] = [
+      { date: '2026-08-01', weight: 61, bodyFat: null },
+    ]
+    expect(mergeOnboardingWeight(single, 70, '2026-08-05')).toBe(single)
+
+    // 多条记录（用户在 BodyData 自行记录过）
+    const multi: WeightEntry[] = [
       { date: '2026-07-01', weight: 60, bodyFat: null },
       { date: '2026-08-01', weight: 61, bodyFat: null },
     ]
-    expect(mergeOnboardingWeight(history, 70, '2026-08-05')).toBe(history)
+    expect(mergeOnboardingWeight(multi, 70, '2026-08-05')).toBe(multi)
   })
 
-  it('只有占位 entry 且非当天：在头部插入当天记录', () => {
-    const result = mergeOnboardingWeight([PLACEHOLDER], 70, '2026-08-05')
-    expect(result).toHaveLength(2)
-    expect(result[0]).toEqual({ date: '2026-08-05', weight: 70, bodyFat: null })
-    // 占位 entry 保留作历史首点
-    expect(result[1]).toEqual(PLACEHOLDER)
-  })
-
-  it('只有占位 entry 且恰是当天：直接覆盖', () => {
-    const todayPlaceholder: WeightEntry = { date: '2026-08-05', weight: 50.5, bodyFat: null }
-    const result = mergeOnboardingWeight([todayPlaceholder], 70, '2026-08-05')
-    expect(result).toHaveLength(1)
-    expect(result[0]).toEqual({ date: '2026-08-05', weight: 70, bodyFat: null })
-  })
-
-  it('空数组：插入当天记录', () => {
+  it('空数组 + 有效体重：插入当天记录', () => {
     const result = mergeOnboardingWeight([], 65, '2026-08-05')
     expect(result).toEqual([{ date: '2026-08-05', weight: 65, bodyFat: null }])
   })
 
   it('不修改入参数组（返回新数组）', () => {
-    const prev = [PLACEHOLDER]
+    const prev: WeightEntry[] = []
     const result = mergeOnboardingWeight(prev, 70, '2026-08-05')
-    expect(prev).toEqual([PLACEHOLDER]) // 入参未被改
+    expect(prev).toEqual([]) // 入参未被改
     expect(result).not.toBe(prev)
   })
 })
@@ -341,8 +163,8 @@ describe('mergeOnboardingWeight', () => {
 const INITIAL_TRACE = {
   checks: {} as CheckMap,
   feedbacks: [] as WeekFeedback[],
-  weights: [{ date: '2026-08-05', weight: 50.5, bodyFat: null }] as WeightEntry[],
-  weekPlan: { ...buildWeekPlan(1) },
+  weights: [] as WeightEntry[],
+  weekPlan: { week: 1, startDate: '2026-08-03', days: [], adjustmentNote: '' } as WeekPlan,
 }
 
 describe('hasUsageTrace', () => {
@@ -358,11 +180,14 @@ describe('hasUsageTrace', () => {
     expect(hasUsageTrace({ ...INITIAL_TRACE, feedbacks: [{ week: 1, date: '2026-08-05', completion: 80, difficulty: 3, soreness: [], sleep: '', diet: '', note: '' }] })).toBe(true)
   })
 
-  it('weights 多于 1 条（占位不算痕迹）：true', () => {
+  it('weights 多于 1 条：true', () => {
     expect(
       hasUsageTrace({
         ...INITIAL_TRACE,
-        weights: [...INITIAL_TRACE.weights, { date: '2026-08-06', weight: 51, bodyFat: null }],
+        weights: [
+          { date: '2026-08-05', weight: 60, bodyFat: null },
+          { date: '2026-08-06', weight: 61, bodyFat: null },
+        ],
       }),
     ).toBe(true)
   })

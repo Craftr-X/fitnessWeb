@@ -62,7 +62,7 @@ function calorieTarget(weight: number, goal: WeightGoal | undefined): { target: 
 }
 
 export default function Nutrition({ weights, weightGoal }: Props) {
-  const weight = weights[weights.length - 1]?.weight ?? 50.5
+  const weight = weights[weights.length - 1]?.weight ?? 0
   const [pMin, pMax] = useMemo(() => proteinRange(weight), [weight])
   const { target, label, tip } = useMemo(() => calorieTarget(weight, weightGoal), [weight, weightGoal])
   // 示例餐单总蛋白（早 22 + 午 25 + 加餐 8 + 晚 30 + 睡前 8），用于标题展示与上方目标对照
@@ -74,15 +74,15 @@ export default function Nutrition({ weights, weightGoal }: Props) {
         <Card>
           <CardContent className="pt-4 text-center">
             <Beef className="mx-auto mb-1 h-6 w-6 text-orange-500" />
-            <div className="text-2xl font-bold">{pMin}–{pMax} g</div>
-            <div className="text-xs text-muted-foreground">每日蛋白质目标（1.6-2.0 g/kg）</div>
+            <div className="text-2xl font-bold">{weight === 0 ? '—' : `${pMin}–${pMax} g`}</div>
+            <div className="text-xs text-muted-foreground">{weight === 0 ? '请先记录体重' : '每日蛋白质目标（1.6-2.0 g/kg）'}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 text-center">
             <UtensilsCrossed className="mx-auto mb-1 h-6 w-6 text-emerald-500" />
-            <div className="text-2xl font-bold">≈ {target} kcal</div>
-            <div className="text-xs text-muted-foreground">{label}</div>
+            <div className="text-2xl font-bold">{weight === 0 ? '—' : `≈ ${target} kcal`}</div>
+            <div className="text-xs text-muted-foreground">{weight === 0 ? '请先记录体重' : label}</div>
           </CardContent>
         </Card>
         <Card>
@@ -124,7 +124,9 @@ export default function Nutrition({ weights, weightGoal }: Props) {
         <CardHeader className="pb-2">
           <CardTitle className="text-base">一日饮食示例（约 {sampleProtein} g 蛋白质）</CardTitle>
           <p className="text-xs text-muted-foreground">
-            你的每日目标 {pMin}–{pMax} g{sampleProtein >= pMin && sampleProtein <= pMax ? '，与下方示例基本匹配' : '，可按比例增减下方分量'}
+            {weight === 0
+              ? '请先记录体重，再查看每日蛋白质目标'
+              : <>你的每日目标 {pMin}–{pMax} g{sampleProtein >= pMin && sampleProtein <= pMax ? '，与下方示例基本匹配' : '，可按比例增减下方分量'}</>}
           </p>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">

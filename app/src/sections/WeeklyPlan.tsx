@@ -14,9 +14,9 @@ import {
 } from '@/components/ui/dialog'
 import { ArrowRightCircle, BedDouble, CalendarClock, Copy, Dumbbell, History, Info, Leaf, Plus, Trash2, Trophy } from 'lucide-react'
 import { toast } from 'sonner'
-import { copyWeekPlan, currentMonday, exerciseWeekStats, getLastLogBefore, getLogForDate, inferLoadType, parseSetTarget, removeExerciseLog, upsertExerciseLog } from '@/lib/store'
+import { currentMonday, exerciseWeekStats, getLastLogBefore, getLogForDate, inferLoadType, parseSetTarget, removeExerciseLog, upsertExerciseLog } from '@/lib/store'
 import type { SetTarget } from '@/lib/store'
-import { buildNextWeekPlan } from '@/lib/planEngine'
+import { buildNextWeekPlan, copyWeekPlanFromProfile } from '@/lib/planEngine'
 import { burstAt, celebrateDayDone, celebrateWeekDone } from '@/lib/celebrate'
 import { getDemo } from '@/lib/demos'
 import ExerciseDemoButton from '@/components/ExerciseDemoButton'
@@ -469,7 +469,7 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
       setConfirmingCopy(true)
       return
     }
-    setWeekPlan(copyWeekPlan(weekPlan))
+    setWeekPlan(copyWeekPlanFromProfile(weekPlan))
     setConfirmingCopy(false)
     celebrateWeekDone()
     toast.success(`📋 已复制本周计划为第 ${weekPlan.week + 1} 周计划！`)

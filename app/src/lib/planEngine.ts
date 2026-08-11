@@ -1,10 +1,8 @@
 /**
  * 个性化计划规则引擎（v2）。
  *
- * 与 lib/store.ts 里的 buildWeekPlan(week, difficulty) 并存：
- * - buildWeekPlan 是老用户的"增肌 + 羽毛球"固定模板，签名/输出保持不变（store.test.ts 锁定）。
- * - 本模块 buildWeekPlanFromProfile 根据用户 onboarding 画像生成差异化计划，
- *   供新用户首次进入和老用户"重新定制"使用。
+ * 根据用户 onboarding 画像生成差异化一周计划，
+ * 供新用户首次进入和老用户"重新定制"使用，是计划生成的唯一入口。
  *
  * 设计原则：纯函数、模块化拆分、复用同一套渐进超负荷逻辑，day.type 只用
  * WeeklyPlan.tsx 已支持的 4 种（strength/sport/rest/recovery），避免渲染崩。
@@ -22,12 +20,12 @@ import type {
   WeekPlan,
   WeightGoal,
 } from '@/types'
-// currentMonday/buildWeekPlan 复用 store 实现，避免双份维护；同时 re-export 保持本模块 API 稳定
-import { buildWeekPlan, currentMonday, WEIGHT_GOAL_LABEL } from '@/lib/store'
+// currentMonday 复用 store 实现，避免双份维护；同时 re-export 保持本模块 API 稳定
+import { currentMonday, WEIGHT_GOAL_LABEL } from '@/lib/store'
 export { currentMonday }
 
 /* ------------------------------------------------------------------ */
-/* 渐进超负荷参数（与 store.buildWeekPlan 同策略，独立实现以便单独演进）*/
+/* 渐进超负荷参数                                                       */
 /* ------------------------------------------------------------------ */
 
 interface Progression {
@@ -574,6 +572,23 @@ export function assembleWeek(
   // 周日固定为复盘休息日
   days[6] = buildRestDay(DAY_NAMES[6], true)
 
+  // 训练日被运动日覆盖时（仅 trainDays=6 + hasSport），把被挤掉的肌群挪到剩余空 rest 槽位
+  // 优先非周日；trainDays=6 时周一~周六全满，回退周日避免丢失肌群
+  if (hasSport && trainSlots.includes(5)) {
+    const displaced = groups[trainSlots.indexOf(5)]
+    let target = days.findIndex((d, i) => i < 6 && d.type === 'rest')
+    if (target === -1) target = 6
+    days[target] = buildStrengthDay(
+      DAY_NAMES[target],
+      displaced,
+      opts.equipment,
+      opts.experience,
+      opts.progression,
+      opts.tuning,
+      opts.injuries,
+    )
+  }
+
   // 回填 day 名（buildRestDay 传了空串）
   days.forEach((d, i) => {
     if (!d.day) d.day = DAY_NAMES[i]
@@ -755,7 +770,8 @@ export function buildWeekPlanFromProfile(
 
 /**
  * 统一的"生成下周计划"入口，避免多处调用发散。
- * 已 onboarded 的用户走规则引擎（吃完整 WeekFeedback）；否则回退老模板（只吃 difficulty）。
+ * 走规则引擎，吃完整 WeekFeedback（无反馈时按基础进阶生成）。
+ * profile 缺失（理论上不会发生，已过 onboarding 才会到达此调用点）时按默认画像兜底。
  */
 export function buildNextWeekPlan(
   profile: Profile | undefined,
@@ -763,13 +779,11 @@ export function buildNextWeekPlan(
   feedback?: WeekFeedback | null,
   targetWeek = fromPlan.week + 1,
 ): WeekPlan {
-  return profile?.onboarded && profile.weightGoal
-    ? buildWeekPlanFromProfile(profile, targetWeek, feedback)
-    : buildWeekPlan(targetWeek, feedback?.difficulty)
+  return buildWeekPlanFromProfile(profile ?? { name: '我', heightCm: 170 }, targetWeek, feedback)
 }
 
 /* ------------------------------------------------------------------ */
-/* 复制下周：与 store.copyWeekPlan 同语义，用于规则引擎产出的计划      */
+/* 复制下周：原样复制为下一周，用于"复制上周计划"按钮                   */
 /* ------------------------------------------------------------------ */
 
 export function copyWeekPlanFromProfile(plan: WeekPlan): WeekPlan {

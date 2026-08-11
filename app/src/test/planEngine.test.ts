@@ -11,7 +11,6 @@ import {
   describeProfile,
   currentMonday,
 } from '@/lib/planEngine'
-import { buildWeekPlan } from '@/lib/store'
 import type { Profile, WeekFeedback, WeekPlan } from '@/types'
 
 /** 测试用画像：男 / 25 岁 / 175cm / 70kg / 增肌 / 新手 / 4 天 / 哑铃 / 跑步 */
@@ -267,6 +266,28 @@ describe('assembleWeek', () => {
     const days = assembleWeek(['push', 'pull', 'legs'], baseOpts)
     const strengthDays = days.filter((d) => d.type === 'strength')
     expect(strengthDays).toHaveLength(3)
+  })
+
+  it('trainDays=6 + hasSport：6 个肌群全部保留，运动日在周六', () => {
+    // splitMuscleGroups(6, true) = 胸/背/肩/手臂/腿/核心
+    const groups = splitMuscleGroups(6, true)
+    const days = assembleWeek(groups, {
+      ...baseOpts,
+      sport: 'running',
+      sportHours: 2,
+    })
+    // 6 天力量 + 1 天运动满载 7 天，第 6 个训练日让出周六后挪到周日避免丢失肌群
+    expect(days.filter((d) => d.type === 'strength')).toHaveLength(6)
+    expect(days.filter((d) => d.type === 'sport')).toHaveLength(1)
+    expect(days[5].type).toBe('sport')
+    // 6 个肌群全部保留，不丢失任何一个
+    const foci = days.filter((d) => d.type === 'strength').map((d) => d.focus)
+    expect(foci).toContain('胸 + 三头')
+    expect(foci).toContain('背 + 二头')
+    expect(foci).toContain('肩')
+    expect(foci).toContain('手臂（二头 + 三头）')
+    expect(foci).toContain('腿 + 臀')
+    expect(foci).toContain('核心')
   })
 })
 
@@ -555,10 +576,11 @@ describe('buildNextWeekPlan', () => {
     expect(next.adjustmentNote).toContain('训练量下调')
   })
 
-  it('未 onboarded 用户回退老模板（只吃 difficulty）', () => {
-    const from = buildWeekPlan(2, 3)
-    const next = buildNextWeekPlan({ name: '我', heightCm: 170 }, from, makeFb({ difficulty: 4 }))
+  it('profile 缺失时按默认画像兜底，仍走规则引擎', () => {
+    const from = buildWeekPlanFromProfile(BASE_PROFILE, 2)
+    const next = buildNextWeekPlan(undefined, from, makeFb({ difficulty: 4 }))
     expect(next.week).toBe(3)
+    // 默认画像无 weightGoal → tuneByGoal 走 gain 分支（默认增肌）
     expect(next.adjustmentNote).toContain('偏难')
   })
 
