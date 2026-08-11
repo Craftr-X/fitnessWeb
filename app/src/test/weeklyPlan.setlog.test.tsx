@@ -249,6 +249,58 @@ describe('负重动作（哑铃弯举）', () => {
   })
 })
 
+describe('清除本次记录', () => {
+  const loggedToday: ExerciseLogMap = {
+    [WEIGHTED_EX]: [{ date: todayStr, week: 1, sets: [{ weightKg: 15, reps: 8 }] }],
+  }
+
+  it('无今日记录时弹窗没有「清除」入口', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    const dialog = await openDialogFor(user, WEIGHTED_EX)
+    expect(within(dialog).queryByRole('button', { name: '清除' })).not.toBeInTheDocument()
+  })
+
+  it('两段确认：第一次点击进入确认态不删除，第二次才删记录并关闭弹窗', async () => {
+    const user = userEvent.setup()
+    render(<Harness initialLogs={loggedToday} />)
+    // 弹窗标题也含动作名，开着弹窗时 rowFor 会匹配到多个，先取行元素再开弹窗
+    const row = rowFor(WEIGHTED_EX)
+    expect(row.textContent).toContain('本次：15kg×8')
+
+    const dialog = await openDialogFor(user, WEIGHTED_EX)
+    await user.click(within(dialog).getByRole('button', { name: '清除' }))
+    // 第一次只进入确认态：记录还在，弹窗还在
+    expect(within(dialog).getByRole('button', { name: '确认清除？' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(row.textContent).toContain('本次：15kg×8')
+
+    await user.click(within(dialog).getByRole('button', { name: '确认清除？' }))
+    // 第二次真正删除：弹窗关闭，入口回到未填写状态
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(rowFor(WEIGHTED_EX).textContent).not.toContain('本次')
+    expect(within(rowFor(WEIGHTED_EX)).getByRole('button', { name: /记录重量/ })).toBeInTheDocument()
+  })
+
+  it('只删今天的记录，本周其他天的历史保留', async () => {
+    const user = userEvent.setup()
+    const initialLogs: ExerciseLogMap = {
+      [WEIGHTED_EX]: [
+        { date: '2026-08-03', week: 1, sets: [{ weightKg: 20, reps: 6 }] },
+        { date: todayStr, week: 1, sets: [{ weightKg: 15, reps: 8 }] },
+      ],
+    }
+    render(<Harness initialLogs={initialLogs} />)
+    const dialog = await openDialogFor(user, WEIGHTED_EX)
+    await user.click(within(dialog).getByRole('button', { name: '清除' }))
+    await user.click(within(dialog).getByRole('button', { name: '确认清除？' }))
+
+    // 今日记录被删，入口回退到展示之前的「上次」
+    expect(rowFor(WEIGHTED_EX).textContent).not.toContain('本次')
+    expect(rowFor(WEIGHTED_EX).textContent).toContain('上次 20kg×6 · 1组')
+  })
+})
+
 describe('自重动作（俯卧撑）', () => {
   it('弹窗没有重量列，只填次数；保存后摘要为"N 次 · M组"', async () => {
     const user = userEvent.setup()

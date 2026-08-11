@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { LS_KEYS } from '@/lib/store'
+import { cleanExerciseLogMap, LS_KEYS } from '@/lib/store'
 import type { CheckMap, ExerciseLogMap, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
 
 /** 一个用户的全部应用数据（整文档存储在 user_data.data jsonb 中） */
@@ -24,7 +24,9 @@ export async function loadUserData(userId: string): Promise<UserData | null> {
     console.error('[FitUp] 加载云端数据失败：', error.message)
     return null
   }
-  return (data?.data as UserData) ?? null
+  const remote = (data?.data as UserData) ?? null
+  if (remote?.setLogs) remote.setLogs = cleanExerciseLogMap(remote.setLogs)
+  return remote
 }
 
 /** 整文档 upsert 到远端 */
@@ -68,6 +70,6 @@ export function readLegacyData(): UserData | null {
   const feedbacks = readLegacy<WeekFeedback[]>(LS_KEYS.feedback)
   if (feedbacks !== undefined) data.feedbacks = feedbacks
   const setLogs = readLegacy<ExerciseLogMap>(LS_KEYS.setLogs)
-  if (setLogs !== undefined) data.setLogs = setLogs
+  if (setLogs !== undefined) data.setLogs = cleanExerciseLogMap(setLogs)
   return Object.values(data).some((v) => v !== undefined) ? data : null
 }
