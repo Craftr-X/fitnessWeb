@@ -2,5 +2,10 @@
 DEPLOY.md
 .idea/
 
+# 依赖与构建产物
+node_modules/
+app/dist/
+app/node_modules/
+
 # ZCode 工作区元数据
 .zcode/
