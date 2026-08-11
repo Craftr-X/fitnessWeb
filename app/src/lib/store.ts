@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { addDays, differenceInCalendarWeeks, format, startOfWeek } from 'date-fns'
-import type { CheckMap, DayPlan, Exercise, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
+import type { CheckMap, DayPlan, Exercise, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, WeightEntry, WorkoutSet } from '@/types'
 import type { WeightGoal } from '@/types'
 import { loadUserData, readLegacyData, saveUserData } from '@/lib/sync'
 
@@ -270,9 +270,43 @@ export function inferLoadType(ex: Exercise): LoadType {
 }
 
 /**
+ * 剔除空组：次数为 0/未填、或重量恰为 0 的组视为无效。
+ * 历史脏数据（校验上线前的本地测试数据、其他设备写入等）可能带这种组，
+ * 会让摘要的「N组」计数与容量对不上。注意 {weightKg: null, reps: 10} 是合法的
+ * 自重组——自重动作重量就是 null，只有 weightKg === 0 才算脏。
+ */
+export function pruneEmptySets(sets: WorkoutSet[]): WorkoutSet[] {
+  return sets.filter((s) => (s.reps ?? 0) > 0 && s.weightKg !== 0)
+}
+
+/**
+ * 清洗整份动作记录：剔空组、剔除清洗后一整条都空的记录、不留空键。
+ * 数据没变化时原样返回（引用不变，不触发多余的重渲染和云端同步）。
+ * 在读取（缓存/远端/旧版迁移）与写入（upsertExerciseLog）两侧都过一道，
+ * 保证落库与展示的数据始终干净；已污染的云端数据会在下次保存时被自愈。
+ */
+export function cleanExerciseLogMap(map: ExerciseLogMap): ExerciseLogMap {
+  let changed = false
+  const out: ExerciseLogMap = {}
+  for (const [name, list] of Object.entries(map)) {
+    const cleaned = list
+      .map((r) => {
+        const sets = pruneEmptySets(r.sets)
+        if (sets.length === r.sets.length) return r
+        changed = true
+        return { ...r, sets }
+      })
+      .filter((r) => r.sets.length > 0)
+    if (cleaned.length !== list.length) changed = true
+    if (cleaned.length > 0) out[name] = cleaned
+  }
+  return changed ? out : map
+}
+
+/**
  * 写入某动作某一天的记录：同一天覆盖，否则按日期升序插入，超出上限裁掉最旧的。
  * 传入 weekStart（本周一 yyyy-MM-dd）时，丢弃早于本周的记录——产品决策：
- * 重量记录暂时只保留当前周数据。
+ * 重量记录暂时只保留当前周数据。空组在写入前剔除；整条皆空视为无效写入。
  */
 export function upsertExerciseLog(
   map: ExerciseLogMap,
@@ -280,12 +314,15 @@ export function upsertExerciseLog(
   record: ExerciseLogRecord,
   weekStart?: string,
 ): ExerciseLogMap {
+  const sets = pruneEmptySets(record.sets)
+  if (sets.length === 0) return map
+  const clean = sets.length === record.sets.length ? record : { ...record, sets }
   const list = map[name] ?? []
-  const idx = list.findIndex((r) => r.date === record.date)
+  const idx = list.findIndex((r) => r.date === clean.date)
   let next =
     idx >= 0
-      ? list.map((r, i) => (i === idx ? record : r))
-      : [...list, record].sort((a, b) => (a.date < b.date ? -1 : 1))
+      ? list.map((r, i) => (i === idx ? clean : r))
+      : [...list, clean].sort((a, b) => (a.date < b.date ? -1 : 1))
   if (weekStart) next = next.filter((r) => r.date >= weekStart)
   return { ...map, [name]: next.slice(-EXERCISE_LOG_CAP) }
 }
@@ -297,6 +334,21 @@ export function getLogForDate(
   date: string,
 ): ExerciseLogRecord | undefined {
   return map[name]?.find((r) => r.date === date)
+}
+
+/**
+ * 删除某动作某一天的记录（用于"清除本次记录"重置当天重量/次数）。
+ * 删完后该动作没有其他记录时连键一起移除，不留下空数组；没删到东西时原样返回。
+ */
+export function removeExerciseLog(map: ExerciseLogMap, name: string, date: string): ExerciseLogMap {
+  const list = map[name]
+  if (!list) return map
+  const next = list.filter((r) => r.date !== date)
+  if (next.length === list.length) return map
+  const out = { ...map }
+  if (next.length === 0) delete out[name]
+  else out[name] = next
+  return out
 }
 
 /** 取某动作在指定日期之前最近一次的训练记录（用于"上次重量"预填） */
@@ -454,7 +506,9 @@ function readCache(userId: string): CloudState | null {
     const raw = localStorage.getItem(cloudCacheKey(userId))
     if (raw == null) return null
     const data = JSON.parse(raw) as Partial<CloudState>
-    return { ...defaultCloudState(), ...data }
+    const merged = { ...defaultCloudState(), ...data }
+    merged.setLogs = cleanExerciseLogMap(merged.setLogs)
+    return merged
   } catch {
     return null
   }

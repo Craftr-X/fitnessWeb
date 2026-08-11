@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { ArrowRightCircle, BedDouble, CalendarClock, Copy, Dumbbell, History, Info, Leaf, Plus, Trash2, Trophy } from 'lucide-react'
 import { toast } from 'sonner'
-import { copyWeekPlan, currentMonday, exerciseWeekStats, getLastLogBefore, getLogForDate, inferLoadType, parseSetTarget, upsertExerciseLog } from '@/lib/store'
+import { copyWeekPlan, currentMonday, exerciseWeekStats, getLastLogBefore, getLogForDate, inferLoadType, parseSetTarget, removeExerciseLog, upsertExerciseLog } from '@/lib/store'
 import type { SetTarget } from '@/lib/store'
 import { buildNextWeekPlan } from '@/lib/planEngine'
 import { burstAt, celebrateDayDone, celebrateWeekDone } from '@/lib/celebrate'
@@ -82,6 +82,8 @@ interface ExerciseLogDialogProps {
   todayStr: string
   /** 校验通过后提交本次编辑（X / 遮罩关闭不会触发） */
   onSave: (sets: WorkoutSet[]) => void
+  /** 清除今天的记录（仅当 todayRec 存在时展示入口） */
+  onClear: () => void
 }
 
 /** 纪录带单项：彩色小标签 + 大数字 + 单位（对齐训记图表页的三栏纪录样式） */
@@ -104,6 +106,7 @@ function StatItem({ label, value, unit, color }: { label: string; value: number;
  *
  * 关键设计：弹窗内所有编辑只落在本地草稿（sets state），不直接写全局数据。
  * 只有点「完成」且校验通过才提交；X / 遮罩 / Esc 关闭 = 丢弃本次修改。
+ * 已有当天记录时底部出现「清除」（两段确认），删除整条今日记录、回到未填写状态。
  * 避免"输入一半关掉却被静默保存"的脏数据问题。
  */
 function ExerciseLogDialog({
@@ -118,6 +121,7 @@ function ExerciseLogDialog({
   weekHistory,
   todayStr,
   onSave,
+  onClear,
 }: ExerciseLogDialogProps) {
   const weighted = loadType === 'weighted'
   /** 次数列的单位与文案（时间类动作记秒数） */
@@ -173,6 +177,18 @@ function ExerciseLogDialog({
   // 容量实时跟随编辑草稿（未保存也能看到反馈）
   const volume = totalVolume(sets)
   const stats = exerciseWeekStats(weekRecords)
+
+  // 清除本次记录：与「生成下周」一致的两段确认，第一次点击只进入确认态
+  const [confirmClear, setConfirmClear] = useState(false)
+  const handleClear = () => {
+    if (!confirmClear) {
+      setConfirmClear(true)
+      return
+    }
+    onClear()
+    onOpenChange(false)
+    toast.success('已清除本次记录')
+  }
 
   // 完成前校验：任何一组为 0（或未填）都提示具体位置并留在弹窗；
   // 负重动作校验重量+次数，自重/时间类只校验次数/秒数。校验通过才提交草稿并关闭
@@ -319,7 +335,7 @@ function ExerciseLogDialog({
             </button>
           </div>
 
-          {/* 容量 + 完成 */}
+          {/* 容量 + 清除/完成 */}
           <div className="flex items-center justify-between rounded-xl bg-muted/60 px-3 py-2.5">
             <span className="text-xs text-muted-foreground">
               {weighted
@@ -328,9 +344,25 @@ function ExerciseLogDialog({
                   : '填重量和次数后自动计算容量'
                 : `本次共 ${sets.reduce((sum, s) => sum + (s.reps ?? 0), 0)} ${repsUnit === '秒' ? '秒' : '次'}`}
             </span>
-            <Button size="sm" onClick={handleDone} className="bg-orange-500 text-white hover:bg-orange-600">
-              完成
-            </Button>
+            <div className="flex items-center gap-2">
+              {todayRec && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleClear}
+                  className={
+                    confirmClear
+                      ? 'bg-destructive/10 text-destructive hover:bg-destructive/20'
+                      : 'text-muted-foreground hover:text-destructive'
+                  }
+                >
+                  {confirmClear ? '确认清除？' : '清除'}
+                </Button>
+              )}
+              <Button size="sm" onClick={handleDone} className="bg-orange-500 text-white hover:bg-orange-600">
+                完成
+              </Button>
+            </div>
           </div>
 
           {/* 本周历史：回看之前用的重量 */}
@@ -651,6 +683,7 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
                   upsertExerciseLog(prev, ex.name, { date: todayStr, week: weekPlan.week, sets }, weekPlan.startDate),
                 )
               }
+              onClear={() => setSetLogs((prev) => removeExerciseLog(prev, ex.name, todayStr))}
             />
           )
         })()}
