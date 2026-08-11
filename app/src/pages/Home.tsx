@@ -24,6 +24,7 @@ const WeeklyPlan = lazy(() => import('@/sections/WeeklyPlan'))
 const BodyData = lazy(() => import('@/sections/BodyData'))
 const Feedback = lazy(() => import('@/sections/Feedback'))
 const Nutrition = lazy(() => import('@/sections/Nutrition'))
+const PhotoCompare = lazy(() => import('@/sections/PhotoCompare'))
 
 function greeting(): string {
   const h = new Date().getHours()
@@ -43,7 +44,10 @@ export default function Home({ user }: { user: User }) {
   const [weights, setWeights] = cloud.weights
   const [feedbacks, setFeedbacks] = cloud.feedbacks
   const [setLogs, setSetLogs] = cloud.setLogs
+  const [photos, setPhotos] = cloud.photos
   const [tab, setTab] = useState('overview')
+  // 数据 tab 内子切换：身体数据 / 身材照片
+  const [dataView, setDataView] = useState<'body' | 'photos'>('body')
 
   // 未 onboarded 一律走引导：真·新用户首次配置；老用户（账号体系上线前已有数据）
   // 借此软迁移到规则引擎计划——onboarding 是生成计划的唯一入口
@@ -350,7 +354,29 @@ export default function Home({ user }: { user: User }) {
               />
             </TabsContent>
             <TabsContent value="data" className="fade-enter">
-              <BodyData weights={weights} setWeights={setWeights} heightCm={profile.heightCm} />
+              <div className="mb-4 flex justify-center gap-2">
+                <Button
+                  size="sm"
+                  variant={dataView === 'body' ? 'default' : 'outline'}
+                  className="rounded-full"
+                  onClick={() => setDataView('body')}
+                >
+                  身体数据
+                </Button>
+                <Button
+                  size="sm"
+                  variant={dataView === 'photos' ? 'default' : 'outline'}
+                  className="rounded-full"
+                  onClick={() => setDataView('photos')}
+                >
+                  身材照片
+                </Button>
+              </div>
+              {dataView === 'body' ? (
+                <BodyData weights={weights} setWeights={setWeights} heightCm={profile.heightCm} />
+              ) : (
+                <PhotoCompare photos={photos} setPhotos={setPhotos} userId={user.id} />
+              )}
             </TabsContent>
             <TabsContent value="feedback" className="fade-enter">
               <Feedback
