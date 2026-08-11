@@ -333,6 +333,7 @@ export default function Home({ user }: { user: User }) {
                 weights={weights}
                 checks={checks}
                 feedbacks={feedbacks}
+                setLogs={setLogs}
                 onRebuild={handleRebuild}
               />
             </TabsContent>
