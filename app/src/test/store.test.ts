@@ -3,6 +3,7 @@ import {
   bmi,
   bmiLabel,
   proteinRange,
+  waistHipRatio,
   weeksBetween,
   mergeOnboardingWeight,
   hasUsageTrace,
@@ -82,6 +83,37 @@ describe('proteinRange', () => {
   it('下界 ≤ 上界（单调性）', () => {
     const [lo, hi] = proteinRange(60)
     expect(lo).toBeLessThanOrEqual(hi)
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* waistHipRatio —— 腰臀比（缺值返回 null）                            */
+/* ------------------------------------------------------------------ */
+describe('waistHipRatio', () => {
+  it('标准计算并保留两位小数', () => {
+    // 72 / 96 = 0.75
+    expect(waistHipRatio(72, 96)).toBe(0.75)
+  })
+
+  it('小数结果四舍五入到两位', () => {
+    // 80 / 95 = 0.8421... → 0.84
+    expect(waistHipRatio(80, 95)).toBe(0.84)
+  })
+
+  it('腰围缺失返回 null', () => {
+    expect(waistHipRatio(null, 96)).toBeNull()
+    expect(waistHipRatio(undefined, 96)).toBeNull()
+  })
+
+  it('臀围缺失返回 null', () => {
+    expect(waistHipRatio(72, null)).toBeNull()
+    expect(waistHipRatio(72, undefined)).toBeNull()
+  })
+
+  it('非正值返回 null', () => {
+    expect(waistHipRatio(0, 96)).toBeNull()
+    expect(waistHipRatio(72, 0)).toBeNull()
+    expect(waistHipRatio(-1, 96)).toBeNull()
   })
 })
 

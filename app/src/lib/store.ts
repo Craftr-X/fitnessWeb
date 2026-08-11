@@ -333,6 +333,15 @@ export function proteinRange(weightKg: number): [number, number] {
   return [Math.round(weightKg * 1.6), Math.round(weightKg * 2.0)]
 }
 
+/**
+ * 腰臀比（腰围 / 臀围）。中心型肥胖参考阈值：女性 ≥ 0.85、男性 ≥ 0.90。
+ * 任一输入缺失 / 非正时返回 null（无法计算，界面显示 —）。
+ */
+export function waistHipRatio(waist?: number | null, hip?: number | null): number | null {
+  if (waist == null || hip == null || waist <= 0 || hip <= 0) return null
+  return Math.round((waist / hip) * 100) / 100
+}
+
 /** 一个用户的全部应用状态（与远端 user_data.data 对应） */
 export interface CloudState {
   profile: Profile
