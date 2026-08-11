@@ -91,3 +91,22 @@ export interface Profile {
 }
 
 export type CheckMap = Record<string, boolean>
+
+/* ------------------------------------------------------------------ */
+/* 身材照片记录（历年体态对比）                                        */
+/* ------------------------------------------------------------------ */
+
+/** 拍摄角度：正面 / 侧面 / 背面 */
+export type PhotoView = 'front' | 'side' | 'back'
+
+/**
+ * 一张身材照片的元数据。图片二进制存 Supabase Storage（私有 bucket + RLS），
+ * 对象 key = `${userId}/${id}.jpg`；这里只存索引信息，随 user_data jsonb 同步。
+ */
+export interface PhotoEntry {
+  id: string // crypto.randomUUID()，兼作 Storage 文件名
+  date: string // YYYY-MM-DD 拍摄日期
+  view: PhotoView // 正/侧/背
+  note?: string
+  createdAt: string // ISO，入库时间
+}

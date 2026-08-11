@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { cleanExerciseLogMap, LS_KEYS } from '@/lib/store'
-import type { CheckMap, ExerciseLogMap, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
+import type { CheckMap, ExerciseLogMap, PhotoEntry, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
 
 /** 一个用户的全部应用数据（整文档存储在 user_data.data jsonb 中） */
 export interface UserData {
@@ -10,6 +10,7 @@ export interface UserData {
   weights?: WeightEntry[]
   feedbacks?: WeekFeedback[]
   setLogs?: ExerciseLogMap
+  photos?: PhotoEntry[]
 }
 
 /** 拉取远端数据；没有行或出错时返回 null */

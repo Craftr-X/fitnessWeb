@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { differenceInCalendarWeeks, format, startOfWeek } from 'date-fns'
-import type { CheckMap, Exercise, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, WeightEntry, WorkoutSet } from '@/types'
+import type { CheckMap, Exercise, ExerciseLogMap, ExerciseLogRecord, LoadType, PhotoEntry, Profile, WeekFeedback, WeekPlan, WeightEntry, WorkoutSet } from '@/types'
 import type { WeightGoal } from '@/types'
 import { loadUserData, readLegacyData, saveUserData } from '@/lib/sync'
 
@@ -341,6 +341,7 @@ export interface CloudState {
   weights: WeightEntry[]
   feedbacks: WeekFeedback[]
   setLogs: ExerciseLogMap
+  photos: PhotoEntry[]
 }
 
 export type Setter<T> = (v: T | ((p: T) => T)) => void
@@ -352,6 +353,7 @@ export interface CloudStore {
   weights: [WeightEntry[], Setter<WeightEntry[]>]
   feedbacks: [WeekFeedback[], Setter<WeekFeedback[]>]
   setLogs: [ExerciseLogMap, Setter<ExerciseLogMap>]
+  photos: [PhotoEntry[], Setter<PhotoEntry[]>]
   /** 远端数据加载（或迁移）完成前为 false，界面应显示加载态 */
   ready: boolean
   /** 本次登录触发了旧本地数据迁移 */
@@ -382,6 +384,7 @@ function defaultCloudState(): CloudState {
     weights: [],
     feedbacks: [],
     setLogs: {},
+    photos: [],
   }
 }
 
@@ -490,6 +493,7 @@ export function useCloudStorage(userId: string): CloudStore {
     weights: [state.weights, makeSetter('weights')],
     feedbacks: [state.feedbacks, makeSetter('feedbacks')],
     setLogs: [state.setLogs, makeSetter('setLogs')],
+    photos: [state.photos, makeSetter('photos')],
     ready,
     migrated,
     flush,
