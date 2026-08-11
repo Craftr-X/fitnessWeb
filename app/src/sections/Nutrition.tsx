@@ -10,10 +10,10 @@ import {
 } from '@/components/ui/table'
 import { Beef, Droplets, Moon, UtensilsCrossed } from 'lucide-react'
 import { proteinRange } from '@/lib/store'
-import type { WeightEntry, WeightGoal } from '@/types'
+import type { BodyEntry, WeightGoal } from '@/types'
 
 interface Props {
-  weights: WeightEntry[]
+  weights: BodyEntry[]
   /** 体重目标，决定热量盈余/缺口；老用户无此字段时默认增肌（沿用旧逻辑） */
   weightGoal?: WeightGoal
 }

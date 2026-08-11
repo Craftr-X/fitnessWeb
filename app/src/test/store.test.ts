@@ -18,7 +18,7 @@ import {
   inferLoadType,
   EXERCISE_LOG_CAP,
 } from '@/lib/store'
-import type { CheckMap, ExerciseLogMap, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
+import type { CheckMap, ExerciseLogMap, WeekFeedback, WeekPlan, BodyEntry } from '@/types'
 
 /* ------------------------------------------------------------------ */
 /* bmi —— 体重 / 身高²                                                */
@@ -129,13 +129,13 @@ describe('mergeOnboardingWeight', () => {
 
   it('已有真实历史记录（length>=1）：不动', () => {
     // 单条记录（如刚完成 onboarding 的用户）
-    const single: WeightEntry[] = [
+    const single: BodyEntry[] = [
       { date: '2026-08-01', weight: 61, bodyFat: null },
     ]
     expect(mergeOnboardingWeight(single, 70, '2026-08-05')).toBe(single)
 
     // 多条记录（用户在 BodyData 自行记录过）
-    const multi: WeightEntry[] = [
+    const multi: BodyEntry[] = [
       { date: '2026-07-01', weight: 60, bodyFat: null },
       { date: '2026-08-01', weight: 61, bodyFat: null },
     ]
@@ -148,7 +148,7 @@ describe('mergeOnboardingWeight', () => {
   })
 
   it('不修改入参数组（返回新数组）', () => {
-    const prev: WeightEntry[] = []
+    const prev: BodyEntry[] = []
     const result = mergeOnboardingWeight(prev, 70, '2026-08-05')
     expect(prev).toEqual([]) // 入参未被改
     expect(result).not.toBe(prev)
@@ -163,7 +163,7 @@ describe('mergeOnboardingWeight', () => {
 const INITIAL_TRACE = {
   checks: {} as CheckMap,
   feedbacks: [] as WeekFeedback[],
-  weights: [] as WeightEntry[],
+  weights: [] as BodyEntry[],
   weekPlan: { week: 1, startDate: '2026-08-03', days: [], adjustmentNote: '' } as WeekPlan,
 }
 

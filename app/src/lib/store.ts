@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { differenceInCalendarWeeks, format, startOfWeek } from 'date-fns'
-import type { CheckMap, Exercise, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, WeightEntry, WorkoutSet } from '@/types'
+import type { CheckMap, Exercise, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, BodyEntry, WorkoutSet } from '@/types'
 import type { WeightGoal } from '@/types'
 import { loadUserData, readLegacyData, saveUserData } from '@/lib/sync'
 
@@ -85,10 +85,10 @@ export function weeksBetween(from: string, to: string): number {
  * 这样首页 BMI / 热量 / 蛋白质（均读 weights 末项）能立即基于真实体重展示。
  */
 export function mergeOnboardingWeight(
-  prev: WeightEntry[],
+  prev: BodyEntry[],
   weightKg: number,
   today: string,
-): WeightEntry[] {
+): BodyEntry[] {
   if (weightKg <= 0) return prev
   if (prev.length >= 1) return prev
   return [{ date: today, weight: weightKg, bodyFat: null }]
@@ -287,7 +287,7 @@ export function exerciseWeekStats(records: ExerciseLogRecord[]): ExerciseWeekSta
 export interface UsageTrace {
   checks: CheckMap
   feedbacks: WeekFeedback[]
-  weights: WeightEntry[]
+  weights: BodyEntry[]
   weekPlan: WeekPlan
 }
 
@@ -338,7 +338,7 @@ export interface CloudState {
   profile: Profile
   weekPlan: WeekPlan
   checks: CheckMap
-  weights: WeightEntry[]
+  weights: BodyEntry[]
   feedbacks: WeekFeedback[]
   setLogs: ExerciseLogMap
 }
@@ -349,7 +349,7 @@ export interface CloudStore {
   profile: [Profile, Setter<Profile>]
   weekPlan: [WeekPlan, Setter<WeekPlan>]
   checks: [CheckMap, Setter<CheckMap>]
-  weights: [WeightEntry[], Setter<WeightEntry[]>]
+  weights: [BodyEntry[], Setter<BodyEntry[]>]
   feedbacks: [WeekFeedback[], Setter<WeekFeedback[]>]
   setLogs: [ExerciseLogMap, Setter<ExerciseLogMap>]
   /** 远端数据加载（或迁移）完成前为 false，界面应显示加载态 */

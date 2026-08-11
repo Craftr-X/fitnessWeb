@@ -19,13 +19,13 @@ import {
 import { bmi, bmiLabel, proteinRange, WEIGHT_GOAL_LABEL } from '@/lib/store'
 import { useCountUp } from '@/hooks/useCountUp'
 import Onboarding from '@/pages/Onboarding'
-import type { CheckMap, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
+import type { CheckMap, Profile, WeekFeedback, WeekPlan, BodyEntry } from '@/types'
 
 interface Props {
   profile: Profile
   setProfile: (v: Profile | ((p: Profile) => Profile)) => void
   weekPlan: WeekPlan
-  weights: WeightEntry[]
+  weights: BodyEntry[]
   checks: CheckMap
   feedbacks: WeekFeedback[]
   /** 老用户重新定制计划完成回调 */

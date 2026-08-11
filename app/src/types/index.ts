@@ -24,11 +24,29 @@ export interface WeekPlan {
   adjustmentNote: string // 本周计划相对上周的调整说明
 }
 
-export interface WeightEntry {
+/**
+ * 一次身体测量记录（同一时间点的全部指标）。
+ * 体重/体脂为最常记项；围度、身体成分（智能秤）、静息心率均为可选，
+ * 留空即不存。云端 schema-less JSON 整文档存储，新字段对老数据自动兼容。
+ */
+export interface BodyEntry {
   date: string // YYYY-MM-DD
   time?: string // HH:mm，同一天可记录多次（如早/晚各一次），缺省视为较早记录
   weight: number
   bodyFat?: number | null
+  // —— 围度 (cm) ——
+  waist?: number | null // 腰围
+  hip?: number | null // 臀围
+  chest?: number | null // 胸围
+  thigh?: number | null // 大腿围
+  calf?: number | null // 小腿围
+  neck?: number | null // 颈围
+  // —— 身体成分（智能秤）——
+  muscleMass?: number | null // 骨骼肌量 kg
+  bmr?: number | null // 基础代谢 kcal
+  visceralFat?: number | null // 内脏脂肪等级
+  // —— 健康 ——
+  restingHr?: number | null // 静息心率 bpm
 }
 
 /** 一组的实际完成记录（训记式重量记录） */

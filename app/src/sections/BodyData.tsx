@@ -25,11 +25,11 @@ import {
 } from '@/components/ui/table'
 import { LineChart as LineChartIcon, Plus, Trash2 } from 'lucide-react'
 import { bmi } from '@/lib/store'
-import type { WeightEntry } from '@/types'
+import type { BodyEntry } from '@/types'
 
 interface Props {
-  weights: WeightEntry[]
-  setWeights: (v: WeightEntry[] | ((p: WeightEntry[]) => WeightEntry[])) => void
+  weights: BodyEntry[]
+  setWeights: (v: BodyEntry[] | ((p: BodyEntry[]) => BodyEntry[])) => void
   heightCm: number
 }
 
@@ -41,7 +41,7 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
   const [range, setRange] = useState<'7' | '30' | 'all'>('30')
 
   // 同一天可有多条记录（早晚），以 日期+时间 作为唯一键
-  const keyOf = (e: WeightEntry) => `${e.date}T${e.time ?? ''}`
+  const keyOf = (e: BodyEntry) => `${e.date}T${e.time ?? ''}`
 
   const sorted = useMemo(
     () => [...weights].sort((a, b) => keyOf(a).localeCompare(keyOf(b))),
@@ -72,7 +72,7 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
     const w = parseFloat(weight)
     if (!date || isNaN(w) || w <= 0) return
     const bf = bodyFat.trim() === '' ? null : parseFloat(bodyFat)
-    const entry: WeightEntry = {
+    const entry: BodyEntry = {
       date,
       time: time || undefined,
       weight: Math.round(w * 100) / 100,
