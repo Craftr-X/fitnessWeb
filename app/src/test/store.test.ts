@@ -3,6 +3,7 @@ import {
   bmi,
   bmiLabel,
   proteinRange,
+  weightDeltaTone,
   weeksBetween,
   mergeOnboardingWeight,
   hasUsageTrace,
@@ -463,6 +464,39 @@ describe('inferLoadType', () => {
     expect(inferLoadType(ex('俯卧撑（跪姿可退阶）', '3 组 × 8-12 次'))).toBe('bodyweight')
     expect(inferLoadType(ex('徒手深蹲', '3 组 × 15-20 次'))).toBe('bodyweight')
     expect(inferLoadType(ex('卷腹', '3 组 × 15 次'))).toBe('bodyweight')
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* weightDeltaTone —— 体重变化方向是否符合目标预期（Overview 着色）      */
+/* ------------------------------------------------------------------ */
+describe('weightDeltaTone', () => {
+  it('增肌：上涨 good / 下降 bad', () => {
+    expect(weightDeltaTone('gain', 1.5)).toBe('good')
+    expect(weightDeltaTone('gain', -0.8)).toBe('bad')
+  })
+
+  it('减脂：下降 good / 上涨 bad（与增肌相反）', () => {
+    expect(weightDeltaTone('lose', -1.2)).toBe('good')
+    expect(weightDeltaTone('lose', 0.5)).toBe('bad')
+  })
+
+  it('塑形/保持：方向中性（关注体脂而非体重绝对值）', () => {
+    expect(weightDeltaTone('recomp', 1.0)).toBe('neutral')
+    expect(weightDeltaTone('recomp', -1.0)).toBe('neutral')
+    expect(weightDeltaTone('maintain', 0.5)).toBe('neutral')
+    expect(weightDeltaTone('maintain', -0.5)).toBe('neutral')
+  })
+
+  it('近似零（浮点噪声 <0.01kg）一律 neutral', () => {
+    expect(weightDeltaTone('gain', 0)).toBe('neutral')
+    expect(weightDeltaTone('gain', 0.005)).toBe('neutral')
+    expect(weightDeltaTone('lose', -0.009)).toBe('neutral')
+  })
+
+  it('goal 为 undefined：兜底按增肌方向（涨好跌坏）', () => {
+    expect(weightDeltaTone(undefined, 1)).toBe('good')
+    expect(weightDeltaTone(undefined, -1)).toBe('bad')
   })
 })
 

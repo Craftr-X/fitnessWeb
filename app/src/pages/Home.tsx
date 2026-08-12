@@ -36,7 +36,7 @@ function greeting(): string {
 export default function Home({ user }: { user: User }) {
   const cloud = useCloudStorage(user.id)
   const { signOut } = useAuth()
-  const { ready, migrated } = cloud
+  const { ready, migrated, syncError } = cloud
   const [profile, setProfile] = cloud.profile
   const [weekPlan, setWeekPlan] = cloud.weekPlan
   const [checks, setChecks] = cloud.checks
@@ -80,6 +80,19 @@ export default function Home({ user }: { user: User }) {
     toast.success('📦 已把本机的历史数据迁移到你的云端账号！')
   }, [ready, migrated])
 
+  // 同步状态提示：失败时驻留 toast，网络恢复（syncError 转 false）后自动消失。
+  // 用固定 id 去重，避免每次防抖都弹新 toast。
+  useEffect(() => {
+    if (syncError) {
+      toast.error('同步失败，数据已暂存本地，网络恢复后会自动重试', {
+        id: 'sync-error',
+        duration: Infinity,
+      })
+    } else {
+      toast.dismiss('sync-error')
+    }
+  }, [syncError])
+
   // 把 onboarding 采集的体重落到 weights（逻辑见 store.mergeOnboardingWeight，已单测覆盖）
   const syncWeightFromProfile = (weightKg: number) => {
     if (weightKg <= 0) return
@@ -113,7 +126,11 @@ export default function Home({ user }: { user: User }) {
   }
 
   const handleSignOut = async () => {
-    await cloud.flush() // 把防抖窗口内的最新数据先写入云端
+    const ok = await cloud.flush() // 把防抖窗口内的最新数据先写入云端
+    if (!ok) {
+      // 数据未同步但不丢：dirty 标记仍在，下次登录会自动重推
+      toast.warning('部分数据未能同步，下次登录会自动重试')
+    }
     await signOut()
   }
 
