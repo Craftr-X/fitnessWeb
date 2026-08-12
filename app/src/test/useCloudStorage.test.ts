@@ -178,4 +178,46 @@ describe('useCloudStorage 未同步重推', () => {
     )
     expect(isCloudDirty(uid)).toBe(false)
   })
+
+  it('防抖保存失败：syncError 置位；恢复成功后清除', async () => {
+    const uid = 'u-sync-err'
+    loadUserDataMock.mockResolvedValue({ checks: {} })
+    saveUserDataMock
+      .mockResolvedValueOnce(false) // 第一次防抖失败
+      .mockResolvedValueOnce(true) // 第二次成功
+
+    const { result } = renderHook(() => useCloudStorage(uid))
+    await flushMicrotasks()
+    expect(result.current.ready).toBe(true)
+
+    // 第一次防抖保存失败 → syncError 置位
+    act(() => vi.advanceTimersByTime(DEBOUNCE_MS))
+    await flushMicrotasks()
+    expect(result.current.syncError).toBe(true)
+
+    // 触发新变更 → 新一轮防抖；保存成功后 syncError 清除
+    act(() => {
+      result.current.checks[1]({ '7:0:0': true })
+    })
+    act(() => vi.advanceTimersByTime(DEBOUNCE_MS))
+    await flushMicrotasks()
+    expect(result.current.syncError).toBe(false)
+  })
+
+  it('flush 失败：syncError 置位并返回 false', async () => {
+    const uid = 'u-flush-err'
+    loadUserDataMock.mockResolvedValue(null)
+    saveUserDataMock.mockResolvedValue(true) // 加载阶段迁移 save
+
+    const { result } = renderHook(() => useCloudStorage(uid))
+    await flushMicrotasks()
+
+    saveUserDataMock.mockResolvedValueOnce(false) // flush 失败
+    let ok = true
+    await act(async () => {
+      ok = await result.current.flush()
+    })
+    expect(ok).toBe(false)
+    expect(result.current.syncError).toBe(true)
+  })
 })

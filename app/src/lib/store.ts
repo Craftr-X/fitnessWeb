@@ -381,8 +381,10 @@ export interface CloudStore {
   ready: boolean
   /** 本次登录触发了旧本地数据迁移 */
   migrated: boolean
-  /** 立即把最新状态写入云端（退出登录前调用，避免防抖窗口丢数据） */
-  flush: () => Promise<void>
+  /** 最近一次防抖同步是否失败（断网/超时等）。数据已暂存本地，下次启动会自动重推 */
+  syncError: boolean
+  /** 立即把最新状态写入云端（退出登录前调用，避免防抖窗口丢数据）。返回是否成功 */
+  flush: () => Promise<boolean>
 }
 
 function defaultCloudState(): CloudState {
@@ -437,6 +439,7 @@ export function useCloudStorage(userId: string): CloudStore {
   const [state, setState] = useState<CloudState>(() => readCache(userId) ?? defaultCloudState())
   const [ready, setReady] = useState(false)
   const [migrated, setMigrated] = useState(false)
+  const [syncError, setSyncError] = useState(false)
   const stateRef = useRef(state)
   useEffect(() => {
     stateRef.current = state
@@ -486,7 +489,13 @@ export function useCloudStorage(userId: string): CloudStore {
       void saveUserData(userId, snapshot).then((ok) => {
         // 保存期间又有了新变更（stateRef 已指向更新的状态）时不能清标记：
         // 新一轮防抖保存会负责清，或由下次启动重推
-        if (ok && stateRef.current === snapshot) clearCloudDirty(userId)
+        if (ok && stateRef.current === snapshot) {
+          clearCloudDirty(userId)
+          setSyncError(false)
+        } else if (!ok) {
+          setSyncError(true)
+        }
+        // ok=true 但 stateRef!==snapshot：新一轮防抖会负责，保持当前 syncError
       })
     }, 800)
     return () => clearTimeout(timer)
@@ -495,7 +504,13 @@ export function useCloudStorage(userId: string): CloudStore {
   const flush = useCallback(async () => {
     const snapshot = stateRef.current
     const ok = await saveUserData(userId, snapshot)
-    if (ok && stateRef.current === snapshot) clearCloudDirty(userId)
+    if (ok && stateRef.current === snapshot) {
+      clearCloudDirty(userId)
+      setSyncError(false)
+    } else if (!ok) {
+      setSyncError(true)
+    }
+    return ok
   }, [userId])
 
   const makeSetter = useCallback(
@@ -517,6 +532,7 @@ export function useCloudStorage(userId: string): CloudStore {
     setLogs: [state.setLogs, makeSetter('setLogs')],
     ready,
     migrated,
+    syncError,
     flush,
   }
 }
