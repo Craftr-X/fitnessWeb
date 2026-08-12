@@ -16,7 +16,7 @@ import {
   Target,
   TrendingUp,
 } from 'lucide-react'
-import { bmi, bmiLabel, proteinRange, WEIGHT_GOAL_LABEL } from '@/lib/store'
+import { bmi, bmiLabel, proteinRange, weightDeltaTone, WEIGHT_GOAL_LABEL } from '@/lib/store'
 import { useCountUp } from '@/hooks/useCountUp'
 import Onboarding from '@/pages/Onboarding'
 import type { CheckMap, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
@@ -101,6 +101,9 @@ export default function Overview({
           ? '保持期体重稳定即可，重在规律训练'
           : '增肌期体重应缓慢上涨（每周 0.1-0.25 kg）'
 
+  // 体重变化方向是否符合目标预期：决定 delta 数字的着色（增肌涨好 / 减脂降好 / 塑形保持中性）
+  const deltaTone = weightDeltaTone(goal, weightDelta)
+
   const cardCls = 'rounded-2xl shadow-sm transition-shadow hover:shadow-md'
 
   return (
@@ -159,11 +162,16 @@ export default function Overview({
             ) : (
               <>
                 自开始记录以来体重{' '}
-                <span className={weightDelta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}>
+                <span className={
+                  deltaTone === 'good'
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : deltaTone === 'bad'
+                      ? 'text-red-500 dark:text-red-400'
+                      : 'text-muted-foreground'
+                }>
                   {weightDelta >= 0 ? '+' : ''}
                   {weightDelta.toFixed(2)} kg
                 </span>
-                （增肌期希望缓慢上涨）
               </>
             )}
           </div>

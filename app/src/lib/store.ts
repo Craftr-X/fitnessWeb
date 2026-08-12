@@ -333,6 +333,31 @@ export function proteinRange(weightKg: number): [number, number] {
   return [Math.round(weightKg * 1.6), Math.round(weightKg * 2.0)]
 }
 
+/**
+ * 按体重目标判定体重变化方向是否符合预期（Overview delta 着色用）。
+ * - 增肌：上涨为 good，下降为 bad
+ * - 减脂：下降为 good，上涨为 bad
+ * - 塑形/保持：方向中性（关注体脂/围度而非体重绝对值），返回 neutral
+ * |delta|<0.01kg（浮点噪声）一律视为 neutral。
+ */
+export function weightDeltaTone(
+  goal: WeightGoal | undefined,
+  delta: number,
+): 'good' | 'bad' | 'neutral' {
+  if (Math.abs(delta) < 0.01) return 'neutral'
+  switch (goal) {
+    case 'gain':
+      return delta > 0 ? 'good' : 'bad'
+    case 'lose':
+      return delta < 0 ? 'good' : 'bad'
+    case 'recomp':
+    case 'maintain':
+      return 'neutral'
+    default:
+      return delta > 0 ? 'good' : 'bad'
+  }
+}
+
 /** 一个用户的全部应用状态（与远端 user_data.data 对应） */
 export interface CloudState {
   profile: Profile
