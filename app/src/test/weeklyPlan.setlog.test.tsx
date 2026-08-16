@@ -73,8 +73,15 @@ type User = ReturnType<typeof userEvent.setup>
 
 const today = new Date()
 const todayStr = format(today, 'yyyy-MM-dd')
-/** 本周日：一定落在本周内（>= startDate）且不是今天，用于本周历史用例 */
-const sundayStr = format(addDays(new Date(TEST_PLAN.startDate + 'T00:00:00'), 6), 'yyyy-MM-dd')
+const sundayDate = addDays(new Date(TEST_PLAN.startDate + 'T00:00:00'), 6)
+const sundayStr = format(sundayDate, 'yyyy-MM-dd')
+/**
+ * 本周历史用例的记录日期：需落在本周内（>= startDate）且不是今天
+ * （今天的记录会归入"本次"，不进本周历史）。今天若恰逢周日则取周六。
+ */
+const historyDate = sundayStr === todayStr ? addDays(sundayDate, -1) : sundayDate
+const historyStr = format(historyDate, 'yyyy-MM-dd')
+const historyDayLabel = format(historyDate, 'yyyy-MM-dd') === sundayStr ? '周日' : '周六'
 
 /** 指定动作所在的动作行容器 */
 function rowFor(name: string): HTMLElement {
@@ -233,12 +240,12 @@ describe('负重动作（哑铃弯举）', () => {
   it('弹窗展示本周其他天的历史记录，可回看之前重量', async () => {
     const user = userEvent.setup()
     const initialLogs: ExerciseLogMap = {
-      [WEIGHTED_EX]: [{ date: sundayStr, week: 1, sets: [{ weightKg: 20, reps: 6 }] }],
+      [WEIGHTED_EX]: [{ date: historyStr, week: 1, sets: [{ weightKg: 20, reps: 6 }] }],
     }
     render(<Harness initialLogs={initialLogs} />)
     const dialog = await openDialogFor(user, WEIGHTED_EX)
     expect(within(dialog).getByText('本周记录')).toBeInTheDocument()
-    expect(within(dialog).getByText(/周日/)).toBeInTheDocument()
+    expect(within(dialog).getAllByText(new RegExp(historyDayLabel)).length).toBeGreaterThan(0)
     expect(within(dialog).getByText('20kg×6 · 1组')).toBeInTheDocument()
   })
 
