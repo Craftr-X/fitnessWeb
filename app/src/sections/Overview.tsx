@@ -15,11 +15,13 @@ import {
   Sparkles,
   Target,
   TrendingUp,
+  Trophy,
 } from 'lucide-react'
 import { bmi, bmiLabel, proteinRange, weightDeltaTone, WEIGHT_GOAL_LABEL } from '@/lib/store'
 import { useCountUp } from '@/hooks/useCountUp'
 import Onboarding from '@/pages/Onboarding'
-import type { CheckMap, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
+import TransformationDialog from '@/components/TransformationDialog'
+import type { CheckMap, ExerciseLogMap, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
 
 interface Props {
   profile: Profile
@@ -28,6 +30,7 @@ interface Props {
   weights: WeightEntry[]
   checks: CheckMap
   feedbacks: WeekFeedback[]
+  setLogs: ExerciseLogMap
   /** 老用户重新定制计划完成回调 */
   onRebuild?: (profile: Profile, weekPlan: WeekPlan) => void
 }
@@ -46,9 +49,11 @@ export default function Overview({
   weights,
   checks,
   feedbacks,
+  setLogs,
   onRebuild,
 }: Props) {
   const [rebuilding, setRebuilding] = useState(false)
+  const [showTransformation, setShowTransformation] = useState(false)
   const latest = weights[weights.length - 1]
   const weight = latest?.weight ?? profile.weightKg ?? 0
   const bmiValue = bmi(weight, profile.heightCm)
@@ -284,6 +289,15 @@ export default function Overview({
               {profile.onboarded ? '重新定制我的计划' : '定制我的专属计划'}
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2 w-full"
+            onClick={() => setShowTransformation(true)}
+          >
+            <Trophy className="mr-1.5 h-4 w-4 text-orange-500" />
+            我的蜕变
+          </Button>
         </CardContent>
       </Card>
 
@@ -306,6 +320,17 @@ export default function Overview({
           </DialogContent>
         </Dialog>
       )}
+
+      {/* 我的蜕变：报告 + 可下载海报 */}
+      <TransformationDialog
+        open={showTransformation}
+        onOpenChange={setShowTransformation}
+        weights={weights}
+        feedbacks={feedbacks}
+        setLogs={setLogs}
+        profile={profile}
+        weekPlan={weekPlan}
+      />
     </div>
   )
 }
