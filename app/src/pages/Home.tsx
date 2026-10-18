@@ -5,11 +5,28 @@ import type { User } from '@supabase/supabase-js'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
-import { ArrowRight, Dumbbell, Flame, LogOut, MessageCircle } from 'lucide-react'
+import { ArrowRight, Download, Dumbbell, EllipsisVertical, Flame, LogOut, MessageCircle, Trash2 } from 'lucide-react'
 import { useCountUp } from '@/hooks/useCountUp'
 import { currentMonday, hasUsageTrace, mergeOnboardingWeight, needsOnboarding, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
+import { buildExportPayload, clearLocalData, deleteCloudRow, downloadExport } from '@/lib/account'
 import { buildNextWeekPlan } from '@/lib/planEngine'
 import { useAuth } from '@/hooks/useAuth'
 import ThemeToggle from '@/components/ThemeToggle'
@@ -44,6 +61,11 @@ export default function Home({ user }: { user: User }) {
   const [feedbacks, setFeedbacks] = cloud.feedbacks
   const [setLogs, setSetLogs] = cloud.setLogs
   const [tab, setTab] = useState('overview')
+  // 页头菜单：意见反馈（受控弹窗）、退出登录（二次确认）、删除账号（强警告 + 异步执行中禁用）
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [signOutOpen, setSignOutOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // 未 onboarded 一律走引导：真·新用户首次配置；老用户（账号体系上线前已有数据）
   // 借此软迁移到规则引擎计划——onboarding 是生成计划的唯一入口
@@ -134,6 +156,35 @@ export default function Home({ user }: { user: User }) {
     await signOut()
   }
 
+  const handleExport = () => {
+    try {
+      downloadExport(
+        buildExportPayload(user.email, { profile, weekPlan, checks, weights, feedbacks, setLogs }),
+      )
+      toast.success('数据已导出，请在下载目录查收')
+    } catch {
+      toast.error('导出失败，请重试')
+    }
+  }
+
+  // 删除账号（简版）：删云端数据行 → 清本机缓存 → 登出。
+  // 任何一步失败都不继续，避免"云端没删干净本地却清了"的错位。
+  const handleDeleteAccount = async () => {
+    setDeleting(true)
+    try {
+      await cloud.flush() // 先把最新状态落盘，保证删除的就是最终数据
+      if (!(await deleteCloudRow(user.id))) {
+        toast.error('云端数据删除失败，请检查网络后重试')
+        return
+      }
+      clearLocalData(user.id)
+      await signOut()
+      toast.success('你的数据已全部删除')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const todayIdx = (new Date().getDay() + 6) % 7
   const todayPlan = weekPlan.days[todayIdx]
   const latestWeight = weights[weights.length - 1]?.weight
@@ -191,44 +242,98 @@ export default function Home({ user }: { user: User }) {
 
       <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 text-white shadow-md shadow-teal-500/30">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 text-white shadow-md shadow-teal-500/30">
             <Dumbbell className="h-5 w-5" />
           </div>
-          <div className="flex-1">
-            <h1 className="text-lg font-bold leading-tight">FitUp 健身计划</h1>
-            <p className="text-xs text-muted-foreground">
+          {/* min-w-0 允许标题块在移动端收缩，truncate 保证单行省略不折行 */}
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-lg font-bold leading-tight">FitUp 健身计划</h1>
+            <p className="truncate text-xs text-muted-foreground">
               {profile.heightCm} cm · 目标：{profile.weightGoal ? WEIGHT_GOAL_LABEL[profile.weightGoal] : '—'}
             </p>
           </div>
           <span className="hidden max-w-40 truncate text-xs text-muted-foreground sm:block">
             {user.email}
           </span>
-          <Tooltip>
-            <FeedbackDialog
-              trigger={
-                <TooltipTrigger asChild>
-                  <Button size="icon" variant="ghost" aria-label="意见反馈">
-                    <MessageCircle className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </TooltipTrigger>
-              }
-            />
-            <TooltipContent>意见反馈</TooltipContent>
-          </Tooltip>
           <ThemeToggle />
-          <Badge variant="secondary" className="bg-primary/10 text-primary">
+          <Badge variant="secondary" className="shrink-0 bg-primary/10 text-primary">
             第 {weekPlan.week} 周
           </Badge>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button size="icon" variant="ghost" aria-label="退出登录" onClick={handleSignOut}>
-                <LogOut className="h-4 w-4 text-muted-foreground" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost" aria-label="菜单">
+                <EllipsisVertical className="h-4 w-4 text-muted-foreground" />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent>退出登录</TooltipContent>
-          </Tooltip>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onSelect={() => setFeedbackOpen(true)}>
+                <MessageCircle />
+                意见反馈
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleExport}>
+                <Download />
+                导出我的数据
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
+                onSelect={() => setDeleteOpen(true)}
+              >
+                <Trash2 />
+                删除账号
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
+                onSelect={() => setSignOutOpen(true)}
+              >
+                <LogOut />
+                退出登录
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
+
+      {/* 退出登录二次确认：防止误触；确认后才走 flush + signOut */}
+      <AlertDialog open={signOutOpen} onOpenChange={setSignOutOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确定要退出登录吗？</AlertDialogTitle>
+            <AlertDialogDescription>
+              退出前会把未同步的数据写入云端，下次登录后数据都在。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleSignOut()}>退出登录</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 删除账号强警告：不可逆操作，明确告知删除范围与后果 */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除账号与全部数据？</AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作不可恢复：云端的所有训练计划、打卡、体重与反馈数据将立即删除，本机缓存一并清空，随后退出登录。仅保留邮箱账号本身，不会收到任何后续邮件。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>我再想想</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={() => void handleDeleteAccount()}
+            >
+              {deleting ? '正在删除…' : '确认删除全部数据'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
 
       <main className="relative mx-auto max-w-5xl px-4 py-5">
         {/* 今日作战卡 */}

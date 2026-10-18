@@ -13,14 +13,22 @@ const FEEDBACK_EMAIL = '1443608354@qq.com'
 // 微信群二维码图片放在 public/ 下，过期后替换该文件重新部署即可
 const WECHAT_QR_URL = `${import.meta.env.BASE_URL}wechat-group-qr.png`
 
+interface Props {
+  /** 非受控模式：trigger 元素（登录页用法） */
+  trigger?: ReactNode
+  /** 受控模式：由父组件（如页头菜单项）控制开关 */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}
+
 /**
  * 「意见反馈」弹窗：微信群二维码 + 备用邮箱。
- * 首页页头和登录页共用，trigger 由调用方按各自风格传入。
+ * 首页页头和登录页共用：登录页传 trigger（非受控），页头菜单传 open/onOpenChange（受控）。
  */
-export default function FeedbackDialog({ trigger }: { trigger: ReactNode }) {
+export default function FeedbackDialog({ trigger, open, onOpenChange }: Props) {
   return (
-    <Dialog>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>意见反馈</DialogTitle>

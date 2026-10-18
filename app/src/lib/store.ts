@@ -387,7 +387,8 @@ export interface CloudStore {
   flush: () => Promise<boolean>
 }
 
-function defaultCloudState(): CloudState {
+/** 初始状态：未 onboarding 的占位空计划 + 各数据域空集合（导出/测试也用） */
+export function defaultCloudState(): CloudState {
   return {
     // 浅拷贝：避免每个默认实例共享同一个模块级对象引用，
     // 防止某处误做 profile.xxx = y 时污染全局默认值
