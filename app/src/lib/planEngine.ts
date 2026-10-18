@@ -620,6 +620,11 @@ const FOCUS_GROUP: Record<string, MuscleGroup> = Object.fromEntries(
   Object.entries(GROUP_LABEL).map(([g, label]) => [label, g as MuscleGroup]),
 )
 
+/** focus 文案 → 肌群（动作替换定位候选池用）；未知文案（休息/专项运动日）返回 undefined */
+export function groupFromFocus(focus: string): MuscleGroup | undefined {
+  return FOCUS_GROUP[focus]
+}
+
 /**
  * 反馈 → 渐进参数修正（完成度/睡眠对"量"的影响）。
  * 与 computeProgression 串联：先按 difficulty 算基础进阶，再叠加完成度/睡眠规则。
@@ -794,6 +799,37 @@ export function copyWeekPlanFromProfile(plan: WeekPlan): WeekPlan {
     days: plan.days.map((d) => ({ ...d, exercises: d.exercises.map((e) => ({ ...e })) })),
     adjustmentNote: '沿用上周计划，未做进阶调整。',
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* 动作替换：同肌群候选池（"换一个动作"功能）                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 列出某肌群下可替换的动作候选。
+ * 复用计划生成管线：同肌群 + 同器械的动作池 → 伤病过滤 → 与正式计划同一套
+ * seedToExercise 参数，保证候选的组数/次数与当周计划口径一致。
+ * 注意：完成度/睡眠触发的组数微调（setCapDelta）不参与候选计算，
+ * 候选组数可能与同日其他动作偶有 ±1 组差异——组数本就是建议值，可接受。
+ */
+export function listAlternatives(opts: {
+  group: MuscleGroup
+  equipment: Equipment
+  experience: Experience
+  /** 当前周数：候选组数/次数按当周进阶台阶换算 */
+  week: number
+  /** 上周难度反馈（1-5，可选；与计划生成同口径地影响进阶幅度） */
+  difficulty?: number
+  tuning: GoalTuning
+  injuries?: string[]
+  /** 当前动作名，从候选中排除 */
+  excludeName: string
+}): Exercise[] {
+  const progression = computeProgression(opts.week, opts.difficulty)
+  const pool = filterByInjury(opts.group, poolFor(opts.group, opts.equipment), opts.injuries)
+  return pool
+    .filter((s) => s.name !== opts.excludeName)
+    .map((s) => seedToExercise(s, progression, opts.tuning, opts.experience, opts.equipment))
 }
 
 /* ------------------------------------------------------------------ */
