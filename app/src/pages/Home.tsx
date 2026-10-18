@@ -32,6 +32,7 @@ import { useAuth } from '@/hooks/useAuth'
 import ThemeToggle from '@/components/ThemeToggle'
 import AppSplash from '@/components/AppSplash'
 import FeedbackDialog from '@/components/FeedbackDialog'
+import { RestTimer, type RestTimerHandle } from '@/components/RestTimer'
 import Onboarding from '@/pages/Onboarding'
 import type { Profile, WeekPlan } from '@/types'
 
@@ -66,6 +67,8 @@ export default function Home({ user }: { user: User }) {
   const [signOutOpen, setSignOutOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // 组间休息计时器：挂 Home 层，切 tab 不中断；WeeklyPlan 经回调触发
+  const restTimerRef = useRef<RestTimerHandle>(null)
 
   // 未 onboarded 一律走引导：真·新用户首次配置；老用户（账号体系上线前已有数据）
   // 借此软迁移到规则引擎计划——onboarding 是生成计划的唯一入口
@@ -470,6 +473,7 @@ export default function Home({ user }: { user: User }) {
                 feedbacks={feedbacks}
                 onGoFeedback={() => setTab('feedback')}
                 profile={profile}
+                onRestStart={(seconds) => restTimerRef.current?.start(seconds)}
               />
             </TabsContent>
             <TabsContent value="data" className="fade-enter">
@@ -491,6 +495,9 @@ export default function Home({ user }: { user: User }) {
           </Suspense>
         </Tabs>
       </main>
+
+      {/* 组间休息悬浮计时器（无计时时不渲染） */}
+      <RestTimer ref={restTimerRef} />
     </div>
   )
 }
