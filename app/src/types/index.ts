@@ -91,3 +91,6 @@ export interface Profile {
 }
 
 export type CheckMap = Record<string, boolean>
+
+/** 每日训练活跃度：yyyy-MM-dd → 当日完成动作数（打卡勾选驱动，训练日历数据源） */
+export type ActivityMap = Record<string, number>

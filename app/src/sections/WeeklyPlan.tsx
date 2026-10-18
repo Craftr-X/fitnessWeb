@@ -12,15 +12,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ArrowRightCircle, BedDouble, CalendarClock, Copy, Dumbbell, History, Info, Leaf, Plus, Trash2, Trophy } from 'lucide-react'
+import { ArrowRightCircle, BedDouble, CalendarClock, Copy, Dumbbell, History, Info, Leaf, Plus, Timer, Trash2, Trophy } from 'lucide-react'
 import { toast } from 'sonner'
-import { currentMonday, exerciseWeekStats, getLastLogBefore, getLogForDate, inferLoadType, parseSetTarget, removeExerciseLog, upsertExerciseLog } from '@/lib/store'
+import { currentMonday, bumpActivity, exerciseWeekStats, getLastLogBefore, getLogForDate, inferLoadType, parseSetTarget, removeExerciseLog, upsertExerciseLog } from '@/lib/store'
 import type { SetTarget } from '@/lib/store'
 import { buildNextWeekPlan, copyWeekPlanFromProfile } from '@/lib/planEngine'
 import { burstAt, celebrateDayDone, celebrateWeekDone } from '@/lib/celebrate'
 import { getDemo } from '@/lib/demos'
 import ExerciseDemoButton from '@/components/ExerciseDemoButton'
-import type { CheckMap, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, WorkoutSet } from '@/types'
+import type { ActivityMap, CheckMap, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, WorkoutSet } from '@/types'
 
 interface Props {
   weekPlan: WeekPlan
@@ -33,6 +33,10 @@ interface Props {
   onGoFeedback: () => void
   /** 当前用户画像，用于已 onboarded 用户生成下周时走规则引擎 */
   profile?: Profile
+  /** 开始组间休息倒计时（秒，缺省用 RestTimer 默认值）；由 Home 层的悬浮计时器承接 */
+  onRestStart?: (seconds?: number) => void
+  /** 训练活跃度写入（打卡勾选/取消时更新，训练日历数据源） */
+  setActivity: (v: ActivityMap | ((p: ActivityMap) => ActivityMap)) => void
 }
 
 /**
@@ -84,6 +88,8 @@ interface ExerciseLogDialogProps {
   onSave: (sets: WorkoutSet[]) => void
   /** 清除今天的记录（仅当 todayRec 存在时展示入口） */
   onClear: () => void
+  /** 「完成」保存成功后自动开始组间休息（可选；由上层悬浮计时器承接） */
+  onRestStart?: () => void
 }
 
 /** 纪录带单项：彩色小标签 + 大数字 + 单位（对齐训记图表页的三栏纪录样式） */
@@ -122,6 +128,7 @@ function ExerciseLogDialog({
   todayStr,
   onSave,
   onClear,
+  onRestStart,
 }: ExerciseLogDialogProps) {
   const weighted = loadType === 'weighted'
   /** 次数列的单位与文案（时间类动作记秒数） */
@@ -204,6 +211,7 @@ function ExerciseLogDialog({
     }
     onSave(sets)
     onOpenChange(false)
+    onRestStart?.() // 保存成功 = 训练在继续，自动开始组间休息
   }
 
   return (
@@ -428,7 +436,7 @@ const DAY_STYLE: Record<
 // 防御性兜底：规则引擎若产出未知 type（未来扩展），用 rest 样式兜底而不是崩溃
 const FALLBACK_STYLE = DAY_STYLE.rest
 
-export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, setLogs, setSetLogs, feedbacks, onGoFeedback, profile }: Props) {
+export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, setLogs, setSetLogs, feedbacks, onGoFeedback, profile, onRestStart, setActivity }: Props) {
   const [confirming, setConfirming] = useState(false)
   const [confirmingCopy, setConfirmingCopy] = useState(false)
   // 重量记录弹窗当前编辑的动作位置（day index + exercise index），null = 关闭
@@ -440,6 +448,8 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
     const key = `${weekPlan.week}:${di}:${ei}`
     const willCheck = !checks[key]
     setChecks((prev) => ({ ...prev, [key]: !prev[key] }))
+    // 同步累计每日活跃度（训练日历数据源）：勾选 +1，取消 -1
+    setActivity((prev) => bumpActivity(prev, todayStr, willCheck ? 1 : -1))
     if (!willCheck) return
     const day = weekPlan.days[di]
     const dayAllDone = day.exercises.every((_, i) => i === ei || checks[`${weekPlan.week}:${di}:${i}`])
@@ -612,11 +622,11 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
                         {demo && <ExerciseDemoButton exerciseName={ex.name} demo={demo} />}
                       </div>
                       {target && (
-                        <div className="mt-1.5 pl-8">
+                        <div className="mt-1.5 flex items-stretch gap-1.5 pl-8">
                           <button
                             type="button"
                             onClick={() => setLoggerPos({ di, ei })}
-                            className={`flex w-full items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition-colors ${
+                            className={`flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition-colors ${
                               todayRec
                                 ? 'border-emerald-200 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:border-emerald-500/30 dark:text-emerald-300 dark:hover:bg-emerald-500/20'
                                 : 'border-orange-200 bg-orange-500/5 text-orange-700 hover:bg-orange-500/15 dark:border-orange-500/30 dark:text-orange-300 dark:hover:bg-orange-500/20'
@@ -640,6 +650,18 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
                               </>
                             )}
                           </button>
+                          {/* 组间休息：一键开始倒计时（悬浮计时器在 Home 层，切 tab 不中断） */}
+                          {onRestStart && (
+                            <button
+                              type="button"
+                              onClick={() => onRestStart()}
+                              title="组间休息 75 秒"
+                              aria-label={`开始组间休息计时（${ex.name}）`}
+                              className="flex shrink-0 items-center justify-center rounded-lg border border-muted-foreground/20 px-2.5 text-muted-foreground transition-colors hover:border-teal-300 hover:bg-teal-500/10 hover:text-teal-700 dark:hover:text-teal-300"
+                            >
+                              <Timer className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -684,6 +706,7 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
                 )
               }
               onClear={() => setSetLogs((prev) => removeExerciseLog(prev, ex.name, todayStr))}
+              onRestStart={() => onRestStart?.()}
             />
           )
         })()}

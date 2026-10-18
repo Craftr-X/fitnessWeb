@@ -12,7 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![Tests](https://img.shields.io/badge/Tests-171%20passed-brightgreen)](#-常用命令)
+[![Tests](https://img.shields.io/badge/Tests-215%20passed-brightgreen)](#-常用命令)
 
 [功能特性](#-功能特性) · [在线预览](#-应用截图) · [快速开始](#-快速开始) · [部署](#-部署) · [项目结构](#-项目结构)
 
@@ -34,8 +34,11 @@
 - ✅ **每日打卡** — 训练动作逐项勾选，完成动画激励
 - ⚖️ **身体数据追踪** — 体重/体脂记录与趋势图
 - 🔄 **每周反馈** — 完成度、难度、酸痛、睡眠、饮食，反馈驱动下周调整
+- ⏱️ **组间休息计时器** — 记录重量后自动开始倒计时，切页不中断
+- 📅 **训练日历** — 打卡、称重、反馈按月回看
 - 🍗 **营养建议** — 按体重目标计算热量盈余/缺口与蛋白质摄入
 - 🔒 **用户数据隔离** — Supabase RLS 行级安全，每个用户只能访问自己的数据
+- 📤 **数据可携带 / 可删除** — 一键导出全部个人数据，自助删除账号（合规）
 - ♻️ **跨周自动续期** — 进入新自然周自动生成新计划，多周未打开可一次性补齐
 - 🌙 **现代前端体验** — 暗色模式、路由懒加载、移动端自适应
 
@@ -69,7 +72,7 @@
 | 后端 | Supabase（Auth + Postgres + RLS） |
 | 表单 | React Hook Form、Zod |
 | 可视化 | Recharts |
-| 测试 | Vitest + Testing Library（171 个单元测试） |
+| 测试 | Vitest + Testing Library（215 个单元测试） |
 | CI/CD | GitHub Actions（lint + test + build → Pages 部署） |
 
 ## 🚀 快速开始
@@ -99,7 +102,7 @@ Supabase 配置（建表 + RLS + Auth）详见 [`app/README.md`](app/README.md)�
 cd app
 npm run dev        # 开发服务器
 npm run build      # 类型检查 + 生产构建
-npm run test       # 单元测试（171 个）
+npm run test       # 单元测试（215 个）
 npm run lint       # ESLint
 ```
 
