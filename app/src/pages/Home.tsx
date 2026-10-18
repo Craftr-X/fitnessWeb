@@ -61,6 +61,7 @@ export default function Home({ user }: { user: User }) {
   const [weights, setWeights] = cloud.weights
   const [feedbacks, setFeedbacks] = cloud.feedbacks
   const [setLogs, setSetLogs] = cloud.setLogs
+  const [activity, setActivity] = cloud.activity
   const [tab, setTab] = useState('overview')
   // 页头菜单：意见反馈（受控弹窗）、退出登录（二次确认）、删除账号（强警告 + 异步执行中禁用）
   const [feedbackOpen, setFeedbackOpen] = useState(false)
@@ -162,7 +163,7 @@ export default function Home({ user }: { user: User }) {
   const handleExport = () => {
     try {
       downloadExport(
-        buildExportPayload(user.email, { profile, weekPlan, checks, weights, feedbacks, setLogs }),
+        buildExportPayload(user.email, { profile, weekPlan, checks, weights, feedbacks, setLogs, activity }),
       )
       toast.success('数据已导出，请在下载目录查收')
     } catch {
@@ -474,10 +475,17 @@ export default function Home({ user }: { user: User }) {
                 onGoFeedback={() => setTab('feedback')}
                 profile={profile}
                 onRestStart={(seconds) => restTimerRef.current?.start(seconds)}
+                setActivity={setActivity}
               />
             </TabsContent>
             <TabsContent value="data" className="fade-enter">
-              <BodyData weights={weights} setWeights={setWeights} heightCm={profile.heightCm} />
+              <BodyData
+                weights={weights}
+                setWeights={setWeights}
+                heightCm={profile.heightCm}
+                activity={activity}
+                feedbacks={feedbacks}
+              />
             </TabsContent>
             <TabsContent value="feedback" className="fade-enter">
               <Feedback

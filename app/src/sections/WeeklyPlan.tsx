@@ -14,13 +14,13 @@ import {
 } from '@/components/ui/dialog'
 import { ArrowRightCircle, BedDouble, CalendarClock, Copy, Dumbbell, History, Info, Leaf, Plus, Timer, Trash2, Trophy } from 'lucide-react'
 import { toast } from 'sonner'
-import { currentMonday, exerciseWeekStats, getLastLogBefore, getLogForDate, inferLoadType, parseSetTarget, removeExerciseLog, upsertExerciseLog } from '@/lib/store'
+import { currentMonday, bumpActivity, exerciseWeekStats, getLastLogBefore, getLogForDate, inferLoadType, parseSetTarget, removeExerciseLog, upsertExerciseLog } from '@/lib/store'
 import type { SetTarget } from '@/lib/store'
 import { buildNextWeekPlan, copyWeekPlanFromProfile } from '@/lib/planEngine'
 import { burstAt, celebrateDayDone, celebrateWeekDone } from '@/lib/celebrate'
 import { getDemo } from '@/lib/demos'
 import ExerciseDemoButton from '@/components/ExerciseDemoButton'
-import type { CheckMap, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, WorkoutSet } from '@/types'
+import type { ActivityMap, CheckMap, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, WorkoutSet } from '@/types'
 
 interface Props {
   weekPlan: WeekPlan
@@ -35,6 +35,8 @@ interface Props {
   profile?: Profile
   /** 开始组间休息倒计时（秒，缺省用 RestTimer 默认值）；由 Home 层的悬浮计时器承接 */
   onRestStart?: (seconds?: number) => void
+  /** 训练活跃度写入（打卡勾选/取消时更新，训练日历数据源） */
+  setActivity: (v: ActivityMap | ((p: ActivityMap) => ActivityMap)) => void
 }
 
 /**
@@ -434,7 +436,7 @@ const DAY_STYLE: Record<
 // 防御性兜底：规则引擎若产出未知 type（未来扩展），用 rest 样式兜底而不是崩溃
 const FALLBACK_STYLE = DAY_STYLE.rest
 
-export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, setLogs, setSetLogs, feedbacks, onGoFeedback, profile, onRestStart }: Props) {
+export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, setLogs, setSetLogs, feedbacks, onGoFeedback, profile, onRestStart, setActivity }: Props) {
   const [confirming, setConfirming] = useState(false)
   const [confirmingCopy, setConfirmingCopy] = useState(false)
   // 重量记录弹窗当前编辑的动作位置（day index + exercise index），null = 关闭
@@ -446,6 +448,8 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
     const key = `${weekPlan.week}:${di}:${ei}`
     const willCheck = !checks[key]
     setChecks((prev) => ({ ...prev, [key]: !prev[key] }))
+    // 同步累计每日活跃度（训练日历数据源）：勾选 +1，取消 -1
+    setActivity((prev) => bumpActivity(prev, todayStr, willCheck ? 1 : -1))
     if (!willCheck) return
     const day = weekPlan.days[di]
     const dayAllDone = day.exercises.every((_, i) => i === ei || checks[`${weekPlan.week}:${di}:${i}`])

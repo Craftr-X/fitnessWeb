@@ -23,9 +23,10 @@ export interface ExportPayload {
   weights: CloudState['weights']
   feedbacks: CloudState['feedbacks']
   setLogs: CloudState['setLogs']
+  activity: CloudState['activity']
 }
 
-/** 组装导出文档（纯函数；六个数据域全量带出，字段缺失时保持 undefined 以还原现状） */
+/** 组装导出文档（纯函数；七个数据域全量带出，字段缺失时保持 undefined 以还原现状） */
 export function buildExportPayload(email: string | undefined, state: CloudState): ExportPayload {
   return {
     app: 'FitUp',
@@ -38,6 +39,7 @@ export function buildExportPayload(email: string | undefined, state: CloudState)
     weights: state.weights,
     feedbacks: state.feedbacks,
     setLogs: state.setLogs,
+    activity: state.activity,
   }
 }
 

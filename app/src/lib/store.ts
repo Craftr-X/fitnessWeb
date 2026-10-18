@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { differenceInCalendarWeeks, format, startOfWeek } from 'date-fns'
-import type { CheckMap, Exercise, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, WeightEntry, WorkoutSet } from '@/types'
+import type { ActivityMap, CheckMap, Exercise, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, WeightEntry, WorkoutSet } from '@/types'
 import type { WeightGoal } from '@/types'
 import { loadUserData, readLegacyData, saveUserData } from '@/lib/sync'
 
@@ -358,6 +358,21 @@ export function weightDeltaTone(
   }
 }
 
+/**
+ * 更新某天的训练活跃度计数（打卡勾选 +1 / 取消勾选 -1，训练日历数据源）。
+ * 结果 clamp 到 ≥0；减到 0（或从 0 再减）时删除键，不在文档里留无意义条目。
+ * 数据无变化时原样返回（引用不变，避免触发多余重渲染与云端同步）。
+ */
+export function bumpActivity(map: ActivityMap, date: string, delta: number): ActivityMap {
+  const prev = map[date] ?? 0
+  const next = Math.max(0, prev + delta)
+  if (next === prev) return map
+  const out = { ...map }
+  if (next === 0) delete out[date]
+  else out[date] = next
+  return out
+}
+
 /** 一个用户的全部应用状态（与远端 user_data.data 对应） */
 export interface CloudState {
   profile: Profile
@@ -366,6 +381,8 @@ export interface CloudState {
   weights: WeightEntry[]
   feedbacks: WeekFeedback[]
   setLogs: ExerciseLogMap
+  /** 每日训练活跃度（训练日历数据源；打卡勾选时更新） */
+  activity: ActivityMap
 }
 
 export type Setter<T> = (v: T | ((p: T) => T)) => void
@@ -377,6 +394,8 @@ export interface CloudStore {
   weights: [WeightEntry[], Setter<WeightEntry[]>]
   feedbacks: [WeekFeedback[], Setter<WeekFeedback[]>]
   setLogs: [ExerciseLogMap, Setter<ExerciseLogMap>]
+  /** 每日训练活跃度（训练日历数据源） */
+  activity: [ActivityMap, Setter<ActivityMap>]
   /** 远端数据加载（或迁移）完成前为 false，界面应显示加载态 */
   ready: boolean
   /** 本次登录触发了旧本地数据迁移 */
@@ -410,6 +429,7 @@ export function defaultCloudState(): CloudState {
     weights: [],
     feedbacks: [],
     setLogs: {},
+    activity: {},
   }
 }
 
@@ -531,6 +551,7 @@ export function useCloudStorage(userId: string): CloudStore {
     weights: [state.weights, makeSetter('weights')],
     feedbacks: [state.feedbacks, makeSetter('feedbacks')],
     setLogs: [state.setLogs, makeSetter('setLogs')],
+    activity: [state.activity, makeSetter('activity')],
     ready,
     migrated,
     syncError,

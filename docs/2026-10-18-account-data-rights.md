@@ -6,7 +6,7 @@
 
 体重 / 体脂属于健康敏感数据（个保法意义上的个人信息）。用户需要能够：
 
-1. **可携带**：一键导出自己的全部数据（JSON 文件，含 profile / weekPlan / checks / weights / feedbacks / setLogs 六个域）。
+1. **可携带**：一键导出自己的全部数据（JSON 文件，含 profile / weekPlan / checks / weights / feedbacks / setLogs / activity 七个域）。
 2. **可删除**：自助删除账号，数据被彻底清除，无需联系站长。
 
 ## 实现边界（简版）

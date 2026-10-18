@@ -12,6 +12,7 @@ import {
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
@@ -23,17 +24,98 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { LineChart as LineChartIcon, Plus, Trash2 } from 'lucide-react'
+import { CalendarCheck, LineChart as LineChartIcon, Plus, Trash2 } from 'lucide-react'
 import { bmi } from '@/lib/store'
-import type { WeightEntry } from '@/types'
+import type { ActivityMap, WeekFeedback, WeightEntry } from '@/types'
 
 interface Props {
   weights: WeightEntry[]
   setWeights: (v: WeightEntry[] | ((p: WeightEntry[]) => WeightEntry[])) => void
   heightCm: number
+  /** 每日训练活跃度（训练日历数据源） */
+  activity: ActivityMap
+  feedbacks: WeekFeedback[]
 }
 
-export default function BodyData({ weights, setWeights, heightCm }: Props) {
+/**
+ * 训练日历卡片：月历上标记 训练日（底色加粗）/ 称重（橙点）/ 每周反馈（蓝点），
+ * 底部给当月统计。训练打卡自 activity 字段上线起按真实日期记录；
+ * 此前的历史只有体重与反馈带日期，所以仅这两类可回溯标记。
+ */
+function TrainingCalendarCard({
+  activity,
+  weights,
+  feedbacks,
+}: {
+  activity: ActivityMap
+  weights: WeightEntry[]
+  feedbacks: WeekFeedback[]
+}) {
+  // 受控展示月份：底部「本月统计」跟随用户翻页
+  const [month, setMonth] = useState<Date>(new Date())
+  const keyOf = (d: Date) => format(d, 'yyyy-MM-dd')
+
+  const stats = useMemo(() => {
+    const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate()
+    let trained = 0
+    let weigh = 0
+    let fb = 0
+    for (let i = 1; i <= daysInMonth; i++) {
+      const key = format(new Date(month.getFullYear(), month.getMonth(), i), 'yyyy-MM-dd')
+      if ((activity[key] ?? 0) > 0) trained += 1
+      if (weights.some((w) => w.date === key)) weigh += 1
+      if (feedbacks.some((f) => f.date === key)) fb += 1
+    }
+    return { trained, weigh, fb }
+  }, [month, activity, weights, feedbacks])
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <CalendarCheck className="h-4 w-4 text-teal-500" /> 训练日历
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="mx-auto w-fit">
+          <Calendar
+            month={month}
+            onMonthChange={setMonth}
+            modifiers={{
+              trained: (d) => (activity[keyOf(d)] ?? 0) > 0,
+              weighIn: (d) => weights.some((w) => w.date === keyOf(d)),
+              feedback: (d) => feedbacks.some((f) => f.date === keyOf(d)),
+            }}
+            modifiersClassNames={{
+              trained: 'bg-teal-500/15 font-bold text-teal-700 dark:text-teal-300',
+              weighIn: 'rdp-dot-weigh relative',
+              feedback: 'rdp-dot-feedback relative',
+            }}
+          />
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded bg-teal-500/40" />训练日
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />称重
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />每周反馈
+          </span>
+        </div>
+        <p className="mt-2 text-center text-xs text-muted-foreground">
+          本月训练 {stats.trained} 天 · 称重 {stats.weigh} 次 · 反馈 {stats.fb} 次
+        </p>
+        <p className="mt-1 text-center text-[11px] text-muted-foreground/70">
+          训练打卡自本版本起记录；此前数据仅显示体重与反馈标记。
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
+export default function BodyData({ weights, setWeights, heightCm, activity, feedbacks }: Props) {
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [time, setTime] = useState(format(new Date(), 'HH:mm'))
   const [weight, setWeight] = useState('')
@@ -91,6 +173,9 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* 训练日历：打卡/称重/反馈的月度回看 */}
+      <TrainingCalendarCard activity={activity} weights={weights} feedbacks={feedbacks} />
+
       {/* 录入 */}
       <Card>
         <CardHeader className="pb-2">

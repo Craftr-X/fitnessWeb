@@ -14,13 +14,14 @@ describe('buildExportPayload', () => {
     expect(payload.schemaVersion).toBe(1)
     expect(payload.email).toBe('a@b.com')
     expect(payload.exportedAt).toBeTruthy()
-    // 六个数据域一一对应，引用一致（导出不拷贝不清洗，所见即所得）
+    // 七个数据域一一对应，引用一致（导出不拷贝不清洗，所见即所得）
     expect(payload.profile).toBe(state.profile)
     expect(payload.weekPlan).toBe(state.weekPlan)
     expect(payload.checks).toBe(state.checks)
     expect(payload.weights).toBe(state.weights)
     expect(payload.feedbacks).toBe(state.feedbacks)
     expect(payload.setLogs).toBe(state.setLogs)
+    expect(payload.activity).toBe(state.activity)
   })
 
   it('email 为空时不下发该字段（新注册未刷新会话的极端情况）', () => {
