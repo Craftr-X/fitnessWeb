@@ -120,7 +120,8 @@ interface ExerciseSeed {
   note?: string
 }
 
-const POOL: Record<MuscleGroup, Partial<Record<Equipment, ExerciseSeed[]>>> = {
+// 导出供 demos.coverage 测试遍历全池（动作替换弹窗会把整个池子暴露给用户）
+export const POOL: Record<MuscleGroup, Partial<Record<Equipment, ExerciseSeed[]>>> = {
   chest: {
     none: [
       { name: '俯卧撑（跪姿可退阶）', baseLo: 8, baseHi: 12, note: '胸触地、核心收紧' },
@@ -356,8 +357,8 @@ function shouldFilterByInjury(name: string, injuries: string[] | undefined): boo
   return false
 }
 
-/** 伤病对应的替代动作（按伤病关键词） */
-const INJURY_SUBSTITUTES: { keyword: RegExp; group: MuscleGroup; seed: ExerciseSeed }[] = [
+/** 伤病对应的替代动作（按伤病关键词）；导出供覆盖测试遍历 */
+export const INJURY_SUBSTITUTES: { keyword: RegExp; group: MuscleGroup; seed: ExerciseSeed }[] = [
   {
     keyword: /膝/,
     group: 'legs',
