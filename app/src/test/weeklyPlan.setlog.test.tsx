@@ -6,7 +6,7 @@ import { addDays, format } from 'date-fns'
 import WeeklyPlan from '@/sections/WeeklyPlan'
 import { currentMonday } from '@/lib/planEngine'
 import { Toaster } from '@/components/ui/sonner'
-import type { CheckMap, ExerciseLogMap, WeekPlan } from '@/types'
+import type { ActivityMap, CheckMap, ExerciseLogMap, WeekPlan } from '@/types'
 
 const WEIGHTED_EX = '哑铃弯举'
 const BODYWEIGHT_EX = '俯卧撑（跪姿可退阶）'
@@ -52,6 +52,7 @@ function Harness({ initialLogs = {} }: { initialLogs?: ExerciseLogMap }) {
   const [weekPlan] = useState(() => TEST_PLAN)
   const [checks, setChecks] = useState<CheckMap>({})
   const [setLogs, setSetLogs] = useState<ExerciseLogMap>(initialLogs)
+  const [, setActivity] = useState<ActivityMap>({})
   return (
     <>
       <WeeklyPlan
@@ -63,6 +64,7 @@ function Harness({ initialLogs = {} }: { initialLogs?: ExerciseLogMap }) {
         setSetLogs={setSetLogs}
         feedbacks={[]}
         onGoFeedback={() => {}}
+        setActivity={setActivity}
       />
       <Toaster />
     </>

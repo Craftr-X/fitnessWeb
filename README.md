@@ -12,7 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![Tests](https://img.shields.io/badge/Tests-215%20passed-brightgreen)](#-常用命令)
+[![Tests](https://img.shields.io/badge/Tests-224%20passed-brightgreen)](#-常用命令)
 
 [功能特性](#-功能特性) · [在线预览](#-应用截图) · [快速开始](#-快速开始) · [部署](#-部署) · [项目结构](#-项目结构)
 
@@ -31,6 +31,7 @@
 - 🔐 **邮箱验证码登录** — passwordless，无需记忆密码
 - 🎯 **个性化计划引擎** — 按目标（增肌/减脂/塑形/保持）、器械、训练频率、专项运动、伤病生成差异化一周计划
 - 📈 **渐进超负荷** — 计划随周数自动进阶，并根据上周反馈难度动态调节
+- 🔁 **动作替换** — 某个动作不想练？一键换成同肌群、同器械、避开伤病的平替，组数次数按当周进度换算，替换后自动清理该动作打卡、保留历史重量记录
 - ✅ **每日打卡** — 训练动作逐项勾选，完成动画激励
 - ⚖️ **身体数据追踪** — 体重/体脂记录与趋势图
 - 🔄 **每周反馈** — 完成度、难度、酸痛、睡眠、饮食，反馈驱动下周调整
@@ -72,7 +73,7 @@
 | 后端 | Supabase（Auth + Postgres + RLS） |
 | 表单 | React Hook Form、Zod |
 | 可视化 | Recharts |
-| 测试 | Vitest + Testing Library（215 个单元测试） |
+| 测试 | Vitest + Testing Library（224 个单元测试） |
 | CI/CD | GitHub Actions（lint + test + build → Pages 部署） |
 
 ## 🚀 快速开始
@@ -102,7 +103,7 @@ Supabase 配置（建表 + RLS + Auth）详见 [`app/README.md`](app/README.md)�
 cd app
 npm run dev        # 开发服务器
 npm run build      # 类型检查 + 生产构建
-npm run test       # 单元测试（215 个）
+npm run test       # 单元测试（224 个）
 npm run lint       # ESLint
 ```
 

@@ -12,15 +12,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ArrowRightCircle, BedDouble, CalendarClock, Copy, Dumbbell, History, Info, Leaf, Plus, Timer, Trash2, Trophy } from 'lucide-react'
+import { ArrowLeftRight, ArrowRightCircle, BedDouble, CalendarClock, Copy, Dumbbell, History, Info, Leaf, Plus, Timer, Trash2, Trophy } from 'lucide-react'
 import { toast } from 'sonner'
 import { currentMonday, bumpActivity, exerciseWeekStats, getLastLogBefore, getLogForDate, inferLoadType, parseSetTarget, removeExerciseLog, upsertExerciseLog } from '@/lib/store'
 import type { SetTarget } from '@/lib/store'
-import { buildNextWeekPlan, copyWeekPlanFromProfile } from '@/lib/planEngine'
+import { buildNextWeekPlan, copyWeekPlanFromProfile, groupFromFocus, listAlternatives, tuneByGoal } from '@/lib/planEngine'
 import { burstAt, celebrateDayDone, celebrateWeekDone } from '@/lib/celebrate'
 import { getDemo } from '@/lib/demos'
 import ExerciseDemoButton from '@/components/ExerciseDemoButton'
-import type { ActivityMap, CheckMap, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, WorkoutSet } from '@/types'
+import type { ActivityMap, CheckMap, Exercise, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, WorkoutSet } from '@/types'
 
 interface Props {
   weekPlan: WeekPlan
@@ -436,13 +436,108 @@ const DAY_STYLE: Record<
 // 防御性兜底：规则引擎若产出未知 type（未来扩展），用 rest 样式兜底而不是崩溃
 const FALLBACK_STYLE = DAY_STYLE.rest
 
+interface ReplaceExerciseDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  /** 当前动作名（弹窗标题说明用） */
+  exerciseName: string
+  /** 同肌群 + 同器械 + 避开伤病的候选（planEngine.listAlternatives 产出） */
+  candidates: Exercise[]
+  onPick: (replacement: Exercise) => void
+}
+
+/** 动作替换弹窗：列出候选平替动作，点选即替换；无候选时给空态说明 */
+function ReplaceExerciseDialog({
+  open,
+  onOpenChange,
+  exerciseName,
+  candidates,
+  onPick,
+}: ReplaceExerciseDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[92dvh] overflow-y-auto p-0 sm:max-w-sm">
+        <DialogHeader className="border-b bg-gradient-to-r from-teal-500/10 to-transparent px-5 py-4 text-left">
+          <DialogTitle className="text-base leading-tight">换一个动作</DialogTitle>
+          <DialogDescription className="mt-0.5 text-xs">
+            「{exerciseName}」的同肌群平替，组数次数按当前周进度换算；替换后该动作的打卡会清空。
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 px-5 py-4">
+          {candidates.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              当前器械与伤病设置下没有可替换的动作。
+            </p>
+          ) : (
+            candidates.map((c) => {
+              const demo = getDemo(c.name)
+              return (
+                <button
+                  key={c.name}
+                  type="button"
+                  onClick={() => {
+                    onPick(c)
+                    onOpenChange(false)
+                  }}
+                  className="flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors hover:border-teal-300 hover:bg-teal-500/5"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium">{c.name}</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      {c.sets}
+                      {c.note ? ` · ${c.note}` : ''}
+                    </span>
+                  </span>
+                  {demo && (
+                    <Badge variant="secondary" className="mt-0.5 shrink-0 text-[10px]">
+                      有示范
+                    </Badge>
+                  )}
+                </button>
+              )
+            })
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, setLogs, setSetLogs, feedbacks, onGoFeedback, profile, onRestStart, setActivity }: Props) {
   const [confirming, setConfirming] = useState(false)
   const [confirmingCopy, setConfirmingCopy] = useState(false)
   // 重量记录弹窗当前编辑的动作位置（day index + exercise index），null = 关闭
   const [loggerPos, setLoggerPos] = useState<{ di: number; ei: number } | null>(null)
+  // 动作替换弹窗当前操作的动作位置，null = 关闭
+  const [swapPos, setSwapPos] = useState<{ di: number; ei: number } | null>(null)
   const clickPos = useRef<{ x: number; y: number } | null>(null)
   const todayStr = format(new Date(), 'yyyy-MM-dd')
+
+  // 动作替换：槽位就地更新（随 weekPlan 云同步、多端可见）。
+  // 清除该槽位本周打卡——动作变了旧打卡不再成立；若原本已勾选，
+  // 同步扣减当日活跃度保持训练日历一致。setLogs 按动作名索引：
+  // 旧动作历史保留，新动作从零开始（有历史则「上次记录」正常预填）。
+  // 「复制上周」会带走替换结果；「生成下周 / 重新定制」按画像重新生成——替换是当周选择。
+  const handleReplace = (di: number, ei: number, replacement: Exercise) => {
+    const key = `${weekPlan.week}:${di}:${ei}`
+    const hadCheck = checks[key] === true
+    setWeekPlan((prev) => ({
+      ...prev,
+      days: prev.days.map((d, i) =>
+        i === di
+          ? { ...d, exercises: d.exercises.map((e, j) => (j === ei ? replacement : e)) }
+          : d,
+      ),
+    }))
+    setChecks((prev) => {
+      if (!(key in prev)) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+    if (hadCheck) setActivity((prev) => bumpActivity(prev, todayStr, -1))
+    toast.success(`已替换为「${replacement.name}」`)
+  }
 
   const toggle = (di: number, ei: number) => {
     const key = `${weekPlan.week}:${di}:${ei}`
@@ -662,6 +757,16 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
                               <Timer className="h-3.5 w-3.5" />
                             </button>
                           )}
+                          {/* 换一个动作：同肌群平替（替换弹窗单实例渲染在列表下方） */}
+                          <button
+                            type="button"
+                            onClick={() => setSwapPos({ di, ei })}
+                            title="换一个动作"
+                            aria-label={`为${ex.name}更换动作`}
+                            className="flex shrink-0 items-center justify-center rounded-lg border border-muted-foreground/20 px-2.5 text-muted-foreground transition-colors hover:border-sky-300 hover:bg-sky-500/10 hover:text-sky-700 dark:hover:text-sky-300"
+                          >
+                            <ArrowLeftRight className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       )}
                     </div>
@@ -707,6 +812,37 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
               }
               onClear={() => setSetLogs((prev) => removeExerciseLog(prev, ex.name, todayStr))}
               onRestStart={() => onRestStart?.()}
+            />
+          )
+        })()}
+
+      {/* 动作替换弹窗：单实例渲染，避免每个动作各挂一个 Dialog（与记录弹窗同模式） */}
+      {swapPos &&
+        (() => {
+          const day = weekPlan.days[swapPos.di]
+          const ex = day?.exercises[swapPos.ei]
+          // 仅力量训练日可换：rest/sport 日的 focus 反查不到肌群，自然不渲染
+          const group = ex && day.type === 'strength' ? groupFromFocus(day.focus) : undefined
+          if (!ex || !group) return null
+          const candidates = listAlternatives({
+            group,
+            equipment: profile?.equipment ?? 'none',
+            experience: profile?.experience ?? 'beginner',
+            week: weekPlan.week,
+            difficulty: feedbacks.find((f) => f.week === weekPlan.week)?.difficulty,
+            tuning: tuneByGoal(profile?.weightGoal ?? 'gain'),
+            injuries: profile?.injuries,
+            excludeName: ex.name,
+          })
+          return (
+            <ReplaceExerciseDialog
+              open
+              onOpenChange={(o) => {
+                if (!o) setSwapPos(null)
+              }}
+              exerciseName={ex.name}
+              candidates={candidates}
+              onPick={(replacement) => handleReplace(swapPos.di, swapPos.ei, replacement)}
             />
           )
         })()}

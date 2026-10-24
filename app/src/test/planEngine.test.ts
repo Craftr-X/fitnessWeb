@@ -10,6 +10,8 @@ import {
   copyWeekPlanFromProfile,
   describeProfile,
   currentMonday,
+  groupFromFocus,
+  listAlternatives,
 } from '@/lib/planEngine'
 import type { Profile, WeekFeedback, WeekPlan } from '@/types'
 
@@ -669,5 +671,79 @@ describe('生成动作的 loadType 标注', () => {
     const exs = strengthExercises(plan)
     const plank = exs.find((e) => e.name.includes('平板支撑'))
     if (plank) expect(plank.loadType).toBe('timed')
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* 动作替换：groupFromFocus / listAlternatives                          */
+/* ------------------------------------------------------------------ */
+describe('groupFromFocus', () => {
+  it('focus 文案反查肌群，未知文案返回 undefined', () => {
+    expect(groupFromFocus('推（胸 / 肩 / 三头）')).toBe('push')
+    expect(groupFromFocus('腿 + 臀')).toBe('legs')
+    expect(groupFromFocus('休息 / 主动恢复')).toBeUndefined()
+    expect(groupFromFocus('羽毛球')).toBeUndefined()
+  })
+})
+
+describe('listAlternatives', () => {
+  const base = {
+    group: 'chest' as const,
+    equipment: 'dumbbell' as const,
+    experience: 'beginner' as const,
+    week: 1,
+    tuning: tuneByGoal('gain'),
+  }
+
+  it('候选来自同肌群同器械池，且排除当前动作', () => {
+    const list = listAlternatives({ ...base, excludeName: '哑铃卧推（地板/凳子）' })
+    expect(list.map((e) => e.name)).toEqual(['哑铃上斜卧推', '哑铃飞鸟'])
+    expect(list.map((e) => e.name)).not.toContain('杠铃卧推') // 不同器械的池
+  })
+
+  it('组数次数与当周进阶口径一致（第 1 周新手增肌：组数 3、次数区间按 seed 基数）', () => {
+    const list = listAlternatives({ ...base, excludeName: '哑铃卧推（地板/凳子）' })
+    expect(list.map((e) => e.sets)).toEqual(['3 组 × 10-12 次', '3 组 × 12-15 次'])
+  })
+
+  it('第 5 周不太难时候选组数 +1（与计划生成同口径；进阶不封顶需非新手）', () => {
+    const list = listAlternatives({
+      ...base,
+      experience: 'intermediate',
+      week: 5,
+      difficulty: 3,
+      excludeName: '哑铃卧推（地板/凳子）',
+    })
+    for (const e of list) expect(e.sets).toMatch(/^4 组 ×/)
+  })
+
+  it('伤病过滤生效：膝伤看不到深蹲/弓步类候选（替代动作「靠墙静蹲」除外）', () => {
+    const list = listAlternatives({
+      group: 'legs',
+      equipment: 'dumbbell',
+      experience: 'beginner',
+      week: 1,
+      tuning: tuneByGoal('gain'),
+      injuries: ['膝盖'],
+      excludeName: '哑铃高脚杯深蹲',
+    })
+    for (const e of list) {
+      if (e.name === '靠墙静蹲') continue // 护膝替代动作是刻意注入的
+      expect(e.name).not.toMatch(/深蹲|弓步|蹲/)
+    }
+    expect(list.map((e) => e.name)).toContain('靠墙静蹲')
+  })
+
+  it('timed 候选按秒数格式产出', () => {
+    const list = listAlternatives({
+      group: 'core',
+      equipment: 'none',
+      experience: 'beginner',
+      week: 1,
+      tuning: tuneByGoal('gain'),
+      excludeName: '卷腹',
+    })
+    const plank = list.find((e) => e.name === '平板支撑')
+    expect(plank?.sets).toMatch(/^3 组 × \d+-\d+ 秒$/)
   })
 })
