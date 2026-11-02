@@ -28,20 +28,26 @@ jobs:
             exit 1
           fi
 
-          # 1) /auth/v1/health：走 API 网关的健康检查，无需鉴权
-          if ! curl -sf --max-time 30 "$SUPABASE_URL/auth/v1/health" >/dev/null; then
-            echo "::error::请求 $SUPABASE_URL/auth/v1/health 失败——项目可能已被自动暂停（连续 7 天无活动）。请到 Supabase Dashboard 点 Resume，再手动重跑本任务确认恢复。"
-            exit 1
-          fi
-          echo "✅ /auth/v1/health 正常"
+          # secrets 手工粘贴可能带换行/空格：浏览器与 Vite 构建都会容忍，curl 不容忍（URL rejected 瞬间失败），统一裁剪
+          SUPABASE_URL="$(printf '%s' "$SUPABASE_URL" | tr -d '[:space:]')"
+          SUPABASE_ANON_KEY="$(printf '%s' "$SUPABASE_ANON_KEY" | tr -d '[:space:]')"
+          # URL 随前端 bundle 本来就公开，打印主机便于排查；anon key 不打印
+          echo "目标端点: $(printf '%s' "$SUPABASE_URL" | sed -E 's#^(https?://[^/]+).*$#\1#')"
 
-          # 2) /rest/v1/：携带 anon key 的真实 API 请求，确保计入活动量
+          # 1) 携带 anon key 的 /rest/v1/：保活关键路径，该请求本身即计入 API 活动
           status=$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
             "$SUPABASE_URL/rest/v1/" || echo "000")
           if [ "$status" != "200" ] && [ "$status" != "404" ]; then
-            echo "::error::REST 网关返回 HTTP $status，链路异常。若项目已暂停，请到 Supabase Dashboard 点 Resume。"
+            echo "::error::REST 网关返回 HTTP $status（000=请求未发出，常见于 secret 值异常或 DNS 失败；5xx=后端异常，项目可能已被自动暂停）。请到 Supabase Dashboard 确认项目状态，必要时点 Resume 后重跑本任务。"
             exit 1
           fi
           echo "✅ REST 网关链路正常（HTTP $status）——今日活动量已计入，项目不会被自动暂停"
+
+          # 2) /auth/v1/health：诊断用，不作为成败判据
+          if curl -sf --max-time 30 "$SUPABASE_URL/auth/v1/health" >/dev/null; then
+            echo "✅ /auth/v1/health 正常"
+          else
+            echo "::warning::/auth/v1/health 未通过（不影响保活判定，仅供排查参考）"
+          fi
