@@ -1,0 +1,47 @@
+name: Keep-alive
+
+# 防止 Supabase 免费版项目自动暂停（连续 7 天无 API 活动即触发）：
+# 暂停后项目 DNS 下线，线上登录直接报 Failed to fetch，需手动到 Dashboard Resume。
+# 因此每天定时请求一次 API 网关，让项目始终保持 Active。
+# 注意：仓库若连续 60 天无任何提交，GitHub 会自动停用定时任务，长期不开发时留意 Actions 通知。
+on:
+  schedule:
+    - cron: '0 1 * * *' # 每天 UTC 01:00（北京时间 09:00）
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase API
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::缺少 VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY secrets（与 Pages 部署共用），无法保活"
+            exit 1
+          fi
+
+          # 1) /auth/v1/health：走 API 网关的健康检查，无需鉴权
+          if ! curl -sf --max-time 30 "$SUPABASE_URL/auth/v1/health" >/dev/null; then
+            echo "::error::请求 $SUPABASE_URL/auth/v1/health 失败——项目可能已被自动暂停（连续 7 天无活动）。请到 Supabase Dashboard 点 Resume，再手动重跑本任务确认恢复。"
+            exit 1
+          fi
+          echo "✅ /auth/v1/health 正常"
+
+          # 2) /rest/v1/：携带 anon key 的真实 API 请求，确保计入活动量
+          status=$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/" || echo "000")
+          if [ "$status" != "200" ] && [ "$status" != "404" ]; then
+            echo "::error::REST 网关返回 HTTP $status，链路异常。若项目已暂停，请到 Supabase Dashboard 点 Resume。"
+            exit 1
+          fi
+          echo "✅ REST 网关链路正常（HTTP $status）——今日活动量已计入，项目不会被自动暂停"

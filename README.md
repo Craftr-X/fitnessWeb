@@ -74,7 +74,7 @@
 | 表单 | React Hook Form、Zod |
 | 可视化 | Recharts |
 | 测试 | Vitest + Testing Library（225 个单元测试） |
-| CI/CD | GitHub Actions（lint + test + build → Pages 部署） |
+| CI/CD | GitHub Actions（lint + test + build → Pages 部署、Supabase 每日保活） |
 
 ## 🚀 快速开始
 
@@ -111,6 +111,8 @@ npm run lint       # ESLint
 
 推送到 `main` 分支后，GitHub Actions 自动构建并部署到 GitHub Pages。完整部署步骤（含 Supabase SMTP / OTP 邮件配置）见 [`DEPLOY.example.md`](DEPLOY.example.md)。
 
+线上后端为 Supabase 免费版，连续 7 天无 API 活动会被自动暂停（线上登录报 `Failed to fetch`）。仓库内置每日保活任务 [`keepalive.yml`](.github/workflows/keepalive.yml)，无需人工干预；若该任务报错，按日志提示到 Dashboard 手动 Resume 即可。
+
 ## 📂 项目结构
 
 ```
@@ -126,7 +128,7 @@ fitnessWeb/
 │   ├── supabase/schema.sql   # 建表 + RLS 策略
 │   └── README.md             # 开发详细文档
 ├── docs/                     # 工作记录与推广截图
-├── .github/workflows/        # CI（lint+test+build）+ CD（Pages 部署）
+├── .github/workflows/        # CI（lint+test+build）+ CD（Pages 部署）+ Supabase 保活
 └── DEPLOY.example.md         # 部署配置文档
 ```
 
