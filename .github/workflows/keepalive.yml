@@ -2,7 +2,7 @@ name: Keep-alive
 
 # 防止 Supabase 免费版项目自动暂停（连续 7 天无 API 活动即触发）：
 # 暂停后项目 DNS 下线，线上登录直接报 Failed to fetch，需手动到 Dashboard Resume。
-# 因此每天定时请求一次 API 网关，让项目始终保持 Active。
+# 因此每天定时请求一次「带 apikey 的 API」，让项目始终保持 Active。
 # 注意：仓库若连续 60 天无任何提交，GitHub 会自动停用定时任务，长期不开发时留意 Actions 通知。
 on:
   schedule:
@@ -15,6 +15,7 @@ permissions:
 jobs:
   ping:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Ping Supabase API
         env:
@@ -34,20 +35,41 @@ jobs:
           # URL 随前端 bundle 本来就公开，打印主机便于排查；anon key 不打印
           echo "目标端点: $(printf '%s' "$SUPABASE_URL" | sed -E 's#^(https?://[^/]+).*$#\1#')"
 
-          # 1) 携带 anon key 的 /rest/v1/：保活关键路径，该请求本身即计入 API 活动
-          status=$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' \
+          # —— 成败主判据：带 apikey 查真实业务表 ——
+          # RLS 会把匿名查询过滤成空数组，返回 200 即说明 Kong → PostgREST → Postgres 整条链路活着，
+          # 且这次请求本身就是「真实的 API 活动」，正是保活需要的东西。
+          #
+          # 反面教材（2026-11-02 两次误判，详见 docs/2026-11-03-keepalive-probe-fix.md）：
+          #   /auth/v1/health 不带 apikey → 401（不是项目挂了，是 Kong 要求鉴权）
+          #   /rest/v1/ 根路径带 publishable key → 401「Secret API key required」（根路径只放行 secret key）
+          rest=$(curl -s -o /dev/null --max-time 30 -w '%{http_code}' \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
-            "$SUPABASE_URL/rest/v1/" || echo "000")
-          if [ "$status" != "200" ] && [ "$status" != "404" ]; then
-            echo "::error::REST 网关返回 HTTP $status（000=请求未发出，常见于 secret 值异常或 DNS 失败；5xx=后端异常，项目可能已被自动暂停）。请到 Supabase Dashboard 确认项目状态，必要时点 Resume 后重跑本任务。"
-            exit 1
-          fi
-          echo "✅ REST 网关链路正常（HTTP $status）——今日活动量已计入，项目不会被自动暂停"
+            "$SUPABASE_URL/rest/v1/user_data?select=user_id&limit=1") || rest="000"
+          case "$rest" in
+            200)
+              echo "✅ REST 链路正常（HTTP 200，/rest/v1/user_data）——今日活动量已计入，项目不会被自动暂停"
+              ;;
+            401)
+              echo "::error::REST 返回 401：apikey 未被接受，VITE_SUPABASE_ANON_KEY 可能已轮换或填错，保活已失效"
+              exit 1
+              ;;
+            000)
+              echo "::error::请求未发出（DNS / 网络层失败），Supabase 项目很可能已被自动暂停。请到 Dashboard 点 Resume 后重跑本任务"
+              exit 1
+              ;;
+            *)
+              echo "::error::REST 返回 HTTP $rest，链路异常。若项目已暂停，请到 Supabase Dashboard 点 Resume 后重跑本任务"
+              exit 1
+              ;;
+          esac
 
-          # 2) /auth/v1/health：诊断用，不作为成败判据
-          if curl -sf --max-time 30 "$SUPABASE_URL/auth/v1/health" >/dev/null; then
-            echo "✅ /auth/v1/health 正常"
+          # —— 诊断信息（不作成败判据）：GoTrue 健康检查，同样必须带 apikey，否则 401 ——
+          health=$(curl -s -o /dev/null --max-time 30 -w '%{http_code}' \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/auth/v1/health") || health="000"
+          if [ "$health" = "200" ]; then
+            echo "✅ /auth/v1/health 正常（HTTP 200）"
           else
-            echo "::warning::/auth/v1/health 未通过（不影响保活判定，仅供排查参考）"
+            echo "::warning::/auth/v1/health 返回 HTTP $health（不影响保活判定，仅供排查参考）"
           fi
