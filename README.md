@@ -12,7 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![Tests](https://img.shields.io/badge/Tests-225%20passed-brightgreen)](#-常用命令)
+[![Tests](https://img.shields.io/badge/Tests-231%20passed-brightgreen)](#-常用命令)
 
 [功能特性](#-功能特性) · [在线预览](#-应用截图) · [快速开始](#-快速开始) · [部署](#-部署) · [项目结构](#-项目结构)
 
@@ -32,16 +32,17 @@
 - 🎯 **个性化计划引擎** — 按目标（增肌/减脂/塑形/保持）、器械、训练频率、专项运动、伤病生成差异化一周计划
 - 📈 **渐进超负荷** — 计划随周数自动进阶，并根据上周反馈难度动态调节
 - 🔁 **动作替换** — 某个动作不想练？一键换成同肌群、同器械、避开伤病的平替，组数次数按当周进度换算，替换后自动清理该动作打卡、保留历史重量记录
-- ✅ **每日打卡** — 训练动作逐项勾选，完成动画激励
+- ✅ **打卡 + 记组** — 逐动作勾选；也可以只记重量/次数，保存后自动打卡，省掉再点一次的重复操作
 - ⚖️ **身体数据追踪** — 体重/体脂记录与趋势图
-- 🔄 **每周反馈** — 完成度、难度、酸痛、睡眠、饮食，反馈驱动下周调整
-- ⏱️ **组间休息计时器** — 记录重量后自动开始倒计时，切页不中断
-- 📅 **训练日历** — 打卡、称重、反馈按月回看
-- 🍗 **营养建议** — 按体重目标计算热量盈余/缺口与蛋白质摄入
+- 🔄 **每周反馈** — 完成度、难度、酸痛、睡眠、饮食，完成度默认取本周真实打卡率，反馈驱动下周调整
+- ⏱️ **组间休息计时器** — 记完一组自动倒计时，切页不中断，结束三连音 + 手机振动
+- 📅 **训练日历** — 打卡、称重、反馈按月回看（中文月历）
+- 🍗 **营养建议** — 按体重目标计算热量盈余/缺口与蛋白质摄入，从今日页一键打开
+- 🧭 **三个一级入口** — 今日 / 计划 / 数据，路由化（`#/today`、`#/plan`、`#/data`）：刷新保持、返回键在 Tab 间回退
 - 🔒 **用户数据隔离** — Supabase RLS 行级安全，每个用户只能访问自己的数据
 - 📤 **数据可携带 / 可删除** — 一键导出全部个人数据，自助删除账号（合规）
 - ♻️ **跨周自动续期** — 进入新自然周自动生成新计划，多周未打开可一次性补齐
-- 🌙 **现代前端体验** — 暗色模式、路由懒加载、移动端自适应
+- 🌙 **现代前端体验** — 暗色模式、路由懒加载、移动端自适应；首屏 gzip ≈ 237KB
 
 ## 📸 应用截图
 
@@ -50,17 +51,18 @@
 <div align="center">
   <img src="docs/promo/10-plan-desktop.png" alt="每周计划" width="49%" />
   <img src="docs/promo/11-data-desktop.png" alt="数据记录" width="49%" />
-  <img src="docs/promo/12-feedback-desktop.png" alt="每周反馈" width="49%" />
-  <img src="docs/promo/13-nutrition-desktop.png" alt="营养建议" width="49%" />
+  <img src="docs/promo/12-feedback-desktop.png" alt="每周反馈（弹层）" width="49%" />
+  <img src="docs/promo/13-nutrition-desktop.png" alt="营养建议（弹层）" width="49%" />
 </div>
 
 ### 移动端
 
 <div align="center">
-  <img src="docs/promo/04-overview-mobile.png" alt="总览" width="24%" />
-  <img src="docs/promo/05-plan-mobile.png" alt="每周计划" width="24%" />
-  <img src="docs/promo/06-data-mobile.png" alt="数据记录" width="24%" />
-  <img src="docs/promo/08-nutrition-mobile.png" alt="营养建议" width="24%" />
+  <img src="docs/promo/04-overview-mobile.png" alt="今日" width="19%" />
+  <img src="docs/promo/05-plan-mobile.png" alt="每周计划" width="19%" />
+  <img src="docs/promo/06-data-mobile.png" alt="数据记录" width="19%" />
+  <img src="docs/promo/07-feedback-mobile.png" alt="每周反馈（弹层）" width="19%" />
+  <img src="docs/promo/08-nutrition-mobile.png" alt="营养建议（弹层）" width="19%" />
 </div>
 
 ## 🛠 技术栈
@@ -71,9 +73,8 @@
 | 构建 | Vite 7、TypeScript 5.9 |
 | 样式 | Tailwind CSS 3、shadcn/ui（Radix UI） |
 | 后端 | Supabase（Auth + Postgres + RLS） |
-| 表单 | React Hook Form、Zod |
-| 可视化 | Recharts |
-| 测试 | Vitest + Testing Library（225 个单元测试） |
+| 可视化 | Recharts（懒加载，只在数据页下载） |
+| 测试 | Vitest + Testing Library（231 个单元测试） |
 | CI/CD | GitHub Actions（lint + test + build → Pages 部署、Supabase 每日保活） |
 
 ## 🚀 快速开始
@@ -103,7 +104,7 @@ Supabase 配置（建表 + RLS + Auth）详见 [`app/README.md`](app/README.md)�
 cd app
 npm run dev        # 开发服务器
 npm run build      # 类型检查 + 生产构建
-npm run test       # 单元测试（225 个）
+npm run test       # 单元测试（231 个）
 npm run lint       # ESLint
 ```
 
@@ -121,16 +122,31 @@ fitnessWeb/
 │   ├── src/
 │   │   ├── lib/              # 核心逻辑（store 同步、planEngine 规则引擎、supabase）
 │   │   ├── pages/            # 页面（Home、Auth、Onboarding）
-│   │   ├── sections/         # 首页 tab 区块（Overview、WeeklyPlan、Nutrition 等）
-│   │   ├── components/ui/    # shadcn/ui 组件
-│   │   ├── hooks/            # useAuth 等
+│   │   ├── sections/         # 一级 Tab 区块（Overview、WeeklyPlan、BodyData 等）
+│   │   ├── components/       # 业务组件（TodayHero、RestTimer、FeedbackDialog 等）
+│   │   ├── components/ui/    # shadcn/ui 组件（按需保留，23 个）
+│   │   ├── hooks/            # useAuth、useCountUp 等
 │   │   └── types/            # TypeScript 类型定义
 │   ├── supabase/schema.sql   # 建表 + RLS 策略
 │   └── README.md             # 开发详细文档
 ├── docs/                     # 工作记录与推广截图
+├── review-2026-11-03/        # 一次完整走查报告（含截图，可删除）
 ├── .github/workflows/        # CI（lint+test+build）+ CD（Pages 部署）+ Supabase 保活
 └── DEPLOY.example.md         # 部署配置文档
 ```
+
+## 🗒 更新日志
+
+### 2026-11 · 一次完整走查后的重构
+
+- **修复 6 个 P0**：训练日历塌陷成 131px / 月份英文（shadcn 组件用了 Tailwind v4 语法）、记组被预填的 0 阻断、蜕变弹窗超出视口、第 1 周「+0」文案、反馈完成度假默认值（导致 `<60%` 降阶规则永不触发）、「开始今日训练」不定位到今天
+- **导航 5 → 3**：`今日 / 计划 / 数据`；每周反馈、营养建议降级为弹层，仍按需加载
+- **英雄卡两态**：今日页完整版，计划/数据页压成一行 —— 移动端首屏占用 322px → 60px
+- **计划页只展开今天**：日卡可折叠，移动端页高约 4300px → 1568px
+- **Tab 路由化**：`#/today`、`#/plan`、`#/data`（HashRouter），刷新保持、返回键在 Tab 间回退
+- **记组自动打卡**、**计时器振动**、**训练日历中文化 + 桌面两栏**
+- **性能**：recharts 不再被首屏预加载、inspect 插件仅 dev 生效 —— 首屏 gzip **349KB → 237KB（−32%）**
+- **清理**：删除 30 个没被引用的 shadcn 组件（−4199 行）与 20 个依赖；单测 225 → 231
 
 ## 🤝 参与贡献
 
