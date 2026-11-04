@@ -168,6 +168,34 @@ describe('负重动作（哑铃弯举）', () => {
     expect(await screen.findByText(/第 2 组的重量和次数为 0/)).toBeInTheDocument()
   })
 
+  it('保存后自动打卡：记完不用再点一次勾', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    // 先看未打卡的初始态，再开弹窗（弹窗标题也含动作名，开着时 rowFor 会命中两个）
+    expect(within(rowFor(WEIGHTED_EX)).getByRole('checkbox')).toHaveAttribute('aria-checked', 'false')
+
+    const dialog = await openDialogFor(user, WEIGHTED_EX)
+    await fillSet(user, 1, '12.5', '10')
+    await user.click(within(dialog).getByRole('button', { name: '完成' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(within(rowFor(WEIGHTED_EX)).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('再次保存不会取消已有打卡', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    let dialog = await openDialogFor(user, WEIGHTED_EX)
+    await fillSet(user, 1, '12.5', '10')
+    await user.click(within(dialog).getByRole('button', { name: '完成' }))
+
+    dialog = await openDialogFor(user, WEIGHTED_EX)
+    await fillSet(user, 1, '15', '8')
+    await user.click(within(dialog).getByRole('button', { name: '完成' }))
+
+    expect(within(rowFor(WEIGHTED_EX)).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
+  })
+
   it('全部填写后点完成：保存并关闭弹窗，入口显示本次摘要', async () => {
     const user = userEvent.setup()
     render(<Harness />)

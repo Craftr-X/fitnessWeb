@@ -255,3 +255,18 @@
 ![计划页：紧凑英雄卡 + 只展开今天](07-plan-mobile-collapsed.png)
 
 **下一步**（第 3 周结构）：Tab 路由化（`/today`、`/plan`、`/data`，支持刷新保持与返回键）→ 记组成功自动勾选 → 计时器补振动 → 清理 30 个未用 UI 组件。
+
+---
+
+## 十、第 3 周（2026-11-04）
+
+| 项 | 落地方式 | 验证 |
+|---|---|---|
+| Tab 路由化 | `#/today` `#/plan` `#/data`（项目本来就用 `HashRouter`，GitHub Pages 上深链接刷新不会 404）；`Home` 从 URL 派生当前 Tab，未知路径（含 `#/`）回落今日；`App` 路由从 `path="/"` 改成 `path="*"` 只做登录闸门 | 点「计划」→ `#/plan`；在 `#/plan` 刷新仍在计划页；返回键在 Tab 之间回退，应用不退出 |
+| 记组自动打卡 | 保存训练记录后自动勾选该动作（已勾选时不再 toggle，避免误取消） | 保存 22.5kg×10 → 该行变绿划掉、日进度 1/5、顶部 本周 1/24 · 4% |
+| 计时器振动 | 休息结束在前三连音之后 `navigator.vibrate([120,80,120])`，无实现（iOS/桌面）走可选链静默跳过 | 新增 2 个单测：有 `vibrate` 时被调用、没有时不抛错 |
+| 清理未用组件 | 删除 30 个从未被引用的 shadcn 组件（`accordion`/`carousel`/`command`/`sidebar`/`table`… ），`components/ui` 53 → 23 | lint / build 通过，无悬空引用 |
+
+测试数从 227 → **231**（+2 自动打卡、+2 振动）。
+
+**还没做**（可继续）：`package.json` 里随组件一起失效的依赖（`vaul`、`cmdk`、`embla-carousel-react`、`react-resizable-panels` 等）没删，需要 `npm install` 更新 lockfile，留到下次一起处理；`index` 主包 511KB(gzip 161KB) 仍然偏大，图标按需引入是下一步性价比最高的优化。
