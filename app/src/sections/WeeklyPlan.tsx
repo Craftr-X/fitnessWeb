@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { format } from 'date-fns'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -37,6 +37,8 @@ interface Props {
   onRestStart?: (seconds?: number) => void
   /** 训练活跃度写入（打卡勾选/取消时更新，训练日历数据源） */
   setActivity: (v: ActivityMap | ((p: ActivityMap) => ActivityMap)) => void
+  /** 首页「开始今日训练」触发：值变化时把今天的日卡滚进视口（0/undefined = 不处理） */
+  focusToday?: number
 }
 
 /**
@@ -60,6 +62,9 @@ function totalVolume(sets: WorkoutSet[]): number {
 }
 
 const WEEKDAY_LABEL = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+/** 今天那张日卡的 DOM id：首页「开始今日训练」滚动定位用 */
+const TODAY_ANCHOR = 'fitup-today-day'
 
 /** "2026-08-10" → "8/10 周一"（日期非法时原样返回） */
 function logDateLabel(dateStr: string): string {
@@ -197,12 +202,21 @@ function ExerciseLogDialog({
     toast.success('已清除本次记录')
   }
 
-  // 完成前校验：任何一组为 0（或未填）都提示具体位置并留在弹窗；
+  // 完成前校验：只校验"已开始填写"的组。末尾连续空组视为"今天少做了一组"，
+  // 直接忽略（落库时 store.pruneEmptySets 也会剔除），不再阻断保存——
+  // 训练现场少做一组是常态，之前要求每一行都填满，用户必须先删组才能保存。
   // 负重动作校验重量+次数，自重/时间类只校验次数/秒数。校验通过才提交草稿并关闭
   const handleDone = () => {
-    const idx = sets.findIndex((s) => (weighted && !s.weightKg) || !s.reps)
+    const touched = (s: WorkoutSet) => (s.reps ?? 0) > 0 || (s.weightKg ?? 0) > 0
+    let lastFilled = -1
+    sets.forEach((s, i) => {
+      if (touched(s)) lastFilled = i
+    })
+    // 一组都没填时保留第 1 行做提示，避免"没填"被当成"合法空记录"静默通过
+    const effective = lastFilled >= 0 ? sets.slice(0, lastFilled + 1) : sets.slice(0, 1)
+    const idx = effective.findIndex((s) => (weighted && !s.weightKg) || !s.reps)
     if (idx >= 0) {
-      const s = sets[idx]
+      const s = effective[idx]
       const fields = weighted
         ? [!s.weightKg ? '重量' : '', !s.reps ? '次数' : ''].filter(Boolean).join('和')
         : repsUnit === '秒' ? '秒数' : '次数'
@@ -503,7 +517,7 @@ function ReplaceExerciseDialog({
   )
 }
 
-export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, setLogs, setSetLogs, feedbacks, onGoFeedback, profile, onRestStart, setActivity }: Props) {
+export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, setLogs, setSetLogs, feedbacks, onGoFeedback, profile, onRestStart, setActivity, focusToday }: Props) {
   const [confirming, setConfirming] = useState(false)
   const [confirmingCopy, setConfirmingCopy] = useState(false)
   // 重量记录弹窗当前编辑的动作位置（day index + exercise index），null = 关闭
@@ -513,11 +527,18 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
   const clickPos = useRef<{ x: number; y: number } | null>(null)
   const todayStr = format(new Date(), 'yyyy-MM-dd')
 
+  // 首页「开始今日训练」：把今天那张日卡滚进视口。
+  // 计划区是懒加载 chunk，元素要挂载后才存在，所以放在 effect 里而不是点击时查询
+  useEffect(() => {
+    if (!focusToday) return
+    document.getElementById(TODAY_ANCHOR)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [focusToday])
+
   // 动作替换：槽位就地更新（随 weekPlan 云同步、多端可见）。
   // 清除该槽位本周打卡——动作变了旧打卡不再成立；若原本已勾选，
   // 同步扣减当日活跃度保持训练日历一致。setLogs 按动作名索引：
   // 旧动作历史保留，新动作从零开始（有历史则「上次记录」正常预填）。
-  // 「复制上周」会带走替换结果；「生成下周 / 重新定制」按画像重新生成——替换是当周选择。
+  // 「沿用本周」会带走替换结果；「生成下周 / 重新定制」按画像重新生成——替换是当周选择。
   const handleReplace = (di: number, ei: number, replacement: Exercise) => {
     const key = `${weekPlan.week}:${di}:${ei}`
     const hadCheck = checks[key] === true
@@ -577,7 +598,7 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
     setWeekPlan(copyWeekPlanFromProfile(weekPlan))
     setConfirmingCopy(false)
     celebrateWeekDone()
-    toast.success(`📋 已复制本周计划为第 ${weekPlan.week + 1} 周计划！`)
+    toast.success(`📋 已沿用本周计划，生成第 ${weekPlan.week + 1} 周计划！`)
   }
 
   const todayIdx = (new Date().getDay() + 6) % 7
@@ -626,7 +647,7 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
               className={confirmingCopy ? 'bg-white text-sky-700 hover:bg-white/90' : 'bg-white/15 text-white hover:bg-white/25 border border-white/30'}
             >
               <Copy className="mr-1 h-4 w-4" />
-              {confirmingCopy ? '再点一次确认复制' : '复制上周计划'}
+              {confirmingCopy ? '再点一次确认沿用' : '沿用本周计划'}
             </Button>
             <Button
               onClick={nextWeek}
@@ -652,8 +673,9 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
           return (
             <Card
               key={day.day}
+              id={isToday ? TODAY_ANCHOR : undefined}
               className={`overflow-hidden rounded-2xl py-0 shadow-sm transition-shadow hover:shadow-md ${
-                isToday ? `ring-2 ${style.ring}` : ''
+                isToday ? `scroll-mt-24 ring-2 ${style.ring}` : ''
               }`}
             >
               {/* 头部色条 */}

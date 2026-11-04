@@ -46,7 +46,11 @@ interface Progression {
 export function computeProgression(week: number, difficulty?: number): Progression {
   const step = Math.min(Math.floor((week - 1) / 2), 4)
   let extra = step
-  let note = `第 ${week} 周：在前一阶段基础上动作次数 +${step}（渐进超负荷）。`
+  // 第 1 周没有"上一阶段"，原来的 "+0" 文案会让人以为引擎没生效
+  let note =
+    week <= 1
+      ? '第 1 周：起始周，先把动作做标准；从第 2 周起按你的反馈逐步进阶。'
+      : `第 ${week} 周：在前一阶段基础上动作次数 +${step}（渐进超负荷）。`
   if (difficulty !== undefined) {
     if (difficulty >= 4) {
       extra = Math.max(0, step - 1)
@@ -789,7 +793,7 @@ export function buildNextWeekPlan(
 }
 
 /* ------------------------------------------------------------------ */
-/* 复制下周：原样复制为下一周，用于"复制上周计划"按钮                   */
+/* 沿用本周：原样复制为下一周，用于"沿用本周计划"按钮                    */
 /* ------------------------------------------------------------------ */
 
 export function copyWeekPlanFromProfile(plan: WeekPlan): WeekPlan {
@@ -798,7 +802,7 @@ export function copyWeekPlanFromProfile(plan: WeekPlan): WeekPlan {
     week: plan.week + 1,
     startDate: nextMonday,
     days: plan.days.map((d) => ({ ...d, exercises: d.exercises.map((e) => ({ ...e })) })),
-    adjustmentNote: '沿用上周计划，未做进阶调整。',
+    adjustmentNote: '沿用本周计划，未做进阶调整。',
   }
 }
 
