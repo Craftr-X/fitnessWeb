@@ -4,11 +4,15 @@ import { defineConfig } from "vite"
 import { inspectAttr } from 'kimi-plugin-inspect-react'
 
 // https://vite.dev/config/
-export default defineConfig(({ command }) => ({
+// 保持「对象式」导出：vitest.config.ts 用 mergeConfig 合并本文件，回调式导出无法合并。
+// 用 NODE_ENV 区分 dev/build（vite dev 为 development，vite build 为 production，vitest 为 test）。
+const isDev = process.env.NODE_ENV === 'development'
+
+export default defineConfig({
   base: './',
   // kimi 的 inspect 插件只在 dev 生效：生产构建里它会给每个 JSX 元素塞一个 code-path 属性，
   // 既让包变大，也把源码文件路径/行号泄漏到线上 DOM 里。
-  plugins: [command === 'serve' ? inspectAttr() : null, react()],
+  plugins: [isDev ? inspectAttr() : null, react()],
   server: {
     port: 3000,
   },
@@ -31,4 +35,4 @@ export default defineConfig(({ command }) => ({
       },
     },
   },
-}));
+});
