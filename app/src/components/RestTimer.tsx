@@ -38,6 +38,15 @@ function playFinishBeep(): void {
   }
 }
 
+/** 休息结束振动提示：Android Chrome 生效，iOS Safari 未实现则静默忽略 */
+function vibrateFinish(): void {
+  try {
+    navigator.vibrate?.([120, 80, 120])
+  } catch {
+    /* 不支持振动（桌面 / iOS / 权限被拒）时忽略 */
+  }
+}
+
 export interface RestTimerHandle {
   /** 开始/重置休息倒计时，缺省用默认时长 */
   start: (seconds?: number) => void
@@ -51,6 +60,7 @@ export interface RestTimerHandle {
 export const RestTimer = forwardRef<RestTimerHandle>(function RestTimer(_props, ref) {
   const countdown = useCountdown(() => {
     playFinishBeep()
+    vibrateFinish()
     toast.success('休息结束，开练！💪')
   })
   const { remaining, running, start, stop } = countdown
