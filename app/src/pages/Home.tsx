@@ -1,6 +1,7 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
+import { useLocation, useNavigate } from 'react-router'
 import type { User } from '@supabase/supabase-js'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
@@ -44,6 +45,16 @@ const BodyData = lazy(() => import('@/sections/BodyData'))
 const Feedback = lazy(() => import('@/sections/Feedback'))
 const Nutrition = lazy(() => import('@/sections/Nutrition'))
 
+/** 一级 Tab 与 URL 的对应关系（HashRouter：#/today、#/plan、#/data） */
+const TAB_KEYS = ['today', 'plan', 'data'] as const
+type TabKey = (typeof TAB_KEYS)[number]
+
+/** 从路由路径解析当前 Tab；未知路径（含根路径 #/）回落到今日 */
+function tabFromPath(pathname: string): TabKey {
+  const seg = pathname.split('/')[1]
+  return (TAB_KEYS as readonly string[]).includes(seg) ? (seg as TabKey) : 'today'
+}
+
 export default function Home({ user }: { user: User }) {
   const cloud = useCloudStorage(user.id)
   const { signOut } = useAuth()
@@ -56,8 +67,11 @@ export default function Home({ user }: { user: User }) {
   const [setLogs, setSetLogs] = cloud.setLogs
   const [activity, setActivity] = cloud.activity
   // 一级导航收成 3 个：今日（原「总览」）/ 计划 / 数据。
-  // 每周反馈、营养建议降级为弹层，不再各占一个导航位
-  const [tab, setTab] = useState<'today' | 'plan' | 'data'>('today')
+  // 导航状态放进 URL（#/today、#/plan、#/data）：刷新能保持，返回键回上一个 Tab 而不是退出应用
+  const location = useLocation()
+  const navigate = useNavigate()
+  const tab = tabFromPath(location.pathname)
+  const setTab = useCallback((next: TabKey) => void navigate(`/${next}`), [navigate])
   // 「开始今日训练」：每次点击 +1，计划区据此把今天那张日卡滚进视口
   const [todayFocus, setTodayFocus] = useState(0)
   // 二级弹层：每周反馈 / 营养建议
@@ -353,7 +367,7 @@ export default function Home({ user }: { user: User }) {
           }}
         />
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as 'today' | 'plan' | 'data')}>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
           {/* 一级导航 5 → 3：总览并入「今日」，每周反馈 / 营养建议降级为弹层 */}
           <TabsList className="mb-6 grid h-11 w-full grid-cols-3 rounded-full bg-card p-1 shadow-sm">
             <TabsTrigger value="today" className="rounded-full">今日</TabsTrigger>

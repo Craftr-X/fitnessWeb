@@ -855,11 +855,14 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
                 .slice()
                 .reverse()}
               todayStr={todayStr}
-              onSave={(sets) =>
+              onSave={(sets) => {
                 setSetLogs((prev) =>
                   upsertExerciseLog(prev, ex.name, { date: todayStr, week: weekPlan.week, sets }, weekPlan.startDate),
                 )
-              }
+                // 记完这一组就等于做完了这个动作 → 自动打卡，省掉"记完再点一次勾"的重复操作
+                const key = `${weekPlan.week}:${loggerPos.di}:${loggerPos.ei}`
+                if (!checks[key]) toggle(loggerPos.di, loggerPos.ei)
+              }}
               onClear={() => setSetLogs((prev) => removeExerciseLog(prev, ex.name, todayStr))}
               onRestStart={() => onRestStart?.()}
             />
