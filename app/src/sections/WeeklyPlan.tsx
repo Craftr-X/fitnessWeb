@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ArrowLeftRight, ArrowRightCircle, BedDouble, CalendarClock, Copy, Dumbbell, History, Info, Leaf, Plus, Timer, Trash2, Trophy } from 'lucide-react'
+import { ArrowLeftRight, ArrowRightCircle, BedDouble, CalendarClock, ChevronDown, Copy, Dumbbell, History, Info, Leaf, Plus, Timer, Trash2, Trophy } from 'lucide-react'
 import { toast } from 'sonner'
 import { currentMonday, bumpActivity, exerciseWeekStats, getLastLogBefore, getLogForDate, inferLoadType, parseSetTarget, removeExerciseLog, upsertExerciseLog } from '@/lib/store'
 import type { SetTarget } from '@/lib/store'
@@ -520,6 +520,14 @@ function ReplaceExerciseDialog({
 export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, setLogs, setSetLogs, feedbacks, onGoFeedback, profile, onRestStart, setActivity, focusToday }: Props) {
   const [confirming, setConfirming] = useState(false)
   const [confirmingCopy, setConfirmingCopy] = useState(false)
+  // 日卡折叠：移动端默认只展开今天（7 天全展开有 4 米长），桌面端空间够，默认全展开
+  const [expandedDays, setExpandedDays] = useState<number[]>(() => {
+    const narrow = typeof window !== 'undefined' && window.innerWidth < 768
+    const t = (new Date().getDay() + 6) % 7
+    return narrow ? [t] : weekPlan.days.map((_, i) => i)
+  })
+  const toggleDay = (di: number) =>
+    setExpandedDays((prev) => (prev.includes(di) ? prev.filter((x) => x !== di) : [...prev, di]))
   // 重量记录弹窗当前编辑的动作位置（day index + exercise index），null = 关闭
   const [loggerPos, setLoggerPos] = useState<{ di: number; ei: number } | null>(null)
   // 动作替换弹窗当前操作的动作位置，null = 关闭
@@ -670,6 +678,7 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
           ).length
           const allDone = doneCount === day.exercises.length && day.exercises.length > 0
           const isToday = di === todayIdx
+          const open = expandedDays.includes(di)
           return (
             <Card
               key={day.day}
@@ -679,25 +688,43 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
               }`}
             >
               {/* 头部色条 */}
-              <div className={`flex items-center gap-2.5 bg-gradient-to-r px-4 py-3 ${style.header}`}>
-                <div className={`flex h-8 w-8 items-center justify-center rounded-lg border ${style.badge}`}>
+              {/* 头部即折叠开关：折叠时仍保留「周几 · 练什么 · 完成度」，不丢信息 */}
+              <button
+                type="button"
+                onClick={() => toggleDay(di)}
+                aria-expanded={open}
+                aria-controls={`day-body-${di}`}
+                className={`flex w-full items-center gap-2.5 bg-gradient-to-r px-4 py-3 text-left transition-colors hover:brightness-[1.03] ${style.header}`}
+              >
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${style.badge}`}>
                   <Icon className="h-4 w-4" />
                 </div>
-                <div className="flex-1">
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className={`font-semibold ${isToday ? 'text-orange-600 dark:text-orange-400' : ''}`}>{day.day}</span>
                     {isToday && (
                       <Badge className="bg-orange-500 text-white hover:bg-orange-500">今天</Badge>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground">{day.focus}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {open
+                      ? day.focus
+                      : `${day.focus} · ${day.exercises.slice(0, 2).map((e) => e.name).join('、')}${
+                          day.exercises.length > 2 ? '…' : ''
+                        }`}
+                  </p>
                 </div>
                 <Badge variant="outline" className={style.badge}>
                   {allDone ? '✓ 完成' : `${doneCount}/${day.exercises.length}`}
                 </Badge>
-              </div>
+                <ChevronDown
+                  className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? '' : '-rotate-90'}`}
+                  aria-hidden
+                />
+              </button>
 
-              <CardContent className="space-y-2 p-3">
+              {open && (
+                <CardContent id={`day-body-${di}`} className="space-y-2 p-3">
                 {day.exercises.map((ex, ei) => {
                   const checked = !!checks[`${weekPlan.week}:${di}:${ei}`]
                   const demo = getDemo(ex.name)
@@ -797,7 +824,8 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
                 {day.tip && (
                   <p className="rounded-lg bg-muted/60 p-2 text-xs text-muted-foreground">💡 {day.tip}</p>
                 )}
-              </CardContent>
+                </CardContent>
+              )}
             </Card>
           )
         })}

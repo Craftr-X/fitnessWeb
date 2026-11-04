@@ -10,12 +10,14 @@ import {
   Activity,
   CalendarCheck,
   Flame,
+  MessageSquareHeart,
   Moon,
   Scale,
   Sparkles,
   Target,
   TrendingUp,
   Trophy,
+  Utensils,
 } from 'lucide-react'
 import { bmi, bmiLabel, proteinRange, weightDeltaTone, WEIGHT_GOAL_LABEL } from '@/lib/store'
 import { useCountUp } from '@/hooks/useCountUp'
@@ -33,6 +35,10 @@ interface Props {
   setLogs: ExerciseLogMap
   /** 老用户重新定制计划完成回调 */
   onRebuild?: (profile: Profile, weekPlan: WeekPlan) => void
+  /** 打开「每周反馈」弹层（原独立 Tab，已降级） */
+  onOpenFeedback?: () => void
+  /** 打开「营养建议」弹层（原独立 Tab，已降级） */
+  onOpenNutrition?: () => void
 }
 
 const DAY_TYPE_STYLE: Record<string, string> = {
@@ -51,6 +57,8 @@ export default function Overview({
   feedbacks,
   setLogs,
   onRebuild,
+  onOpenFeedback,
+  onOpenNutrition,
 }: Props) {
   const [rebuilding, setRebuilding] = useState(false)
   const [showTransformation, setShowTransformation] = useState(false)
@@ -233,8 +241,14 @@ export default function Overview({
           <p className="text-sm text-muted-foreground">
             {lastFeedback
               ? `上周反馈：完成度 ${lastFeedback.completion}%，难度 ${lastFeedback.difficulty}/5`
-              : '本周还没有反馈记录，周日记得填写「每周反馈」。'}
+              : '本周还没有反馈记录，周日记得填写。'}
           </p>
+          {onOpenFeedback && (
+            <Button variant="outline" size="sm" className="w-full" onClick={onOpenFeedback}>
+              <MessageSquareHeart className="mr-1.5 h-4 w-4 text-pink-500" />
+              填写本周反馈
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -278,6 +292,19 @@ export default function Overview({
               最近一次记录：{latest ? format(new Date(latest.date + 'T00:00:00'), 'M月d日') : '—'}
             </li>
           </ul>
+          {onOpenNutrition && (
+            <button
+              type="button"
+              onClick={onOpenNutrition}
+              className="mt-3 flex w-full items-center justify-between rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground transition-colors hover:border-sky-300 hover:text-sky-600 dark:hover:text-sky-400"
+            >
+              <span className="flex items-center gap-1.5">
+                <Utensils className="h-3.5 w-3.5" />
+                营养建议：热量 / 一日食谱 / 恢复
+              </span>
+              <span aria-hidden>›</span>
+            </button>
+          )}
           {onRebuild && (
             <Button
               variant="outline"
