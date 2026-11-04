@@ -69,6 +69,13 @@ describe('computeProgression', () => {
     expect(p.addSet).toBe(false)
   })
 
+  it('第 1 周文案不提"+0"，改为起始周说明', () => {
+    const note = computeProgression(1).note
+    expect(note).not.toContain('+0')
+    expect(note).toContain('第 1 周')
+    expect(note).toContain('起始周')
+  })
+
   it('第 3 周：step=1', () => {
     expect(computeProgression(3).extra).toBe(1)
   })
@@ -604,7 +611,7 @@ describe('copyWeekPlanFromProfile', () => {
   })
 
   it('固定文案，不沿用源 adjustmentNote', () => {
-    expect(copyWeekPlanFromProfile(source).adjustmentNote).toBe('沿用上周计划，未做进阶调整。')
+    expect(copyWeekPlanFromProfile(source).adjustmentNote).toBe('沿用本周计划，未做进阶调整。')
   })
 
   it('深拷贝 exercises', () => {

@@ -147,11 +147,23 @@ describe('负重动作（哑铃弯举）', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
-  it('校验：填完第 1 组但第 2 组还是 0，提示位置精确到第 2 组', async () => {
+  it('少做一组也能保存：只填第 1 组，末尾空组自动忽略', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    const dialog = await openDialogFor(user, WEIGHTED_EX)
+    await fillSet(user, 1, '12.5', '10')
+    await user.click(within(dialog).getByRole('button', { name: '完成' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(rowFor(WEIGHTED_EX).textContent).toContain('本次：12.5kg×10 · 1组')
+  })
+
+  it('中间留空仍拦截：第 1、3 组填了但第 2 组空，提示位置精确到第 2 组', async () => {
     const user = userEvent.setup()
     render(<Harness />)
     await openDialogFor(user, WEIGHTED_EX)
     await fillSet(user, 1, '12.5', '10')
+    await fillSet(user, 3, '12.5', '8')
     await user.click(screen.getByRole('button', { name: '完成' }))
     expect(await screen.findByText(/第 2 组的重量和次数为 0/)).toBeInTheDocument()
   })

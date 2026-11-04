@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { format, subDays } from 'date-fns'
+import { zhCN } from 'date-fns/locale'
 import {
   CartesianGrid,
   Legend,
@@ -77,8 +78,10 @@ function TrainingCalendarCard({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="mx-auto w-fit">
+        {/* max-w-sm 限制桌面端的可读宽度，移动端自然铺满；月历本身 w-full，不再被内容宽度压扁 */}
+        <div className="mx-auto w-full max-w-sm">
           <Calendar
+            locale={zhCN}
             month={month}
             onMonthChange={setMonth}
             modifiers={{
@@ -202,7 +205,7 @@ export default function BodyData({ weights, setWeights, heightCm, activity, feed
                 id="bd-weight"
                 type="number"
                 step="0.01"
-                placeholder="50.55"
+                placeholder="如 72.5"
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
                 className="w-28"

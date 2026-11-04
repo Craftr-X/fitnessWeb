@@ -23,8 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
-import { ArrowRight, Download, Dumbbell, EllipsisVertical, Flame, LogOut, MessageCircle, Trash2 } from 'lucide-react'
-import { useCountUp } from '@/hooks/useCountUp'
+import { Download, Dumbbell, EllipsisVertical, LogOut, MessageCircle, Trash2 } from 'lucide-react'
 import { currentMonday, hasUsageTrace, mergeOnboardingWeight, needsOnboarding, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
 import { buildExportPayload, clearLocalData, deleteCloudRow, downloadExport } from '@/lib/account'
 import { buildNextWeekPlan } from '@/lib/planEngine'
@@ -32,6 +31,7 @@ import { useAuth } from '@/hooks/useAuth'
 import ThemeToggle from '@/components/ThemeToggle'
 import AppSplash from '@/components/AppSplash'
 import FeedbackDialog from '@/components/FeedbackDialog'
+import TodayHero from '@/components/TodayHero'
 import { RestTimer, type RestTimerHandle } from '@/components/RestTimer'
 import Onboarding from '@/pages/Onboarding'
 import type { Profile, WeekPlan } from '@/types'
@@ -42,14 +42,6 @@ const WeeklyPlan = lazy(() => import('@/sections/WeeklyPlan'))
 const BodyData = lazy(() => import('@/sections/BodyData'))
 const Feedback = lazy(() => import('@/sections/Feedback'))
 const Nutrition = lazy(() => import('@/sections/Nutrition'))
-
-function greeting(): string {
-  const h = new Date().getHours()
-  if (h < 6) return '夜深了'
-  if (h < 12) return '早上好'
-  if (h < 18) return '下午好'
-  return '晚上好'
-}
 
 export default function Home({ user }: { user: User }) {
   const cloud = useCloudStorage(user.id)
@@ -63,6 +55,8 @@ export default function Home({ user }: { user: User }) {
   const [setLogs, setSetLogs] = cloud.setLogs
   const [activity, setActivity] = cloud.activity
   const [tab, setTab] = useState('overview')
+  // 「开始今日训练」：每次点击 +1，计划区据此把今天那张日卡滚进视口
+  const [todayFocus, setTodayFocus] = useState(0)
   // 页头菜单：意见反馈（受控弹窗）、退出登录（二次确认）、删除账号（强警告 + 异步执行中禁用）
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [signOutOpen, setSignOutOpen] = useState(false)
@@ -212,11 +206,6 @@ export default function Home({ user }: { user: User }) {
   const weekPct = total === 0 ? 0 : Math.round((done / total) * 100)
   const daysTrained = dayChecked.filter(Boolean).length
 
-  // 作战卡数字 count-up
-  const animatedPct = useCountUp(weekPct)
-  const animatedWeight = useCountUp(latestWeight ?? 0)
-  const animatedWeeks = useCountUp(feedbacks.length)
-
   // 新用户首次进入 / 老用户软迁移：走 onboarding 引导（老用户带画像预填）
   if (needsOnboardingVal) {
     const existing: Profile | undefined = isLegacyMigration
@@ -340,99 +329,22 @@ export default function Home({ user }: { user: User }) {
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
 
       <main className="relative mx-auto max-w-5xl px-4 py-5">
-        {/* 今日作战卡 */}
-        <div className="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-teal-600 via-teal-500 to-emerald-500 p-5 text-white shadow-lg shadow-teal-500/25 sm:p-6">
-          {/* 卡内装饰：细网格 + 光斑 */}
-          <div
-            className="pointer-events-none absolute inset-0 opacity-35"
-            style={{
-              backgroundImage:
-                'linear-gradient(to right, rgb(255 255 255 / 0.09) 1px, transparent 1px), linear-gradient(to bottom, rgb(255 255 255 / 0.09) 1px, transparent 1px)',
-              backgroundSize: '28px 28px',
-            }}
-            aria-hidden
-          />
-          <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-white/15 blur-2xl" aria-hidden />
-          <div className="pointer-events-none absolute -bottom-16 right-28 h-40 w-40 rounded-full bg-emerald-300/25 blur-2xl" aria-hidden />
-
-          <div className="relative flex flex-wrap items-center gap-5">
-            <div className="min-w-56 flex-1">
-              <p className="text-sm text-white/80">{greeting()}！{format(new Date(), 'M月d日')}</p>
-              <h2 className="mt-0.5 text-xl font-bold">
-                今天：{todayPlan.day} · {todayPlan.focus}
-              </h2>
-              <p className="mt-1 text-sm text-white/80">
-                {todayPlan.type === 'rest'
-                  ? '休息日也要记得拉伸和好好吃饭 💪'
-                  : todayPlan.type === 'sport'
-                    ? '羽毛球日！尽情挥洒汗水，注意补水 🏸'
-                    : '练前别忘了 5 分钟热身，动作质量优先 🔥'}
-              </p>
-
-              {/* 本周打卡点：亮=当天有打卡，光环=今天 */}
-              <div className="mt-3 flex items-center gap-1.5">
-                {weekPlan.days.map((d, di) => (
-                  <span
-                    key={di}
-                    title={d.day}
-                    className={`h-2.5 w-2.5 rounded-full transition-colors ${
-                      dayChecked[di] ? 'bg-white shadow-sm shadow-white/60' : 'bg-white/25'
-                    } ${di === todayIdx ? 'ring-2 ring-white/80 ring-offset-2 ring-offset-teal-500' : ''}`}
-                  />
-                ))}
-                <span className="ml-2 text-xs text-white/75">本周已练 {daysTrained} 天</span>
-              </div>
-
-              <Button
-                onClick={() => setTab('plan')}
-                className="mt-4 bg-white font-semibold text-teal-700 shadow-md transition-transform hover:scale-[1.03] hover:bg-teal-50"
-              >
-                {todayPlan.type === 'rest' ? '查看本周计划' : '开始今日训练'}
-                <ArrowRight className="ml-1 h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="flex items-center gap-6 pr-1">
-              {/* 本周完成度进度环 */}
-              <div className="relative h-20 w-20" title={`已打卡 ${done} / ${total} 项`}>
-                <svg viewBox="0 0 80 80" className="h-20 w-20 -rotate-90">
-                  <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="7" />
-                  <circle
-                    cx="40"
-                    cy="40"
-                    r="34"
-                    fill="none"
-                    stroke="#fff"
-                    strokeWidth="7"
-                    strokeLinecap="round"
-                    strokeDasharray={2 * Math.PI * 34}
-                    strokeDashoffset={2 * Math.PI * 34 * (1 - animatedPct / 100)}
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-lg font-bold leading-none">{Math.round(animatedPct)}%</span>
-                  <span className="mt-0.5 text-[10px] text-white/75">本周进度</span>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {latestWeight && (
-                  <div className="text-center">
-                    <div className="text-2xl font-bold tabular-nums">{animatedWeight.toFixed(2)}</div>
-                    <div className="text-xs text-white/75">当前体重 kg</div>
-                  </div>
-                )}
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-1 text-2xl font-bold tabular-nums">
-                    <Flame className="h-5 w-5" />
-                    {Math.round(animatedWeeks)}
-                  </div>
-                  <div className="text-xs text-white/75">已坚持周数</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* 今日作战卡：完整版只在「今日」Tab，计划/数据 Tab 压成一行（首屏 322px → 64px） */}
+        <TodayHero
+          weekPlan={weekPlan}
+          todayPlan={todayPlan}
+          todayIdx={todayIdx}
+          dayChecked={dayChecked}
+          daysTrained={daysTrained}
+          done={done}
+          total={total}
+          latestWeight={latestWeight ?? null}
+          weeksPersisted={feedbacks.length}
+          onStart={() => {
+            setTab('plan')
+            setTodayFocus((n) => n + 1)
+          }}
+        />
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="mb-6 grid h-11 w-full grid-cols-5 rounded-full bg-card p-1 shadow-sm">
@@ -476,6 +388,7 @@ export default function Home({ user }: { user: User }) {
                 profile={profile}
                 onRestStart={(seconds) => restTimerRef.current?.start(seconds)}
                 setActivity={setActivity}
+                focusToday={todayFocus}
               />
             </TabsContent>
             <TabsContent value="data" className="fade-enter">
@@ -494,6 +407,7 @@ export default function Home({ user }: { user: User }) {
                 weekPlan={weekPlan}
                 setWeekPlan={setWeekPlan}
                 profile={profile}
+                weekProgressPct={weekPct}
                 onGoPlan={() => setTab('plan')}
               />
             </TabsContent>

@@ -26,6 +26,8 @@ interface Props {
   setWeekPlan: (v: WeekPlan | ((p: WeekPlan) => WeekPlan)) => void
   /** 当前用户画像，生成下周计划时走规则引擎 */
   profile: Profile
+  /** 本周真实打卡完成度（0-100）：用于把「计划完成度」默认值填成真值 */
+  weekProgressPct?: number
   /** 生成下周计划后切到计划 Tab */
   onGoPlan: () => void
 }
@@ -33,8 +35,13 @@ interface Props {
 const SORENESS_OPTIONS = ['胸', '背', '肩', '手臂', '腿', '全身轻微', '无明显酸痛']
 const DIFFICULTY_LABELS = ['', '很轻松', '较轻松', '刚刚好', '偏累', '非常吃力']
 
-export default function Feedback({ feedbacks, setFeedbacks, weekPlan, setWeekPlan, profile, onGoPlan }: Props) {
-  const [completion, setCompletion] = useState(80)
+export default function Feedback({ feedbacks, setFeedbacks, weekPlan, setWeekPlan, profile, weekProgressPct, onGoPlan }: Props) {
+  // 默认值是真实打卡完成度，而不是固定的 80%：
+  // completion 会喂给规则引擎（<60% 触发下周降阶），假默认值会让降阶永远不触发
+  const [completion, setCompletion] = useState(() => {
+    if (weekProgressPct == null || !Number.isFinite(weekProgressPct)) return 80
+    return Math.min(100, Math.max(0, Math.round(weekProgressPct)))
+  })
   const [difficulty, setDifficulty] = useState(3)
   const [soreness, setSoreness] = useState<string[]>([])
   const [sleep, setSleep] = useState('7-8')
@@ -113,6 +120,11 @@ export default function Feedback({ feedbacks, setFeedbacks, weekPlan, setWeekPla
               <span className="font-medium">{completion}%</span>
             </div>
             <Slider value={[completion]} min={0} max={100} step={5} onValueChange={(v) => setCompletion(v[0])} />
+            <p className="text-xs text-muted-foreground">
+              {weekProgressPct == null
+                ? '按你的实际完成情况调整，低于 60% 下周会自动降量'
+                : `已按本周打卡自动填入（${Math.min(100, Math.max(0, Math.round(weekProgressPct)))}%），可手动调整；低于 60% 下周会自动降量`}
+            </p>
           </div>
 
           <div className="space-y-2">
