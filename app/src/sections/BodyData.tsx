@@ -78,41 +78,43 @@ function TrainingCalendarCard({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {/* max-w-sm 限制桌面端的可读宽度，移动端自然铺满；月历本身 w-full，不再被内容宽度压扁 */}
-        <div className="mx-auto w-full max-w-sm">
-          <Calendar
-            locale={zhCN}
-            month={month}
-            onMonthChange={setMonth}
-            modifiers={{
-              trained: (d) => (activity[keyOf(d)] ?? 0) > 0,
-              weighIn: (d) => weights.some((w) => w.date === keyOf(d)),
-              feedback: (d) => feedbacks.some((f) => f.date === keyOf(d)),
-            }}
-            modifiersClassNames={{
-              trained: 'bg-teal-500/15 font-bold text-teal-700 dark:text-teal-300',
-              weighIn: 'rdp-dot-weigh relative',
-              feedback: 'rdp-dot-feedback relative',
-            }}
-          />
+        {/* 桌面端两栏（日历 + 图例/统计），把大卡片的空白用起来；移动端仍然竖排、日历铺满 */}
+        <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:justify-center sm:gap-10">
+          <div className="w-full max-w-sm">
+            <Calendar
+              locale={zhCN}
+              month={month}
+              onMonthChange={setMonth}
+              modifiers={{
+                trained: (d) => (activity[keyOf(d)] ?? 0) > 0,
+                weighIn: (d) => weights.some((w) => w.date === keyOf(d)),
+                feedback: (d) => feedbacks.some((f) => f.date === keyOf(d)),
+              }}
+              modifiersClassNames={{
+                trained: 'bg-teal-500/15 font-bold text-teal-700 dark:text-teal-300',
+                weighIn: 'rdp-dot-weigh relative',
+                feedback: 'rdp-dot-feedback relative',
+              }}
+            />
+          </div>
+          <div className="flex w-full flex-col items-center gap-2 text-xs text-muted-foreground sm:w-auto sm:items-start sm:pt-6">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded bg-teal-500/40" />训练日
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />称重
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />每周反馈
+            </span>
+            <p className="mt-2 text-center sm:text-left">
+              本月训练 {stats.trained} 天 · 称重 {stats.weigh} 次 · 反馈 {stats.fb} 次
+            </p>
+            <p className="max-w-52 text-center text-[11px] text-muted-foreground/70 sm:text-left">
+              训练打卡自本版本起记录；此前数据仅显示体重与反馈标记。
+            </p>
+          </div>
         </div>
-        <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded bg-teal-500/40" />训练日
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />称重
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />每周反馈
-          </span>
-        </div>
-        <p className="mt-2 text-center text-xs text-muted-foreground">
-          本月训练 {stats.trained} 天 · 称重 {stats.weigh} 次 · 反馈 {stats.fb} 次
-        </p>
-        <p className="mt-1 text-center text-[11px] text-muted-foreground/70">
-          训练打卡自本版本起记录；此前数据仅显示体重与反馈标记。
-        </p>
       </CardContent>
     </Card>
   )
