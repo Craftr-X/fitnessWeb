@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Download, Dumbbell, EllipsisVertical, LogOut, MessageCircle, Trash2 } from 'lucide-react'
 import { currentMonday, hasUsageTrace, mergeOnboardingWeight, needsOnboarding, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
 import { buildExportPayload, clearLocalData, deleteCloudRow, downloadExport } from '@/lib/account'
@@ -54,9 +55,14 @@ export default function Home({ user }: { user: User }) {
   const [feedbacks, setFeedbacks] = cloud.feedbacks
   const [setLogs, setSetLogs] = cloud.setLogs
   const [activity, setActivity] = cloud.activity
-  const [tab, setTab] = useState('overview')
+  // 一级导航收成 3 个：今日（原「总览」）/ 计划 / 数据。
+  // 每周反馈、营养建议降级为弹层，不再各占一个导航位
+  const [tab, setTab] = useState<'today' | 'plan' | 'data'>('today')
   // 「开始今日训练」：每次点击 +1，计划区据此把今天那张日卡滚进视口
   const [todayFocus, setTodayFocus] = useState(0)
+  // 二级弹层：每周反馈 / 营养建议
+  const [weekFeedbackOpen, setWeekFeedbackOpen] = useState(false)
+  const [nutritionOpen, setNutritionOpen] = useState(false)
   // 页头菜单：意见反馈（受控弹窗）、退出登录（二次确认）、删除账号（强警告 + 异步执行中禁用）
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [signOutOpen, setSignOutOpen] = useState(false)
@@ -340,19 +346,19 @@ export default function Home({ user }: { user: User }) {
           total={total}
           latestWeight={latestWeight ?? null}
           weeksPersisted={feedbacks.length}
+          compact={tab !== 'today'}
           onStart={() => {
             setTab('plan')
             setTodayFocus((n) => n + 1)
           }}
         />
 
-        <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="mb-6 grid h-11 w-full grid-cols-5 rounded-full bg-card p-1 shadow-sm">
-            <TabsTrigger value="overview" className="rounded-full">总览</TabsTrigger>
-            <TabsTrigger value="plan" className="rounded-full">每周计划</TabsTrigger>
-            <TabsTrigger value="data" className="rounded-full">数据记录</TabsTrigger>
-            <TabsTrigger value="feedback" className="rounded-full">每周反馈</TabsTrigger>
-            <TabsTrigger value="nutrition" className="rounded-full">营养建议</TabsTrigger>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as 'today' | 'plan' | 'data')}>
+          {/* 一级导航 5 → 3：总览并入「今日」，每周反馈 / 营养建议降级为弹层 */}
+          <TabsList className="mb-6 grid h-11 w-full grid-cols-3 rounded-full bg-card p-1 shadow-sm">
+            <TabsTrigger value="today" className="rounded-full">今日</TabsTrigger>
+            <TabsTrigger value="plan" className="rounded-full">计划</TabsTrigger>
+            <TabsTrigger value="data" className="rounded-full">数据</TabsTrigger>
           </TabsList>
 
           {/* Suspense 包整个 Tabs：Radix Tabs 默认只挂载当前 Tab，切 Tab 时触发对应 section 的懒加载 */}
@@ -363,7 +369,7 @@ export default function Home({ user }: { user: User }) {
               </div>
             }
           >
-            <TabsContent value="overview" className="fade-enter">
+            <TabsContent value="today" className="fade-enter">
               <Overview
                 profile={profile}
                 setProfile={setProfile}
@@ -373,6 +379,8 @@ export default function Home({ user }: { user: User }) {
                 feedbacks={feedbacks}
                 setLogs={setLogs}
                 onRebuild={handleRebuild}
+                onOpenFeedback={() => setWeekFeedbackOpen(true)}
+                onOpenNutrition={() => setNutritionOpen(true)}
               />
             </TabsContent>
             <TabsContent value="plan" className="fade-enter">
@@ -384,7 +392,7 @@ export default function Home({ user }: { user: User }) {
                 setLogs={setLogs}
                 setSetLogs={setSetLogs}
                 feedbacks={feedbacks}
-                onGoFeedback={() => setTab('feedback')}
+                onGoFeedback={() => setWeekFeedbackOpen(true)}
                 profile={profile}
                 onRestStart={(seconds) => restTimerRef.current?.start(seconds)}
                 setActivity={setActivity}
@@ -400,23 +408,58 @@ export default function Home({ user }: { user: User }) {
                 feedbacks={feedbacks}
               />
             </TabsContent>
-            <TabsContent value="feedback" className="fade-enter">
-              <Feedback
-                feedbacks={feedbacks}
-                setFeedbacks={setFeedbacks}
-                weekPlan={weekPlan}
-                setWeekPlan={setWeekPlan}
-                profile={profile}
-                weekProgressPct={weekPct}
-                onGoPlan={() => setTab('plan')}
-              />
-            </TabsContent>
-            <TabsContent value="nutrition" className="fade-enter">
-              <Nutrition weights={weights} weightGoal={profile.weightGoal} />
-            </TabsContent>
           </Suspense>
         </Tabs>
       </main>
+
+      {/* 每周反馈（原第 4 个 Tab）：周日的收尾流程，从「今日」或计划页进入即可 */}
+      <Dialog open={weekFeedbackOpen} onOpenChange={setWeekFeedbackOpen}>
+        <DialogContent
+          className="max-h-[90dvh] gap-0 overflow-y-auto p-4 sm:max-w-3xl"
+          aria-describedby={undefined}
+        >
+          <DialogTitle className="sr-only">每周反馈</DialogTitle>
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center py-16">
+                <Spinner className="h-6 w-6" />
+              </div>
+            }
+          >
+            <Feedback
+              feedbacks={feedbacks}
+              setFeedbacks={setFeedbacks}
+              weekPlan={weekPlan}
+              setWeekPlan={setWeekPlan}
+              profile={profile}
+              weekProgressPct={weekPct}
+              onGoPlan={() => {
+                setWeekFeedbackOpen(false)
+                setTab('plan')
+              }}
+            />
+          </Suspense>
+        </DialogContent>
+      </Dialog>
+
+      {/* 营养建议（原第 5 个 Tab）：静态参考内容，从今日页的蛋白质目标进入 */}
+      <Dialog open={nutritionOpen} onOpenChange={setNutritionOpen}>
+        <DialogContent
+          className="max-h-[90dvh] gap-0 overflow-y-auto p-4 sm:max-w-2xl"
+          aria-describedby={undefined}
+        >
+          <DialogTitle className="sr-only">营养建议</DialogTitle>
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center py-16">
+                <Spinner className="h-6 w-6" />
+              </div>
+            }
+          >
+            <Nutrition weights={weights} weightGoal={profile.weightGoal} />
+          </Suspense>
+        </DialogContent>
+      </Dialog>
 
       {/* 组间休息悬浮计时器（无计时时不渲染） */}
       <RestTimer ref={restTimerRef} />
