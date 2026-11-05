@@ -46,11 +46,14 @@ interface Progression {
 export function computeProgression(week: number, difficulty?: number): Progression {
   const step = Math.min(Math.floor((week - 1) / 2), 4)
   let extra = step
-  // 第 1 周没有"上一阶段"，原来的 "+0" 文案会让人以为引擎没生效
+  // 第 1 周没有"上一阶段"，第 2 周起 step 仍为 0（每 2 周一个台阶），
+  // "+0" 这种说法会让人以为引擎没生效，改成"维持组次"的表述
   let note =
     week <= 1
       ? '第 1 周：起始周，先把动作做标准；从第 2 周起按你的反馈逐步进阶。'
-      : `第 ${week} 周：在前一阶段基础上动作次数 +${step}（渐进超负荷）。`
+      : step === 0
+        ? `第 ${week} 周：维持上周组次，先把动作做标准（第 ${week + 1} 周起加量）。`
+        : `第 ${week} 周：在前一阶段基础上动作次数 +${step}（渐进超负荷）。`
   if (difficulty !== undefined) {
     if (difficulty >= 4) {
       extra = Math.max(0, step - 1)
@@ -763,12 +766,12 @@ export function buildWeekPlanFromProfile(
   })
   if (feedback) notes.push(...applyFeedbackToDays(days, feedback, goal))
 
-  // adjustmentNote：进阶说明 + 反馈触发的调整；有反馈但未触发任何规则时给兜底文案
+  // adjustmentNote：进阶说明 + 反馈触发的调整；有反馈但未触发任何规则时给兜底文案。
+  // 各段本身以「。」结尾，直接 join('；') 会出现「。；」这种双标点，先把句末句号去掉再拼
   const adjustmentNote = feedback
-    ? [
-        progression.note,
-        ...(notes.length > 0 ? notes : ['根据上周反馈检查，本周保持原计划节奏。']),
-      ].join('；')
+    ? [...[progression.note, ...(notes.length > 0 ? notes : ['根据上周反馈检查，本周保持原计划节奏。'])]
+        .map((s) => s.replace(/。$/, ''))]
+        .join('；') + '。'
     : progression.note
 
   return { week, startDate: currentMonday(), days, adjustmentNote }

@@ -262,7 +262,7 @@ export default function Home({ user }: { user: User }) {
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-lg font-bold leading-tight">FitUp 健身计划</h1>
             <p className="truncate text-xs text-muted-foreground">
-              {profile.heightCm} cm · 目标：{profile.weightGoal ? WEIGHT_GOAL_LABEL[profile.weightGoal] : '—'}
+              {profile.heightCm} cm · 目标：{profile.weightGoal ? WEIGHT_GOAL_LABEL[profile.weightGoal] : '未设置'}
             </p>
           </div>
           <span className="hidden max-w-40 truncate text-xs text-muted-foreground sm:block">
@@ -373,7 +373,7 @@ export default function Home({ user }: { user: User }) {
           done={done}
           total={total}
           latestWeight={latestWeight ?? null}
-          weeksPersisted={feedbacks.length}
+          weeksPersisted={weekPlan.week}
           compact={tab !== 'today'}
           onStart={() => {
             setTab('plan')

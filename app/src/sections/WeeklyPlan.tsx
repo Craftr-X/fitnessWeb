@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { format } from 'date-fns'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -16,7 +16,8 @@ import { ArrowLeftRight, ArrowRightCircle, BedDouble, CalendarClock, ChevronDown
 import { toast } from 'sonner'
 import { currentMonday, bumpActivity, exerciseWeekStats, getLastLogBefore, getLogForDate, inferLoadType, parseSetTarget, removeExerciseLog, upsertExerciseLog } from '@/lib/store'
 import type { SetTarget } from '@/lib/store'
-import { buildNextWeekPlan, copyWeekPlanFromProfile, groupFromFocus, listAlternatives, tuneByGoal } from '@/lib/planEngine'
+import { buildNextWeekPlan, buildWeekPlanFromProfile, copyWeekPlanFromProfile, groupFromFocus, listAlternatives, tuneByGoal } from '@/lib/planEngine'
+import { describeChange, diffWeekPlans, summarizePlanDiff } from '@/lib/planDiff'
 import { burstAt, celebrateDayDone, celebrateWeekDone } from '@/lib/celebrate'
 import { getDemo } from '@/lib/demos'
 import ExerciseDemoButton from '@/components/ExerciseDemoButton'
@@ -528,12 +529,24 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
   })
   const toggleDay = (di: number) =>
     setExpandedDays((prev) => (prev.includes(di) ? prev.filter((x) => x !== di) : [...prev, di]))
+  // 明细展开开关：把 adjustmentNote 换成「哪个动作、组数怎么变」的可读列表
+  const [showDiff, setShowDiff] = useState(false)
   // 重量记录弹窗当前编辑的动作位置（day index + exercise index），null = 关闭
   const [loggerPos, setLoggerPos] = useState<{ di: number; ei: number } | null>(null)
   // 动作替换弹窗当前操作的动作位置，null = 关闭
   const [swapPos, setSwapPos] = useState<{ di: number; ei: number } | null>(null)
   const clickPos = useRef<{ x: number; y: number } | null>(null)
   const todayStr = format(new Date(), 'yyyy-MM-dd')
+
+  /**
+   * 本周计划 vs「同样画像、不带上周反馈」的基准计划。
+   * 规则引擎是确定性的，所以可以按需重算基准来反推"反馈到底改了什么"，
+   * 不用额外存字段，历史周也能算。第 1 周没有上一周反馈，跳过。
+   */
+  const planDiff = useMemo(() => {
+    if (!profile || weekPlan.week <= 1) return null
+    return diffWeekPlans(buildWeekPlanFromProfile(profile, weekPlan.week), weekPlan)
+  }, [profile, weekPlan])
 
   // 首页「开始今日训练」：把今天那张日卡滚进视口。
   // 计划区是懒加载 chunk，元素要挂载后才存在，所以放在 effect 里而不是点击时查询
@@ -644,9 +657,44 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
       {/* 进阶说明 + 生成下周 */}
       <Card className="overflow-hidden rounded-2xl border-0 bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-lg shadow-sky-500/20">
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-          <div className="flex flex-1 items-start gap-2 text-sm">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 opacity-80" />
-            <span className="text-white/90">{weekPlan.adjustmentNote}</span>
+          <div className="flex flex-1 flex-col gap-1 text-sm">
+            <span className="flex items-start gap-2 text-white/90">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 opacity-80" />
+              {planDiff && planDiff.changes.length > 0 ? (
+                <span>
+                  {summarizePlanDiff(planDiff)}
+                  <span className="ml-1 text-xs text-white/70">（依据第 {weekPlan.week - 1} 周反馈）</span>
+                </span>
+              ) : (
+                <span>{weekPlan.adjustmentNote}</span>
+              )}
+            </span>
+            {planDiff && planDiff.changes.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowDiff((v) => !v)}
+                  className="ml-6 w-fit text-xs text-white/75 underline underline-offset-2 hover:text-white"
+                >
+                  {showDiff ? '收起明细' : `展开明细（${planDiff.changes.length} 处）`}
+                </button>
+                {showDiff && (
+                  <ul className="ml-6 mt-1 space-y-1 text-xs text-white/85">
+                    {planDiff.changes.slice(0, 8).map((c, i) => (
+                      <li key={`${c.day}-${c.name}-${i}`} className="flex items-baseline justify-between gap-3">
+                        <span className="truncate">
+                          {c.day} · {c.name}
+                        </span>
+                        <span className="shrink-0 tabular-nums text-white/70">{describeChange(c)}</span>
+                      </li>
+                    ))}
+                    {planDiff.changes.length > 8 && (
+                      <li className="text-white/60">…另有 {planDiff.changes.length - 8} 处（同一天多个动作一起调整）</li>
+                    )}
+                  </ul>
+                )}
+              </>
+            )}
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button
