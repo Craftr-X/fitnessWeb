@@ -402,6 +402,10 @@ export interface CloudStore {
   migrated: boolean
   /** 最近一次防抖同步是否失败（断网/超时等）。数据已暂存本地，下次启动会自动重推 */
   syncError: boolean
+  /** 首次拉取云端数据失败的错误信息；null = 正常。此时界面用本机缓存，且不会回写云端 */
+  loadError: string | null
+  /** 重新拉取云端数据（loadError 时给用户的重试入口） */
+  retry: () => void
   /** 立即把最新状态写入云端（退出登录前调用，避免防抖窗口丢数据）。返回是否成功 */
   flush: () => Promise<boolean>
 }
@@ -461,6 +465,9 @@ export function useCloudStorage(userId: string): CloudStore {
   const [ready, setReady] = useState(false)
   const [migrated, setMigrated] = useState(false)
   const [syncError, setSyncError] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  // 递增即重新触发加载 effect（重试）
+  const [reloadKey, setReloadKey] = useState(0)
   const stateRef = useRef(state)
   useEffect(() => {
     stateRef.current = state
@@ -477,8 +484,19 @@ export function useCloudStorage(userId: string): CloudStore {
         if (!cancelled) setReady(true)
         return
       }
-      const remote = await loadUserData(userId)
+      let remote
+      try {
+        remote = await loadUserData(userId)
+      } catch (e) {
+        // 读失败 ≠ 没有数据：绝不能走"新建默认文档"的分支，否则会用默认值覆盖云端。
+        // 这里只把错误抛给界面，用本机缓存先让用户用起来，并阻止自动回写直到重试成功。
+        if (cancelled) return
+        setLoadError(e instanceof Error ? e.message : '云端数据加载失败')
+        setReady(true)
+        return
+      }
       if (cancelled) return
+      setLoadError(null)
       if (remote && Object.values(remote).some((v) => v !== undefined)) {
         setState((prev) => ({ ...prev, ...remote }))
       } else {
@@ -493,11 +511,14 @@ export function useCloudStorage(userId: string): CloudStore {
     return () => {
       cancelled = true
     }
-  }, [userId])
+  }, [userId, reloadKey])
 
   // 变更持久化：本地缓存 + 防抖同步云端
   useEffect(() => {
     if (!ready) return
+    // 云端读取失败时不要回写：本机缓存可能是旧的，推上去会覆盖云端真实数据。
+    // 等用户点「重试」把远端拉回来之后再恢复自动同步。
+    if (loadError) return
     try {
       localStorage.setItem(cloudCacheKey(userId), JSON.stringify(state))
     } catch {
@@ -520,9 +541,17 @@ export function useCloudStorage(userId: string): CloudStore {
       })
     }, 800)
     return () => clearTimeout(timer)
-  }, [state, ready, userId])
+  }, [state, ready, userId, loadError])
+
+  const retry = useCallback(() => {
+    setLoadError(null)
+    setReady(false)
+    setReloadKey((k) => k + 1)
+  }, [])
 
   const flush = useCallback(async () => {
+    // 云端数据没拉下来时不允许回写（否则用本地旧数据覆盖云端）
+    if (loadError) return false
     const snapshot = stateRef.current
     const ok = await saveUserData(userId, snapshot)
     if (ok && stateRef.current === snapshot) {
@@ -532,7 +561,7 @@ export function useCloudStorage(userId: string): CloudStore {
       setSyncError(true)
     }
     return ok
-  }, [userId])
+  }, [userId, loadError])
 
   const makeSetter = useCallback(
     <K extends keyof CloudState>(key: K): Setter<CloudState[K]> =>
@@ -555,6 +584,8 @@ export function useCloudStorage(userId: string): CloudStore {
     ready,
     migrated,
     syncError,
+    loadError,
+    retry,
     flush,
   }
 }
