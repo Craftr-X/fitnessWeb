@@ -41,6 +41,9 @@ function withTimeout<T>(thenable: PromiseLike<T>, ms: number): Promise<T> {
  *
  * 这两者必须区分开：调用方拿到 null 会写入一份默认状态，如果"读取失败"也返回 null，
  * 一次网络抖动就会用默认值覆盖掉云端真实数据。
+ *
+ * 注意这里用 `limit(1)` 拿数组，而不是 `maybeSingle()`：后者在「0 行」时会返回
+ * 一个 PGRST116 错误（不是 data:null/error:null），跟真正的读失败混在一起没法区分。
  */
 export async function loadUserData(userId: string, timeoutMs: number = LOAD_TIMEOUT_MS): Promise<UserData | null> {
   if (!supabase) return null
@@ -49,10 +52,11 @@ export async function loadUserData(userId: string, timeoutMs: number = LOAD_TIME
     .from('user_data')
     .select('data')
     .eq('user_id', userId)
-    .maybeSingle() as unknown as PromiseLike<{ data: Row | null; error: { message: string } | null }>
+    .limit(1) as unknown as PromiseLike<{ data: Row[] | null; error: { message: string } | null }>
   const { data, error } = await withTimeout(query, timeoutMs)
   if (error) throw new Error(error.message)
-  const remote = (data?.data as UserData) ?? null
+  const row = Array.isArray(data) ? data[0] : null
+  const remote = (row?.data as UserData) ?? null
   if (remote?.setLogs) remote.setLogs = cleanExerciseLogMap(remote.setLogs)
   return remote
 }
