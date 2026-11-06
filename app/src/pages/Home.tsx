@@ -58,7 +58,7 @@ function tabFromPath(pathname: string): TabKey {
 export default function Home({ user }: { user: User }) {
   const cloud = useCloudStorage(user.id)
   const { signOut } = useAuth()
-  const { ready, migrated, syncError } = cloud
+  const { ready, migrated, syncError, loadError, retry } = cloud
   const [profile, setProfile] = cloud.profile
   const [weekPlan, setWeekPlan] = cloud.weekPlan
   const [checks, setChecks] = cloud.checks
@@ -262,7 +262,7 @@ export default function Home({ user }: { user: User }) {
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-lg font-bold leading-tight">FitUp 健身计划</h1>
             <p className="truncate text-xs text-muted-foreground">
-              {profile.heightCm} cm · 目标：{profile.weightGoal ? WEIGHT_GOAL_LABEL[profile.weightGoal] : '—'}
+              {profile.heightCm} cm · 目标：{profile.weightGoal ? WEIGHT_GOAL_LABEL[profile.weightGoal] : '未设置'}
             </p>
           </div>
           <span className="hidden max-w-40 truncate text-xs text-muted-foreground sm:block">
@@ -349,6 +349,20 @@ export default function Home({ user }: { user: User }) {
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
 
       <main className="relative mx-auto max-w-5xl px-4 py-5">
+        {/* 云端读取失败：不阻塞使用（先用本机缓存），但要明确告知并给重试入口。
+            这条路径下不会自动回写云端，避免用旧缓存覆盖真实数据 */}
+        {loadError && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+            <span className="min-w-0 flex-1">
+              云端数据没加载出来，当前显示的是本机缓存（可能不是最新）。
+              <span className="ml-1 text-xs text-muted-foreground">{loadError}</span>
+            </span>
+            <Button size="sm" variant="outline" onClick={retry}>
+              重试
+            </Button>
+          </div>
+        )}
+
         {/* 今日作战卡：完整版只在「今日」Tab，计划/数据 Tab 压成一行（首屏 322px → 64px） */}
         <TodayHero
           weekPlan={weekPlan}
@@ -359,7 +373,7 @@ export default function Home({ user }: { user: User }) {
           done={done}
           total={total}
           latestWeight={latestWeight ?? null}
-          weeksPersisted={feedbacks.length}
+          weeksPersisted={weekPlan.week}
           compact={tab !== 'today'}
           onStart={() => {
             setTab('plan')

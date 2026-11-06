@@ -263,6 +263,13 @@ export default function Overview({
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* 老用户（账号体系上线前的数据）可能没有 weightGoal，这里明确提示而不是默默用通用建议 */}
+          {!goal && (
+            <p className="mb-3 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              还没设置训练目标（增肌 / 减脂 / 塑形 / 保持），下面用的是通用建议。点「重新定制我的计划」补上，
+              蛋白质和热量建议会更贴合你。
+            </p>
+          )}
           <ul className="space-y-2 text-sm">
             <li className="flex gap-2">
               <Activity className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" />

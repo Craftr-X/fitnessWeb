@@ -14,7 +14,7 @@ interface Props {
   done: number
   total: number
   latestWeight: number | null
-  /** 已有反馈的周数（"已坚持周数"） */
+  /** 计划进行到第几周（"已坚持周数"，与头部「第 N 周」口径一致；之前用的是反馈条数，会出现 0 与 16 并存的矛盾） */
   weeksPersisted: number
   /** 紧凑模式：计划/数据页用，压成一行，把首屏留给正文 */
   compact?: boolean

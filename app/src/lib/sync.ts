@@ -14,19 +14,49 @@ export interface UserData {
   activity?: ActivityMap
 }
 
-/** 拉取远端数据；没有行或出错时返回 null */
-export async function loadUserData(userId: string): Promise<UserData | null> {
+/** 单次读取的超时（毫秒）：线上遇到过请求挂住，页面永久停在「正在同步」 */
+export const LOAD_TIMEOUT_MS = 8000
+
+/** 给 thenable 套一层超时；超时后原请求即使迟到达也被忽略 */
+function withTimeout<T>(thenable: PromiseLike<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`加载超时（${ms}ms）`)), ms)
+    Promise.resolve(thenable).then(
+      (v) => {
+        clearTimeout(timer)
+        resolve(v)
+      },
+      (e) => {
+        clearTimeout(timer)
+        reject(e)
+      },
+    )
+  })
+}
+
+/**
+ * 拉取远端数据。
+ * - 返回 null = 确认没有这行数据（新用户）
+ * - 抛错 = 读取失败（断网 / 超时 / RLS 拒绝）
+ *
+ * 这两者必须区分开：调用方拿到 null 会写入一份默认状态，如果"读取失败"也返回 null，
+ * 一次网络抖动就会用默认值覆盖掉云端真实数据。
+ *
+ * 注意这里用 `limit(1)` 拿数组，而不是 `maybeSingle()`：后者在「0 行」时会返回
+ * 一个 PGRST116 错误（不是 data:null/error:null），跟真正的读失败混在一起没法区分。
+ */
+export async function loadUserData(userId: string, timeoutMs: number = LOAD_TIMEOUT_MS): Promise<UserData | null> {
   if (!supabase) return null
-  const { data, error } = await supabase
+  type Row = { data: UserData | null }
+  const query = supabase
     .from('user_data')
     .select('data')
     .eq('user_id', userId)
-    .maybeSingle()
-  if (error) {
-    console.error('[FitUp] 加载云端数据失败：', error.message)
-    return null
-  }
-  const remote = (data?.data as UserData) ?? null
+    .limit(1) as unknown as PromiseLike<{ data: Row[] | null; error: { message: string } | null }>
+  const { data, error } = await withTimeout(query, timeoutMs)
+  if (error) throw new Error(error.message)
+  const row = Array.isArray(data) ? data[0] : null
+  const remote = (row?.data as UserData) ?? null
   if (remote?.setLogs) remote.setLogs = cleanExerciseLogMap(remote.setLogs)
   return remote
 }

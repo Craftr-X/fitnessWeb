@@ -16,7 +16,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { buildNextWeekPlan } from '@/lib/planEngine'
+import { buildNextWeekPlan, buildWeekPlanFromProfile } from '@/lib/planEngine'
+import { describeChange, diffWeekPlans, groupChangesByDay, summarizePlanDiff } from '@/lib/planDiff'
+import type { PlanDiff } from '@/lib/planDiff'
 import type { Profile, WeekFeedback, WeekPlan } from '@/types'
 
 interface Props {
@@ -49,8 +51,9 @@ export default function Feedback({ feedbacks, setFeedbacks, weekPlan, setWeekPla
   const [note, setNote] = useState('')
   const [saved, setSaved] = useState(false)
   const [copied, setCopied] = useState(false)
-  // 刚保存的反馈：周数仍等于当前计划周时，露出"生成下周计划"CTA
-  const [justSavedFb, setJustSavedFb] = useState<WeekFeedback | null>(null)
+  // 保存后即时算出的"下周计划预览"：让用户看到反馈到底改了什么，而不是只给一句话
+  const [preview, setPreview] = useState<{ diff: PlanDiff; next: WeekPlan } | null>(null)
+  const [showDetail, setShowDetail] = useState(false)
 
   const toggleSoreness = (s: string) =>
     setSoreness((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
@@ -67,18 +70,23 @@ export default function Feedback({ feedbacks, setFeedbacks, weekPlan, setWeekPla
       note,
     }
     setFeedbacks((prev) => [fb, ...prev.filter((f) => f.week !== weekPlan.week)])
-    setJustSavedFb(fb)
+    // 保存后立刻算出「不带反馈 vs 带反馈」的差异：用户最想知道的是"我的反馈到底改了什么"
+    const nextWeek = weekPlan.week + 1
+    const baseline = buildWeekPlanFromProfile(profile, nextWeek)
+    const next = buildNextWeekPlan(profile, weekPlan, fb)
+    setPreview({ diff: diffWeekPlans(baseline, next), next })
+    setShowDetail(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
 
-  // 用刚保存的反馈一键生成下周计划，并切到计划 Tab
-  const generateNext = () => {
-    if (!justSavedFb) return
-    const next = buildNextWeekPlan(profile, weekPlan, justSavedFb)
+  // 用刚算好的预览直接应用下周计划，并切到计划 Tab
+  const applyPreview = () => {
+    if (!preview) return
+    const next = preview.next
     setWeekPlan(next)
-    setJustSavedFb(null)
-    toast.success(`🚀 第 ${next.week} 周计划已结合你的反馈生成，继续加油！`)
+    setPreview(null)
+    toast.success(`🚀 第 ${next.week} 周计划已应用，继续加油！`)
     onGoPlan()
   }
 
@@ -196,11 +204,53 @@ export default function Feedback({ feedbacks, setFeedbacks, weekPlan, setWeekPla
             <Send className="mr-1 h-4 w-4" /> {saved ? '✓ 已保存' : '保存本周反馈'}
           </Button>
 
-          {/* 保存成功后：下周计划还没生成就露出 CTA（下周已生成时 weekPlan.week 会超过反馈周，自动隐藏） */}
-          {justSavedFb && justSavedFb.week === weekPlan.week && (
-            <Button onClick={generateNext} className="w-full bg-emerald-600 text-white hover:bg-emerald-600/90">
-              <ArrowRightCircle className="mr-1 h-4 w-4" /> 生成下周计划
-            </Button>
+          {/* 保存后立刻展示「下周会怎么变」，并把应用计划放在同一处 */}
+          {preview && (
+            <div className="rounded-xl border border-emerald-300/70 bg-emerald-500/5 p-3">
+              <p className="text-sm font-medium">第 {preview.next.week} 周计划已按本次反馈算好</p>
+              <p className="mt-1 text-sm text-muted-foreground">{summarizePlanDiff(preview.diff)}</p>
+
+              {preview.diff.changes.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowDetail((v) => !v)}
+                    className="mt-2 text-xs text-primary underline-offset-2 hover:underline"
+                  >
+                    {showDetail ? '收起明细' : `展开明细（${preview.diff.changes.length} 处）`}
+                  </button>
+                  {showDetail && (
+                    <ul className="mt-2 space-y-2">
+                      {groupChangesByDay(preview.diff).map((g) => (
+                        <li key={g.dayIndex}>
+                          <p className="text-xs font-medium text-muted-foreground">{g.day}</p>
+                          <ul className="mt-0.5 space-y-0.5">
+                            {g.changes.slice(0, 6).map((c, i) => (
+                              <li key={`${c.name}-${i}`} className="flex items-baseline justify-between gap-3 text-xs">
+                                <span className="truncate">{c.name}</span>
+                                <span className="shrink-0 tabular-nums text-muted-foreground">{describeChange(c)}</span>
+                              </li>
+                            ))}
+                            {g.changes.length > 6 && (
+                              <li className="text-xs text-muted-foreground">…另有 {g.changes.length - 6} 处</li>
+                            )}
+                          </ul>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <Button onClick={applyPreview} className="flex-1 bg-emerald-600 text-white hover:bg-emerald-600/90">
+                  <ArrowRightCircle className="mr-1 h-4 w-4" /> 应用第 {preview.next.week} 周计划
+                </Button>
+                <Button variant="ghost" onClick={() => setPreview(null)} className="flex-1">
+                  先不应用
+                </Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -210,7 +260,7 @@ export default function Feedback({ feedbacks, setFeedbacks, weekPlan, setWeekPla
         <Card className="border-pink-200 bg-pink-50/40 dark:border-pink-500/30 dark:bg-pink-500/10">
           <CardContent className="space-y-3 pt-4 text-sm">
             <p>
-              保存后点「生成下周计划」，系统会结合完成度、酸痛、睡眠和饮食自动调整下周训练；
+              保存后会立刻算出下周计划的变化（哪些动作、组数怎么调），确认后一键应用；
               也可以复制摘要留档备查。
             </p>
             <Button variant="outline" onClick={copyLatest} disabled={feedbacks.length === 0}>

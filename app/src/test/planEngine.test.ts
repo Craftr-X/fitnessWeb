@@ -76,6 +76,12 @@ describe('computeProgression', () => {
     expect(note).toContain('起始周')
   })
 
+  it('第 2 周 step 仍为 0：用"维持组次"表述，同样不出现 +0', () => {
+    const note = computeProgression(2).note
+    expect(note).not.toContain('+0')
+    expect(note).toContain('维持')
+  })
+
   it('第 3 周：step=1', () => {
     expect(computeProgression(3).extra).toBe(1)
   })
@@ -571,6 +577,12 @@ describe('buildWeekPlanFromProfile — 每周反馈驱动调整', () => {
     expect(plan.adjustmentNote).toContain('训练量下调')
     expect(plan.adjustmentNote).toContain('睡眠不足')
     expect(plan.adjustmentNote).toContain('；')
+  })
+
+  it('adjustmentNote：多段拼接不出现「。；」双标点', () => {
+    const plan = buildWeekPlanFromProfile(BASE_PROFILE, 7, makeFb({ completion: 40, sleep: '<6' }))
+    expect(plan.adjustmentNote).not.toContain('。；')
+    expect(plan.adjustmentNote.endsWith('。')).toBe(true)
   })
 })
 
