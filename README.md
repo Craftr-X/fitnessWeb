@@ -12,7 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![Tests](https://img.shields.io/badge/Tests-274%20passed-brightgreen)](#-常用命令)
+[![Tests](https://img.shields.io/badge/Tests-287%20passed-brightgreen)](#-常用命令)
 
 [功能特性](#-功能特性) · [在线预览](#-应用截图) · [快速开始](#-快速开始) · [部署](#-部署) · [项目结构](#-项目结构)
 
@@ -74,7 +74,7 @@
 | 样式 | Tailwind CSS 3、shadcn/ui（Radix UI） |
 | 后端 | Supabase（Auth + Postgres + RLS） |
 | 可视化 | Recharts（懒加载，只在数据页下载） |
-| 测试 | Vitest + Testing Library（274 个单元测试） |
+| 测试 | Vitest + Testing Library（287 个单元测试） |
 | CI/CD | GitHub Actions（lint + test + build → Pages 部署、Supabase 每日保活） |
 
 ## 🚀 快速开始
@@ -104,7 +104,7 @@ Supabase 配置（建表 + RLS + Auth）详见 [`app/README.md`](app/README.md)�
 cd app
 npm run dev        # 开发服务器
 npm run build      # 类型检查 + 生产构建
-npm run test       # 单元测试（274 个）
+npm run test       # 单元测试（287 个）
 npm run lint       # ESLint
 ```
 
@@ -185,6 +185,15 @@ fitnessWeb/
 - **修一个数据同步缺口**：删除前 `flush()` 返回 false 时（云端读取失败期间必然为 false）现在会中止并提示，
   此前忽略返回值继续删云端行，可能在数据未同步时把云端行删掉；删除顺序抽到 `account.ts` 并补了失败路径用例
 - 单测 265 → **274**（新增 `SettingsDialog` 6 例、`deleteAccount` 3 例）
+
+### 2026-11-09 · 意见反馈改成可填写的表单（T3）
+
+- **表单成为主路径**：反馈内容（≤500 字）+ 可选联系方式（≤60 字）+ 字数计数，满 5 字才可发送；
+  点击「发送反馈」打开系统邮件客户端（mailto，不经任何服务器），也可一键复制内容粘到微信 / 邮件
+- **二维码降级为折叠区**：用原生 `<details>`，不新增依赖；手机端扫自己屏幕不成立的问题不再挡住反馈
+- **兼容两种入口**：登录页「收不到验证码？点这里反馈」的非受控 `trigger` 模式、页头菜单的受控
+  `open` 模式都保留；剪贴板不可用时降级为选中正文 + 提示，弹层 `max-h-[90dvh]` 可滚动
+- 单测 274 → **287**（新增 `feedbackDialog` 10 例、`feedback` 纯函数 3 例）
 
 ## 🤝 参与贡献
 
