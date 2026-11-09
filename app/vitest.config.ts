@@ -10,6 +10,9 @@ export default mergeConfig(viteConfig, {
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/test/setup.ts',
+    // 只跑 src/test 下的单测：e2e/*.spec.ts 是 Playwright 用例，
+    // 若被 vitest 扫到会因为 test.beforeEach() 不在其上下文中直接报错
+    include: ['src/test/**/*.test.{ts,tsx}'],
     css: true,
     // 占位值：仅让 supabase.ts 模块加载时不 warn，测试不发起任何网络请求
     env: {
