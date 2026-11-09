@@ -154,6 +154,9 @@ export default function Overview({
   const weightCompareTone =
     weightCompareDelta == null ? 'neutral' : weightDeltaTone(goal, weightCompareDelta)
 
+  // 至少 4 周计划、且至少有 2 条体重记录，海报才有内容可讲
+  const canShowTransformation = weekPlan.week >= 4 && weights.length >= 2
+
   const cardCls = 'rounded-2xl shadow-sm transition-shadow hover:shadow-md'
 
   return (
@@ -407,15 +410,17 @@ export default function Overview({
               {profile.onboarded ? '重新定制我的计划' : '定制我的专属计划'}
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-2 w-full"
-            onClick={() => setShowTransformation(true)}
-          >
-            <Trophy className="mr-1.5 h-4 w-4 text-orange-500" />
-            我的蜕变
-          </Button>
+          {canShowTransformation && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2 w-full"
+              onClick={() => setShowTransformation(true)}
+            >
+              <Trophy className="mr-1.5 h-4 w-4 text-orange-500" />
+              我的蜕变
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -439,16 +444,18 @@ export default function Overview({
         </Dialog>
       )}
 
-      {/* 我的蜕变：报告 + 可下载海报 */}
-      <TransformationDialog
-        open={showTransformation}
-        onOpenChange={setShowTransformation}
-        weights={weights}
-        feedbacks={feedbacks}
-        setLogs={setLogs}
-        profile={profile}
-        weekPlan={weekPlan}
-      />
+      {/* 我的蜕变：报告 + 可下载海报（数据不足时入口整体收起） */}
+      {canShowTransformation && (
+        <TransformationDialog
+          open={showTransformation}
+          onOpenChange={setShowTransformation}
+          weights={weights}
+          feedbacks={feedbacks}
+          setLogs={setLogs}
+          profile={profile}
+          weekPlan={weekPlan}
+        />
+      )}
     </div>
   )
 }

@@ -160,9 +160,9 @@ export default function TransformationDialog({ open, onOpenChange, weights, feed
 
         {!stats.hasData ? (
           <p className="py-10 text-center text-sm text-muted-foreground">
-            多记录几天体重、训练和反馈，
+            再记录 1-2 周体重和训练，
             <br />
-            就能看到你的专属蜕变报告。
+            这里会出现你的阶段报告。
           </p>
         ) : (
           <div className="space-y-4">
