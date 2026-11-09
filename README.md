@@ -12,7 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![Tests](https://img.shields.io/badge/Tests-231%20passed-brightgreen)](#-常用命令)
+[![Tests](https://img.shields.io/badge/Tests-254%20passed-brightgreen)](#-常用命令)
 
 [功能特性](#-功能特性) · [在线预览](#-应用截图) · [快速开始](#-快速开始) · [部署](#-部署) · [项目结构](#-项目结构)
 
@@ -74,7 +74,7 @@
 | 样式 | Tailwind CSS 3、shadcn/ui（Radix UI） |
 | 后端 | Supabase（Auth + Postgres + RLS） |
 | 可视化 | Recharts（懒加载，只在数据页下载） |
-| 测试 | Vitest + Testing Library（231 个单元测试） |
+| 测试 | Vitest + Testing Library（254 个单元测试） |
 | CI/CD | GitHub Actions（lint + test + build → Pages 部署、Supabase 每日保活） |
 
 ## 🚀 快速开始
@@ -104,7 +104,7 @@ Supabase 配置（建表 + RLS + Auth）详见 [`app/README.md`](app/README.md)�
 cd app
 npm run dev        # 开发服务器
 npm run build      # 类型检查 + 生产构建
-npm run test       # 单元测试（231 个）
+npm run test       # 单元测试（254 个）
 npm run lint       # ESLint
 ```
 
@@ -158,6 +158,15 @@ fitnessWeb/
   老用户没有训练目标时显示「目标：未设置」并提示补齐
 - **文案**：第 2 周不再出现「动作次数 +0」，多段说明不再出现「。；」双标点
 - 单测 231 → **246**（新增反馈闭环全链路、加载失败兜底等用例）
+
+### 2026-11-09 · 今日页「本周 vs 上周」
+
+- **三行对比**：「第 N 周进度」卡里那句「上周反馈：完成度 75%」升级为**完成度 / 训练天数 / 体重**三行对比，
+  本周值实时计算、上周值并列展示；体重差值按目标着色（增肌涨为好、减脂降为好）。
+  第 1 周显示「上周还没有可比数据」，而不是一排 `—`
+- **「我的蜕变」入口按数据量收起**：不足 4 周或体重记录 <2 条时不显示入口（海报本就没有内容可讲），
+  数据够了自动恢复显示；弹窗空态文案同步更新
+- 单测 246 → **254**（新增 `weekCompare` 纯函数 5 例、蜕变入口收起 3 例）
 
 ## 🤝 参与贡献
 
