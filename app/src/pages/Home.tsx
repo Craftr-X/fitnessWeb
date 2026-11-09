@@ -25,9 +25,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { Download, Dumbbell, EllipsisVertical, LogOut, MessageCircle, Trash2 } from 'lucide-react'
+import { Download, Dumbbell, EllipsisVertical, FileSpreadsheet, LogOut, MessageCircle, Trash2 } from 'lucide-react'
 import { currentMonday, hasUsageTrace, mergeOnboardingWeight, needsOnboarding, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
 import { buildExportPayload, clearLocalData, deleteCloudRow, downloadExport } from '@/lib/account'
+import { checksCsv, csvFileName, downloadCsv, trainingCsv, weightsCsv } from '@/lib/exportCsv'
 import { buildNextWeekPlan } from '@/lib/planEngine'
 import { useAuth } from '@/hooks/useAuth'
 import ThemeToggle from '@/components/ThemeToggle'
@@ -82,6 +83,7 @@ export default function Home({ user }: { user: User }) {
   const [signOutOpen, setSignOutOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [csvOpen, setCsvOpen] = useState(false)
   // 组间休息计时器：挂 Home 层，切 tab 不中断；WeeklyPlan 经回调触发
   const restTimerRef = useRef<RestTimerHandle>(null)
 
@@ -180,6 +182,22 @@ export default function Home({ user }: { user: User }) {
         buildExportPayload(user.email, { profile, weekPlan, checks, weights, feedbacks, setLogs, activity }),
       )
       toast.success('数据已导出，请在下载目录查收')
+    } catch {
+      toast.error('导出失败，请重试')
+    }
+  }
+
+  // CSV 导出（T5）：UTF-8 BOM + CRLF，Excel 双击直开
+  const handleExportCsv = (kind: '体重' | '训练记录' | '打卡') => {
+    try {
+      if (kind === '体重') {
+        downloadCsv(weightsCsv(weights, profile.heightCm), csvFileName('体重'))
+      } else if (kind === '训练记录') {
+        downloadCsv(trainingCsv(setLogs), csvFileName('训练记录'))
+      } else {
+        downloadCsv(checksCsv(weekPlan, checks), csvFileName('打卡'))
+      }
+      toast.success(`${kind} CSV 已导出，Excel 可直接打开`)
     } catch {
       toast.error('导出失败，请重试')
     }
@@ -287,6 +305,10 @@ export default function Home({ user }: { user: User }) {
                 <Download />
                 导出我的数据
               </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setCsvOpen(true)}>
+                <FileSpreadsheet />
+                导出 CSV
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
@@ -347,6 +369,37 @@ export default function Home({ user }: { user: User }) {
       </AlertDialog>
 
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+
+      {/* 导出 CSV（T5）：三个 Excel 可直接打开的表；训练记录只保留当前周，需标注 */}
+      <Dialog open={csvOpen} onOpenChange={setCsvOpen}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-sm" aria-describedby={undefined}>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            导出 CSV
+          </DialogTitle>
+          <div className="space-y-2">
+            <Button variant="outline" className="w-full justify-between" onClick={() => handleExportCsv('体重')}>
+              体重记录（含体脂 / BMI）
+              <span aria-hidden>↓</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-between"
+              onClick={() => handleExportCsv('训练记录')}
+            >
+              训练记录（重量 / 次数）
+              <span aria-hidden>↓</span>
+            </Button>
+            <Button variant="outline" className="w-full justify-between" onClick={() => handleExportCsv('打卡')}>
+              本周打卡（完成情况）
+              <span aria-hidden>↓</span>
+            </Button>
+            <p className="pt-1 text-xs text-muted-foreground">
+              文件带 UTF-8 BOM，Excel / Numbers 双击即可打开，中文不乱码。训练记录仅包含当前周。
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <main className="relative mx-auto max-w-5xl px-4 py-5">
         {/* 云端读取失败：不阻塞使用（先用本机缓存），但要明确告知并给重试入口。
