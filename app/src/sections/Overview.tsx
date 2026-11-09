@@ -20,10 +20,11 @@ import {
   Utensils,
 } from 'lucide-react'
 import { bmi, bmiLabel, proteinRange, weightDeltaTone, WEIGHT_GOAL_LABEL } from '@/lib/store'
+import { compareWeeks } from '@/lib/weekCompare'
 import { useCountUp } from '@/hooks/useCountUp'
 import Onboarding from '@/pages/Onboarding'
 import TransformationDialog from '@/components/TransformationDialog'
-import type { CheckMap, ExerciseLogMap, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
+import type { ActivityMap, CheckMap, ExerciseLogMap, Profile, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
 
 interface Props {
   profile: Profile
@@ -33,6 +34,8 @@ interface Props {
   checks: CheckMap
   feedbacks: WeekFeedback[]
   setLogs: ExerciseLogMap
+  /** 每日训练活跃度（上周训练天数的数据源） */
+  activity: ActivityMap
   /** 老用户重新定制计划完成回调 */
   onRebuild?: (profile: Profile, weekPlan: WeekPlan) => void
   /** 打开「每周反馈」弹层（原独立 Tab，已降级） */
@@ -48,6 +51,27 @@ const DAY_TYPE_STYLE: Record<string, string> = {
   rest: 'bg-slate-500/10 text-slate-600 border-slate-200 dark:text-slate-300 dark:border-slate-500/30',
 }
 
+/** 对比行：左标签、右「本周值 ← 上周值」 */
+function CompareRow({
+  label,
+  current,
+  previous,
+}: {
+  label: string
+  current: string
+  previous: string
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="flex items-baseline gap-2 tabular-nums">
+        <span className="font-semibold">{current}</span>
+        <span className="w-24 text-right text-muted-foreground">← {previous}</span>
+      </span>
+    </div>
+  )
+}
+
 export default function Overview({
   profile,
   setProfile,
@@ -56,6 +80,7 @@ export default function Overview({
   checks,
   feedbacks,
   setLogs,
+  activity,
   onRebuild,
   onOpenFeedback,
   onOpenNutrition,
@@ -91,7 +116,6 @@ export default function Overview({
 
   const first = weights[0]
   const weightDelta = first && latest ? latest.weight - first.weight : 0
-  const lastFeedback = feedbacks[0]
 
   // 从当前计划动态提取本周训练摘要，避免硬编码"上身增肌+羽毛球"老模板文案
   const summary = useMemo(() => {
@@ -116,6 +140,22 @@ export default function Overview({
 
   // 体重变化方向是否符合目标预期：决定 delta 数字的着色（增肌涨好 / 减脂降好 / 塑形保持中性）
   const deltaTone = weightDeltaTone(goal, weightDelta)
+
+  // 本周 vs 上周：完成度 / 训练天数 / 体重（「第 N 周进度」卡数据源）
+  const comparison = useMemo(
+    () => compareWeeks({ weekPlan, checks, feedbacks, weights, activity }),
+    [weekPlan, checks, feedbacks, weights, activity],
+  )
+  const weightCompare = comparison.weight
+  const weightCompareDelta =
+    weightCompare.current != null && weightCompare.previous != null
+      ? weightCompare.current - weightCompare.previous
+      : null
+  const weightCompareTone =
+    weightCompareDelta == null ? 'neutral' : weightDeltaTone(goal, weightCompareDelta)
+
+  // 至少 4 周计划、且至少有 2 条体重记录，海报才有内容可讲
+  const canShowTransformation = weekPlan.week >= 4 && weights.length >= 2
 
   const cardCls = 'rounded-2xl shadow-sm transition-shadow hover:shadow-md'
 
@@ -238,11 +278,58 @@ export default function Overview({
             </span>
           </div>
           <Progress value={weekPct} />
-          <p className="text-sm text-muted-foreground">
-            {lastFeedback
-              ? `上周反馈：完成度 ${lastFeedback.completion}%，难度 ${lastFeedback.difficulty}/5`
-              : '本周还没有反馈记录，周日记得填写。'}
-          </p>
+          {/* 本周 vs 上周：完成度 / 训练天数 / 体重 */}
+          <div className="space-y-1.5 rounded-lg bg-muted/40 px-3 py-2 text-sm">
+            <CompareRow
+              label="完成度"
+              current={comparison.completion.current != null ? `${comparison.completion.current}%` : '—'}
+              previous={
+                comparison.hasPrevious && comparison.completion.previous != null
+                  ? `${comparison.completion.previous}%`
+                  : '—'
+              }
+            />
+            <CompareRow
+              label="训练天数"
+              current={`${comparison.trainedDays.current} 天`}
+              previous={comparison.hasPrevious ? `${comparison.trainedDays.previous} 天` : '—'}
+            />
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-muted-foreground">体重</span>
+              <span className="flex items-baseline gap-2 tabular-nums">
+                <span className="font-semibold">
+                  {weightCompare.current != null ? weightCompare.current.toFixed(1) : '—'}
+                </span>
+                <span className="flex w-24 items-baseline justify-end gap-1 text-muted-foreground">
+                  ←{' '}
+                  {comparison.hasPrevious && weightCompare.previous != null ? (
+                    <>
+                      {weightCompare.previous.toFixed(1)}
+                      {weightCompareDelta != null && (
+                        <span
+                          className={
+                            weightCompareTone === 'good'
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : weightCompareTone === 'bad'
+                                ? 'text-red-500 dark:text-red-400'
+                                : 'text-muted-foreground'
+                          }
+                        >
+                          ({weightCompareDelta >= 0 ? '+' : ''}
+                          {weightCompareDelta.toFixed(1)})
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    '—'
+                  )}
+                </span>
+              </span>
+            </div>
+          </div>
+          {!comparison.hasPrevious && (
+            <p className="text-xs text-muted-foreground">上周还没有可比数据。</p>
+          )}
           {onOpenFeedback && (
             <Button variant="outline" size="sm" className="w-full" onClick={onOpenFeedback}>
               <MessageSquareHeart className="mr-1.5 h-4 w-4 text-pink-500" />
@@ -323,15 +410,17 @@ export default function Overview({
               {profile.onboarded ? '重新定制我的计划' : '定制我的专属计划'}
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-2 w-full"
-            onClick={() => setShowTransformation(true)}
-          >
-            <Trophy className="mr-1.5 h-4 w-4 text-orange-500" />
-            我的蜕变
-          </Button>
+          {canShowTransformation && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2 w-full"
+              onClick={() => setShowTransformation(true)}
+            >
+              <Trophy className="mr-1.5 h-4 w-4 text-orange-500" />
+              我的蜕变
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -355,16 +444,18 @@ export default function Overview({
         </Dialog>
       )}
 
-      {/* 我的蜕变：报告 + 可下载海报 */}
-      <TransformationDialog
-        open={showTransformation}
-        onOpenChange={setShowTransformation}
-        weights={weights}
-        feedbacks={feedbacks}
-        setLogs={setLogs}
-        profile={profile}
-        weekPlan={weekPlan}
-      />
+      {/* 我的蜕变：报告 + 可下载海报（数据不足时入口整体收起） */}
+      {canShowTransformation && (
+        <TransformationDialog
+          open={showTransformation}
+          onOpenChange={setShowTransformation}
+          weights={weights}
+          feedbacks={feedbacks}
+          setLogs={setLogs}
+          profile={profile}
+          weekPlan={weekPlan}
+        />
+      )}
     </div>
   )
 }

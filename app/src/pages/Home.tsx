@@ -406,6 +406,7 @@ export default function Home({ user }: { user: User }) {
                 checks={checks}
                 feedbacks={feedbacks}
                 setLogs={setLogs}
+                activity={activity}
                 onRebuild={handleRebuild}
                 onOpenFeedback={() => setWeekFeedbackOpen(true)}
                 onOpenNutrition={() => setNutritionOpen(true)}
