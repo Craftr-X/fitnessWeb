@@ -25,15 +25,16 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { Download, Dumbbell, EllipsisVertical, FileSpreadsheet, LogOut, MessageCircle, Trash2 } from 'lucide-react'
+import { Dumbbell, EllipsisVertical, FileSpreadsheet, LogOut, MessageCircle, Settings } from 'lucide-react'
 import { currentMonday, hasUsageTrace, mergeOnboardingWeight, needsOnboarding, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
-import { buildExportPayload, clearLocalData, deleteCloudRow, downloadExport } from '@/lib/account'
+import { buildExportPayload, clearLocalData, deleteAccount, deleteCloudRow, downloadExport } from '@/lib/account'
 import { checksCsv, csvFileName, downloadCsv, trainingCsv, weightsCsv } from '@/lib/exportCsv'
 import { buildNextWeekPlan } from '@/lib/planEngine'
 import { useAuth } from '@/hooks/useAuth'
 import ThemeToggle from '@/components/ThemeToggle'
 import AppSplash from '@/components/AppSplash'
 import FeedbackDialog from '@/components/FeedbackDialog'
+import SettingsDialog from '@/components/SettingsDialog'
 import TodayHero from '@/components/TodayHero'
 import { RestTimer, type RestTimerHandle } from '@/components/RestTimer'
 import Onboarding from '@/pages/Onboarding'
@@ -78,10 +79,10 @@ export default function Home({ user }: { user: User }) {
   // 二级弹层：每周反馈 / 营养建议
   const [weekFeedbackOpen, setWeekFeedbackOpen] = useState(false)
   const [nutritionOpen, setNutritionOpen] = useState(false)
-  // 页头菜单：意见反馈（受控弹窗）、退出登录（二次确认）、删除账号（强警告 + 异步执行中禁用）
+  // 页头菜单只留 3 项：意见反馈 / 设置 / 退出登录；导出与删除都收进设置弹层
   const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [signOutOpen, setSignOutOpen] = useState(false)
-  const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [csvOpen, setCsvOpen] = useState(false)
   // 组间休息计时器：挂 Home 层，切 tab 不中断；WeeklyPlan 经回调触发
@@ -203,19 +204,20 @@ export default function Home({ user }: { user: User }) {
     }
   }
 
-  // 删除账号（简版）：删云端数据行 → 清本机缓存 → 登出。
-  // 任何一步失败都不继续，避免"云端没删干净本地却清了"的错位。
+  // 删除账号：编排仍留在 Home，具体顺序交给 account.ts（可单测）。
+  // 关键守卫：flush() 返回 false（loadError 期间）时必须中止，
+  // 否则会在数据没同步到云端的情况下删掉云端行。
   const handleDeleteAccount = async () => {
     setDeleting(true)
     try {
-      await cloud.flush() // 先把最新状态落盘，保证删除的就是最终数据
-      if (!(await deleteCloudRow(user.id))) {
-        toast.error('云端数据删除失败，请检查网络后重试')
-        return
-      }
-      clearLocalData(user.id)
-      await signOut()
-      toast.success('你的数据已全部删除')
+      await deleteAccount(user.id, {
+        flush: () => cloud.flush(),
+        deleteCloud: deleteCloudRow,
+        clearLocal: clearLocalData,
+        signOut,
+        onError: (msg) => toast.error(msg),
+        onSuccess: (msg) => toast.success(msg),
+      })
     } finally {
       setDeleting(false)
     }
@@ -301,21 +303,9 @@ export default function Home({ user }: { user: User }) {
                 <MessageCircle />
                 意见反馈
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={handleExport}>
-                <Download />
-                导出我的数据
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setCsvOpen(true)}>
-                <FileSpreadsheet />
-                导出 CSV
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
-                onSelect={() => setDeleteOpen(true)}
-              >
-                <Trash2 />
-                删除账号
+              <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
+                <Settings />
+                设置
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -346,29 +336,18 @@ export default function Home({ user }: { user: User }) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* 删除账号强警告：不可逆操作，明确告知删除范围与后果 */}
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>删除账号与全部数据？</AlertDialogTitle>
-            <AlertDialogDescription>
-              此操作不可恢复：云端的所有训练计划、打卡、体重与反馈数据将立即删除，本机缓存一并清空，随后退出登录。仅保留邮箱账号本身，不会收到任何后续邮件。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>我再想想</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              className="bg-red-600 text-white hover:bg-red-700"
-              onClick={() => void handleDeleteAccount()}
-            >
-              {deleting ? '正在删除…' : '确认删除全部数据'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+
+      {/* 设置（T4）：账号信息 / 两个导出 / 危险区输入邮箱确认删除 */}
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        email={user.email}
+        deleting={deleting}
+        onExportJson={handleExport}
+        onExportCsv={() => setCsvOpen(true)}
+        onDeleteAccount={handleDeleteAccount}
+      />
 
       {/* 导出 CSV（T5）：三个 Excel 可直接打开的表；训练记录只保留当前周，需标注 */}
       <Dialog open={csvOpen} onOpenChange={setCsvOpen}>

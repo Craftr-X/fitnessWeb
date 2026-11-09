@@ -1,5 +1,12 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { buildExportPayload, clearLocalData, exportFileName, fitupLocalKeys } from '@/lib/account'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  buildExportPayload,
+  clearLocalData,
+  deleteAccount,
+  exportFileName,
+  fitupLocalKeys,
+  type DeleteAccountDeps,
+} from '@/lib/account'
 import { cloudCacheKey, cloudDirtyKey, defaultCloudState, LS_KEYS } from '@/lib/store'
 
 /* ------------------------------------------------------------------ */
@@ -70,5 +77,68 @@ describe('clearLocalData', () => {
 
     expect(localStorage.getItem(cloudCacheKey('user-1'))).toBeNull()
     expect(localStorage.getItem(cloudCacheKey('user-2'))).toBe('b')
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* deleteAccount —— 删除账号的失败路径守卫（T4 顺带修复）               */
+/* ------------------------------------------------------------------ */
+describe('deleteAccount', () => {
+  function deps(overrides: Partial<DeleteAccountDeps> = {}) {
+    return {
+      flush: vi.fn(async () => true),
+      deleteCloud: vi.fn(async () => true),
+      clearLocal: vi.fn(),
+      signOut: vi.fn(async () => {}),
+      onError: vi.fn(),
+      onSuccess: vi.fn(),
+      ...overrides,
+    }
+  }
+
+  it('flush 失败（loadError 期间必然为 false）：中止，不删云端行、不清本机缓存', async () => {
+    const d = deps({ flush: vi.fn(async () => false) })
+    const ok = await deleteAccount('u1', d)
+
+    expect(ok).toBe(false)
+    expect(d.deleteCloud).not.toHaveBeenCalled()
+    expect(d.clearLocal).not.toHaveBeenCalled()
+    expect(d.signOut).not.toHaveBeenCalled()
+    expect(d.onError).toHaveBeenCalledWith(expect.stringContaining('没同步'))
+  })
+
+  it('云端删除失败：中止，不清本机缓存、不登出', async () => {
+    const d = deps({ deleteCloud: vi.fn(async () => false) })
+    const ok = await deleteAccount('u1', d)
+
+    expect(ok).toBe(false)
+    expect(d.clearLocal).not.toHaveBeenCalled()
+    expect(d.signOut).not.toHaveBeenCalled()
+    expect(d.onError).toHaveBeenCalledWith(expect.stringContaining('云端数据删除失败'))
+  })
+
+  it('全部成功：按 flush → deleteCloud → clearLocal → signOut 顺序执行', async () => {
+    const order: string[] = []
+    const d = deps({
+      flush: vi.fn(async () => {
+        order.push('flush')
+        return true
+      }),
+      deleteCloud: vi.fn(async () => {
+        order.push('deleteCloud')
+        return true
+      }),
+      clearLocal: vi.fn(() => {
+        order.push('clearLocal')
+      }),
+      signOut: vi.fn(async () => {
+        order.push('signOut')
+      }),
+    })
+    const ok = await deleteAccount('u1', d)
+
+    expect(ok).toBe(true)
+    expect(order).toEqual(['flush', 'deleteCloud', 'clearLocal', 'signOut'])
+    expect(d.onSuccess).toHaveBeenCalledWith('你的数据已全部删除')
   })
 })
