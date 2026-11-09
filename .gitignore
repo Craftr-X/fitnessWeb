@@ -8,3 +8,6 @@ app/.env.local
 
 # ZCode 工作区元数据
 .zcode/
+
+# WorkBuddy 工作区记忆（本地助手数据，不入库）
+.workbuddy/

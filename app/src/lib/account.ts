@@ -85,3 +85,34 @@ export async function deleteCloudRow(userId: string): Promise<boolean> {
   }
   return true
 }
+
+/** 删除账号的依赖：由 Home 注入，便于单测覆盖失败路径而不必 mock 整个云端 */
+export interface DeleteAccountDeps {
+  flush: () => Promise<boolean>
+  deleteCloud: (userId: string) => Promise<boolean>
+  clearLocal: (userId: string) => void
+  signOut: () => Promise<void>
+  onError: (message: string) => void
+  onSuccess: (message: string) => void
+}
+
+/**
+ * 删除账号与全部数据：先 flush → 删云端行 → 清本机缓存 → 登出。
+ *
+ * 任何一步失败都立即中止，尤其 `flush()` 返回 false 时（loadError 期间必然为 false）
+ * 绝不能继续删云端行，否则删掉的是「还没同步上去的状态」，且本机缓存会被清掉。
+ */
+export async function deleteAccount(userId: string, deps: DeleteAccountDeps): Promise<boolean> {
+  if (!(await deps.flush())) {
+    deps.onError('数据还没同步到云端，为安全起见已取消删除，请重试或稍后再试')
+    return false
+  }
+  if (!(await deps.deleteCloud(userId))) {
+    deps.onError('云端数据删除失败，请检查网络后重试')
+    return false
+  }
+  deps.clearLocal(userId)
+  await deps.signOut()
+  deps.onSuccess('你的数据已全部删除')
+  return true
+}

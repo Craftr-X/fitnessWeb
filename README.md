@@ -12,7 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![Tests](https://img.shields.io/badge/Tests-265%20passed-brightgreen)](#-常用命令)
+[![Tests](https://img.shields.io/badge/Tests-274%20passed-brightgreen)](#-常用命令)
 
 [功能特性](#-功能特性) · [在线预览](#-应用截图) · [快速开始](#-快速开始) · [部署](#-部署) · [项目结构](#-项目结构)
 
@@ -74,7 +74,7 @@
 | 样式 | Tailwind CSS 3、shadcn/ui（Radix UI） |
 | 后端 | Supabase（Auth + Postgres + RLS） |
 | 可视化 | Recharts（懒加载，只在数据页下载） |
-| 测试 | Vitest + Testing Library（265 个单元测试） |
+| 测试 | Vitest + Testing Library（274 个单元测试） |
 | CI/CD | GitHub Actions（lint + test + build → Pages 部署、Supabase 每日保活） |
 
 ## 🚀 快速开始
@@ -104,7 +104,7 @@ Supabase 配置（建表 + RLS + Auth）详见 [`app/README.md`](app/README.md)�
 cd app
 npm run dev        # 开发服务器
 npm run build      # 类型检查 + 生产构建
-npm run test       # 单元测试（265 个）
+npm run test       # 单元测试（274 个）
 npm run lint       # ESLint
 ```
 
@@ -175,6 +175,16 @@ fitnessWeb/
 - **Excel 直开**：UTF-8 BOM + CRLF，中文表头不乱码；含逗号、引号、换行的字段自动转义，空数据只输出表头
 - **数据边界**：`setLogs` 只保留当前周，导出的训练记录即现有数据，已在弹层内标注「仅包含当前周」
 - 单测 254 → **265**（新增 `exportCsv` 11 例）
+
+### 2026-11-09 · 账号设置弹层（T4）
+
+- **页头菜单 5 → 3 项**：只留「意见反馈 / 设置 / 退出登录」；「导出我的数据」「导出 CSV」「删除账号」
+  全部收进设置弹层，两个红色危险项不再并排出现
+- **删除账号改为输入邮箱确认**：需原样输入登录邮箱（忽略首尾空格与大小写）才能点「确认删除」，
+  替代原来的菜单直达 + AlertDialog 二次确认，避免三重确认；退出登录仍保留二次确认
+- **修一个数据同步缺口**：删除前 `flush()` 返回 false 时（云端读取失败期间必然为 false）现在会中止并提示，
+  此前忽略返回值继续删云端行，可能在数据未同步时把云端行删掉；删除顺序抽到 `account.ts` 并补了失败路径用例
+- 单测 265 → **274**（新增 `SettingsDialog` 6 例、`deleteAccount` 3 例）
 
 ## 🤝 参与贡献
 
