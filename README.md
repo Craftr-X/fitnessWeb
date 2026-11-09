@@ -105,6 +105,8 @@ cd app
 npm run dev        # 开发服务器
 npm run build      # 类型检查 + 生产构建
 npm run test       # 单元测试（287 个）
+npm run test:e2e   # Playwright 冒烟（4 条，真实 Chromium + 本地 mock 后端）
+npm run test:visual # 生成弹层的 390/1440 深浅色截图留档
 npm run lint       # ESLint
 ```
 
@@ -194,6 +196,16 @@ fitnessWeb/
 - **兼容两种入口**：登录页「收不到验证码？点这里反馈」的非受控 `trigger` 模式、页头菜单的受控
   `open` 模式都保留；剪贴板不可用时降级为选中正文 + 提示，弹层 `max-h-[90dvh]` 可滚动
 - 单测 274 → **287**（新增 `feedbackDialog` 10 例、`feedback` 纯函数 3 例）
+
+### 2026-11-09 · Playwright 冒烟与视觉验收补齐（T6）
+
+- **真实 Chromium 兜底**：新增 `app/e2e/mock-supabase.mjs`（54321，模拟 OTP / verify / `user_data`，
+  无数据返回 `200 []`，含 `POST /__reset`）与 `app/playwright.config.ts`（mock 54321 + dev 3100 两个 webServer）。
+  4 条端到端用例覆盖登录引导 / 记组打卡 / 反馈应用 / 路由刷新，`npm run test:e2e` 本地**连跑 3 次全绿**
+- **CI 独立 `e2e` job**：仅 PR 触发、`needs: check`，不拖慢单测、不阻塞 Pages 部署
+- **视觉验收补齐**：用同一套 Chromium 生成 T5 CSV / T4 设置 / T3 反馈三个弹层的
+  390 / 1440 × 深浅色共 **12 张截图**，留档 `docs/e2e-screenshots/2026-11-09/`；`npm run test:visual` 可复现
+- 单测数保持 **287**（e2e 用例不计入 Vitest）
 
 ## 🤝 参与贡献
 

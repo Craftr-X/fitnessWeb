@@ -72,3 +72,25 @@ jobs:
 
       - id: deployment
         uses: actions/deploy-pages@v5
+
+  e2e:
+    # 独立 job：只在 PR 跑，不拖慢 check、也不阻塞 main 部署
+    needs: check
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - run: npm ci
+      # Chromium 首次安装约 100MB；--with-deps 补 Linux 系统库
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
