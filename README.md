@@ -12,7 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![Tests](https://img.shields.io/badge/Tests-323%20passed-brightgreen)](#-常用命令)
+[![Tests](https://img.shields.io/badge/Tests-339%20passed-brightgreen)](#-常用命令)
 
 [功能特性](#-功能特性) · [在线预览](#-应用截图) · [快速开始](#-快速开始) · [部署](#-部署) · [项目结构](#-项目结构)
 
@@ -74,7 +74,7 @@
 | 样式 | Tailwind CSS 3、shadcn/ui（Radix UI） |
 | 后端 | Supabase（Auth + Postgres + RLS） |
 | 可视化 | Recharts（懒加载，只在数据页下载） |
-| 测试 | Vitest + Testing Library（323 个单元测试） |
+| 测试 | Vitest + Testing Library（339 个单元测试） |
 | CI/CD | GitHub Actions（lint + test + build → Pages 部署、Supabase 每日保活） |
 
 ## 🚀 快速开始
@@ -104,10 +104,10 @@ Supabase 配置（建表 + RLS + Auth）详见 [`app/README.md`](app/README.md)�
 cd app
 npm run dev        # 开发服务器
 npm run build      # 类型检查 + 生产构建
-npm run test       # 单元测试（323 个）
+npm run test       # 单元测试（339 个）
 npm run test:e2e   # Playwright 冒烟（4 条，真实 Chromium + 本地 mock 后端）
 npm run test:offline # 弱网 / 离线端到端（3 条，含故障注入）
-npm run test:visual # 生成弹层与离线横幅的 390/1440 深浅色截图留档
+npm run test:visual # 生成弹层 / 离线横幅 / UI 前后对比的 390/1440 深浅色截图留档
 npm run lint       # ESLint
 ```
 
@@ -220,6 +220,23 @@ fitnessWeb/
 - 单测 287 → **323**（新增 36 例）；新增 4 张离线横幅截图留档 `docs/e2e-screenshots/2026-11-10/`
 - **仍未解决**：整文档 last-write-wins，多设备并发时离线一方重推仍可能覆盖另一设备的写入；
   Service Worker / 应用壳离线缓存也不在本轮（见 `docs/2026-11-09-t7a-offline-hardening-plan.md` §5）
+
+### 2026-11-10 · 页面整洁与体验打磨（T8）
+
+- **数字去重**：「今日」Tab 原本同屏出现大号完成度 `%`、`已打卡 x/y`、进度条与对比行四处重复；
+  现在完成度只由英雄卡进度环呈现，原卡片改名「本周 vs 上周」，只留三行对比与「填写本周反馈」入口
+- **关键提醒折叠**：5 条长文案默认只显示最相关的 2 条，点「查看全部 5 条提醒」展开；
+  状态只放 React 内存，**不新增 localStorage key**，删号 / 切账号的清理逻辑不变
+- **可读性**：全站 28 处 `text-[10px]` / `text-[11px]`、`text-white/40…80`、`text-muted-foreground/60·/70`
+  统一回到 `text-xs` / `text-white/90` / `text-muted-foreground`，深浅色小字不再发灰
+- **空态与弱网**：体重 / 体脂 / BMI / 近 7 天变化的空值补说明文案；动作示范视频复用同组备用静态图
+  作 `poster`，弱网下不再只有黑块加转圈；记组弹窗与历史记录删除按钮热区提到 44px
+- **视觉验收**：`app/e2e/visual-ui-polish.spec.ts` 用同一份 spec 在改动前后各跑一次，
+  390 / 1440 × 深浅色共 4 组前后对比 + 4 张展开态截图，留档 `docs/e2e-screenshots/2026-11-10-ui/`
+- 单测 323 → **339**（新增 16 例）；`lint` 0 error、`build` 通过、`@smoke` 连跑 3 次全绿、
+  `@offline` 3 条全绿、`@visual` 3 条全绿
+- 方案与验收清单见 `docs/2026-11-10-t8-ui-polish-plan.md`；**本轮不含** SW / PWA、历史训练数据、
+  数据层重构与 T7b
 
 ## 🤝 参与贡献
 
