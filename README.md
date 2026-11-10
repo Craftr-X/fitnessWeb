@@ -14,7 +14,7 @@
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com)
 [![Tests](https://img.shields.io/badge/Tests-339%20passed-brightgreen)](#-常用命令)
 
-[功能特性](#-功能特性) · [在线预览](#-应用截图) · [快速开始](#-快速开始) · [部署](#-部署) · [项目结构](#-项目结构)
+[功能特性](#-功能特性) · [应用截图](#-应用截图) · [快速开始](#-快速开始) · [部署](#-部署) · [项目结构](#-项目结构) · [更新日志](#-更新日志)
 
 </div>
 
@@ -40,9 +40,13 @@
 - 🍗 **营养建议** — 按体重目标计算热量盈余/缺口与蛋白质摄入，从今日页一键打开
 - 🧭 **三个一级入口** — 今日 / 计划 / 数据，路由化（`#/today`、`#/plan`、`#/data`）：刷新保持、返回键在 Tab 间回退
 - 🔒 **用户数据隔离** — Supabase RLS 行级安全，每个用户只能访问自己的数据
-- 📤 **数据可携带 / 可删除** — 一键导出全部个人数据，自助删除账号（合规）
+- 📶 **离线 / 弱网不丢数据** — 云端读取失败期间，打卡 / 记组 / 体重 / 反馈仍写入本机缓存并标记待同步，刷新不丢；联网或点「重试」时整份重推，横幅显示待同步条数；读写加 8 秒超时，不会卡在启动页（页面本身仍需联网加载，应用壳离线未做）
+- 📤 **数据可携带 / 可删除** — 设置弹层里可导出全部个人数据、自助删除账号（合规）；删除需原样输入登录邮箱确认，删除前检查未同步数据，失败即中止
+- 📊 **CSV 导出** — 体重（含体脂 / BMI）、训练记录（按组展开）、本周打卡三张表，UTF-8 BOM + CRLF，Excel 直开不乱码；训练记录仅含当前周，弹层内已标注
+- 💬 **意见反馈表单** — 反馈内容（≤500 字）+ 可选联系方式，满 5 字才可发送；`mailto` 不经任何服务器，也可一键复制粘到微信 / 邮件，二维码收进折叠区
 - ♻️ **跨周自动续期** — 进入新自然周自动生成新计划，多周未打开可一次性补齐
-- 🌙 **现代前端体验** — 暗色模式、路由懒加载、移动端自适应；首屏 gzip ≈ 237KB
+- ✨ **界面打磨** — 今日页完成度只保留一处、关键提醒 5 条默认收为 2 条、深浅色小字统一可读性、空值补说明、动作示范视频加首帧 `poster`、移动端删除热区 44px
+- 🌙 **现代前端体验** — 暗色模式、路由懒加载、移动端自适应；首屏 gzip ≈ 237KB（2026-11-04 基线）
 
 ## 📸 应用截图
 
@@ -65,6 +69,20 @@
   <img src="docs/promo/08-nutrition-mobile.png" alt="营养建议（弹层）" width="19%" />
 </div>
 
+<details>
+<summary>界面迭代对比（2026-11-10 · T8 打磨前后，点击展开）</summary>
+
+「今日」页 1440px 浅色主题，**左为打磨前、右为打磨后**：进度卡去掉与英雄卡重复的大号 `%` / `已打卡 x/y` / 进度条并改名「本周 vs 上周」，关键提醒由 5 条收为 2 条 + 展开入口，卡片明显变短。
+
+<div align="center">
+  <img src="docs/e2e-screenshots/2026-11-10-ui/before/t8-today-1440-light.png" alt="T8 打磨前" width="49%" />
+  <img src="docs/e2e-screenshots/2026-11-10-ui/after/t8-today-1440-light.png" alt="T8 打磨后" width="49%" />
+</div>
+
+> 这两张是 dev server + mock 数据下的 Chromium 截图，用于展示布局变化而非真实数据；完整 390 / 1440 × 深浅色前后对比与展开态见 [`docs/e2e-screenshots/2026-11-10-ui/`](docs/e2e-screenshots/2026-11-10-ui/)。
+
+</details>
+
 ## 🛠 技术栈
 
 | 类别 | 技术 |
@@ -74,8 +92,8 @@
 | 样式 | Tailwind CSS 3、shadcn/ui（Radix UI） |
 | 后端 | Supabase（Auth + Postgres + RLS） |
 | 可视化 | Recharts（懒加载，只在数据页下载） |
-| 测试 | Vitest + Testing Library（339 个单元测试） |
-| CI/CD | GitHub Actions（lint + test + build → Pages 部署、Supabase 每日保活） |
+| 测试 | Vitest + Testing Library（339 个单元测试）；Playwright（4 条冒烟 + 3 条离线 + 3 条视觉，真实 Chromium + 本地 mock 后端） |
+| CI/CD | GitHub Actions：`check`（lint + test + build）→ Pages 部署；PR 额外跑独立 `e2e` job；Supabase 每日保活 |
 
 ## 🚀 快速开始
 
@@ -102,14 +120,16 @@ Supabase 配置（建表 + RLS + Auth）详见 [`app/README.md`](app/README.md)�
 
 ```bash
 cd app
-npm run dev        # 开发服务器
-npm run build      # 类型检查 + 生产构建
-npm run test       # 单元测试（339 个）
-npm run test:e2e   # Playwright 冒烟（4 条，真实 Chromium + 本地 mock 后端）
+npm run dev          # 开发服务器（http://localhost:3000）
+npm run build        # 类型检查 + 生产构建
+npm run test         # 单元测试（339 个）
+npm run test:e2e     # Playwright 冒烟（4 条，真实 Chromium + 本地 mock 后端）
 npm run test:offline # 弱网 / 离线端到端（3 条，含故障注入）
-npm run test:visual # 生成弹层 / 离线横幅 / UI 前后对比的 390/1440 深浅色截图留档
-npm run lint       # ESLint
+npm run test:visual  # 生成弹层 / 离线横幅 / UI 前后对比的 390/1440 深浅色截图留档
+npm run lint         # ESLint
 ```
+
+端到端用例在 `app/e2e/`，运行时由 Playwright 自动起两个服务：3100 端口的 dev server 与 54321 端口的本地 mock Supabase（**不写入真实后端**）；截图留档 `docs/e2e-screenshots/`。普通 `npm run dev` 仍是 3000 端口。
 
 ## 📦 部署
 
@@ -123,22 +143,44 @@ npm run lint       # ESLint
 fitnessWeb/
 ├── app/                      # 前端应用
 │   ├── src/
-│   │   ├── lib/              # 核心逻辑（store 同步、planEngine 规则引擎、supabase）
+│   │   ├── lib/              # 核心逻辑（store 同步、planEngine、supabase、exportCsv、account）
 │   │   ├── pages/            # 页面（Home、Auth、Onboarding）
 │   │   ├── sections/         # 一级 Tab 区块（Overview、WeeklyPlan、BodyData 等）
-│   │   ├── components/       # 业务组件（TodayHero、RestTimer、FeedbackDialog 等）
+│   │   ├── components/       # 业务组件（TodayHero、SettingsDialog、FeedbackDialog 等）
 │   │   ├── components/ui/    # shadcn/ui 组件（按需保留，23 个）
 │   │   ├── hooks/            # useAuth、useCountUp 等
+│   │   ├── test/             # Vitest 单元测试（24 个测试文件 / 339 例）
 │   │   └── types/            # TypeScript 类型定义
+│   ├── e2e/                  # Playwright 用例（冒烟 / 离线 / 视觉）+ 本地 mock Supabase
 │   ├── supabase/schema.sql   # 建表 + RLS 策略
+│   ├── playwright.config.ts  # e2e 双 webServer 配置（dev 3100 + mock 54321）
 │   └── README.md             # 开发详细文档
-├── docs/                     # 工作记录与推广截图
+├── docs/                     # 技术方案、验收清单、推广截图与 e2e 视觉留档
 ├── review-2026-11-03/        # 一次完整走查报告（含截图，可删除）
-├── .github/workflows/        # CI（lint+test+build）+ CD（Pages 部署）+ Supabase 保活
+├── .github/workflows/        # CI（check / e2e）+ CD（Pages 部署）+ Supabase 保活
 └── DEPLOY.example.md         # 部署配置文档
 ```
 
 ## 🗒 更新日志
+
+### 2026-11-06 → 11-10 · 最近迭代总览
+
+一次完整走查之后连续合入的 8 个 PR 已全部落地，单测从 **231 → 339**。下面是速览，细节按轮次逐条展开（期间另有 [#49](https://github.com/Craftr-X/fitnessWeb/pull/49) 为方案文档，不计入功能迭代）。
+
+| 方向 | 内容 | PR | 单测 |
+|---|---|---|---|
+| 反馈闭环 | 保存反馈后展示「下周会怎么变」并一键应用；云端读失败用本机缓存兜底，不再卡启动页 | [#48](https://github.com/Craftr-X/fitnessWeb/pull/48) | 231 → 246 |
+| 计划可视化 | 今日页「本周 vs 上周」三行对比；「我的蜕变」入口按数据量收起 | [#50](https://github.com/Craftr-X/fitnessWeb/pull/50) | 246 → 254 |
+| 数据可携带 | CSV 三张表（体重 / 训练记录 / 打卡），Excel 直开不乱码 | [#51](https://github.com/Craftr-X/fitnessWeb/pull/51) | 254 → 265 |
+| 账号设置 | 菜单 5 → 3 项，导出 / 删除收进弹层；删除需输入邮箱确认，并补上 `flush()` 守卫 | [#52](https://github.com/Craftr-X/fitnessWeb/pull/52) | 265 → 274 |
+| 反馈表单 | 可填写内容 + 联系方式，`mailto` / 复制双通道，二维码折叠 | [#53](https://github.com/Craftr-X/fitnessWeb/pull/53) | 274 → 287 |
+| 工程验收 | Playwright 冒烟 4 条 + 本地 mock 后端 + CI 独立 `e2e` job + 12 张弹层截图 | [#54](https://github.com/Craftr-X/fitnessWeb/pull/54) | 287（不变） |
+| 正确性 | 云端读失败期间改动落本机、刷新不丢、联网整份重推、8 秒写超时 | [#55](https://github.com/Craftr-X/fitnessWeb/pull/55) | 287 → 323 |
+| 体验打磨 | 完成度去重、提醒折叠、可读性收敛、空态 / `poster` / 热区、12 张前后对比截图 | [#56](https://github.com/Craftr-X/fitnessWeb/pull/56) | 323 → 339 |
+
+方案与验收清单：[T1–T7 总计划](docs/2026-11-06-next-tasks-plan.md) · [T7a 离线加固](docs/2026-11-09-t7a-offline-hardening-plan.md) · [T8 界面打磨](docs/2026-11-10-t8-ui-polish-plan.md)。
+
+**已评估但明确不做**：Service Worker / PWA 应用壳离线、历史训练数据（当前 `setLogs` 只保留当前周）、T7b 按域分表 / 版本号 / 字段级冲突合并 —— 多设备并发仍是整文档 last-write-wins。
 
 ### 2026-11 · 一次完整走查后的重构
 
