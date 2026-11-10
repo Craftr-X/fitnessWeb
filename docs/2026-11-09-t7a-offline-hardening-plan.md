@@ -1,6 +1,6 @@
 # FitUp T7a 离线 / 弱网加固技术方案
 
-> **状态**：**已实施** · 2026-11-10 · PR 号见文末 §8（创建后回填）
+> **状态**：**已实施** · 2026-11-10 · PR [#55](https://github.com/Craftr-X/fitnessWeb/pull/55)
 > **上游**：`docs/2026-11-06-next-tasks-plan.md` §1 的 T7、§3.2 自检清单、§5 明确不做
 > **定位**：T7 的第一阶段。只修「离线期间写入会丢」与「文案与行为不符」，**不改同步模型、不引入离线写队列、不动数据库表结构**。
 > **基线**：`main@8762db1`（PR #50–#54 全部合并后的状态）
@@ -202,11 +202,11 @@ T7a 不新增 key，因此 `fitupLocalKeys()` / `clearLocalData()` / `deleteAcco
 
 ### 3.4 CI / 文档 / 提交
 
-- [ ] `ci.yml` 的 `e2e` job 能跑新增的 `@offline` 用例（Linux CI 实跑结果待 PR workflow 回填）
+- [x] `ci.yml` 的 `e2e` job 能跑新增的 `@offline` 用例：PR #55 的 Linux CI `e2e` **pass 1m20s**、`check` pass 1m1s、`deploy` skipping，workflow 结论 `success`
 - [x] `npm ci --dry-run` 通过；只加 script、`package-lock.json` 无变化
 - [x] README 更新日志、badge、技术栈表、常用命令四处口径一致（287 → 323）
-- [ ] 本文件状态改为「已实施」并回填 PR 号（状态已改，PR 号待 §8 回填）
-- [ ] 从 `main` 切 `feat/offline-hardening`；功能与文档分两个提交；PR 正文写明验证结果、**明确列出未解决的多设备冲突（T7b）**、不虚报真机截图
+- [x] 本文件状态改为「已实施」并回填 PR **#55**
+- [x] 从 `main` 切 `feat/offline-hardening`；功能 `2f3a353` + 文档 `bd68406` 两个提交（PR 号回填另加一个纯文档提交）；PR 正文写明验证结果、**明确列出未解决的多设备冲突（T7b）**、不虚报真机截图
 
 ---
 
@@ -273,7 +273,7 @@ T7a 不新增 key，因此 `fitupLocalKeys()` / `clearLocalData()` / `deleteAcco
 
 ## 8. 实施记录（2026-11-10）
 
-**PR**：待创建后回填 · **分支**：`feat/offline-hardening`（从 `main@8762db1` 切出）· **基线**：单测 287 例 → 323 例
+**PR**：[#55](https://github.com/Craftr-X/fitnessWeb/pull/55)（OPEN、MERGEABLE、未合并）· **分支**：`feat/offline-hardening`（从 `main@8762db1` 切出）· **基线**：单测 287 例 → 323 例
 
 ### 8.1 相对方案的 5 处细化（都写进 PR 正文，不藏）
 
@@ -294,6 +294,7 @@ T7a 不新增 key，因此 `fitupLocalKeys()` / `clearLocalData()` / `deleteAcco
 | `npm run test:offline` | 3 条全绿（35.6s；复跑 32.7s） |
 | `npm run test:visual` | 2 条全绿，16 张截图；已抽查 390 深色 / 1440 浅色横幅，深浅色生效、文案完整、无溢出 |
 | `npm ci --dry-run` | 通过；只加 npm script，`package-lock.json` 无变化 |
+| 远端 CI（PR #55） | `check` pass 1m1s、`e2e` **pass 1m20s**（含 `@offline` 三条）、`deploy` skipping；workflow 结论 `success` |
 
 > 首跑 `npm run test` 出现过一次 vitest forks worker 启动超时（`utils.test.ts` 未启动，少 4 例、退出码 1），重跑同一命令 23 文件 323 例全绿；与 #52 / #54 同类偶发资源问题，非代码失败。
 
