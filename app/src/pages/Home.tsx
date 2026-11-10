@@ -60,7 +60,7 @@ function tabFromPath(pathname: string): TabKey {
 export default function Home({ user }: { user: User }) {
   const cloud = useCloudStorage(user.id)
   const { signOut } = useAuth()
-  const { ready, migrated, syncError, loadError, retry } = cloud
+  const { ready, migrated, syncError, loadError, pendingCount, retry } = cloud
   const [profile, setProfile] = cloud.profile
   const [weekPlan, setWeekPlan] = cloud.weekPlan
   const [checks, setChecks] = cloud.checks
@@ -123,11 +123,11 @@ export default function Home({ user }: { user: User }) {
     toast.success('📦 已把本机的历史数据迁移到你的云端账号！')
   }, [ready, migrated])
 
-  // 同步状态提示：失败时驻留 toast，网络恢复（syncError 转 false）后自动消失。
-  // 用固定 id 去重，避免每次防抖都弹新 toast。
+  // 同步状态提示：失败时驻留 toast，重推成功（syncError 转 false）后自动消失。
+  // 用固定 id 去重，避免每次防抖都弹新 toast。文案如实区分「本机已保存」与「尚未上云」。
   useEffect(() => {
     if (syncError) {
-      toast.error('同步失败，数据已暂存本地，网络恢复后会自动重试', {
+      toast.error('云端同步失败：改动已保存在本机，尚未上云，联网后会自动重试', {
         id: 'sync-error',
         duration: Infinity,
       })
@@ -135,6 +135,19 @@ export default function Home({ user }: { user: User }) {
       toast.dismiss('sync-error')
     }
   }, [syncError])
+
+  // 网络恢复时把离线期间的改动重推到云端。retry() 内部按 dirty 判断：
+  // 有未同步改动 → 整份重推（不能重拉，会冲掉离线写入）；没有 → 重拉远端。
+  // 只在确实有错误时触发，避免每次 online 事件都做一次无谓的重新加载。
+  useEffect(() => {
+    const handleOnline = () => {
+      // pendingCount>0 也要算：刷新后 dirty 短路会让 loadError 清空，但改动仍没上云，
+      // 只判 loadError/syncError 会漏掉这条路径，网络恢复时没人触发重推。
+      if (loadError || syncError || pendingCount > 0) retry()
+    }
+    window.addEventListener('online', handleOnline)
+    return () => window.removeEventListener('online', handleOnline)
+  }, [loadError, syncError, pendingCount, retry])
 
   // 把 onboarding 采集的体重落到 weights（逻辑见 store.mergeOnboardingWeight，已单测覆盖）
   const syncWeightFromProfile = (weightKg: number) => {
@@ -171,8 +184,9 @@ export default function Home({ user }: { user: User }) {
   const handleSignOut = async () => {
     const ok = await cloud.flush() // 把防抖窗口内的最新数据先写入云端
     if (!ok) {
-      // 数据未同步但不丢：dirty 标记仍在，下次登录会自动重推
-      toast.warning('部分数据未能同步，下次登录会自动重试')
+      // 数据未同步但不丢：T7a 之后 loadError 期间的改动也已落本机缓存并置 dirty，
+      // 下次登录会跳过远端拉取、以缓存为准重推，这句提示才真正成立
+      toast.warning('部分数据尚未同步到云端，已保存在本机，下次登录会自动重试')
     }
     await signOut()
   }
@@ -381,13 +395,20 @@ export default function Home({ user }: { user: User }) {
       </Dialog>
 
       <main className="relative mx-auto max-w-5xl px-4 py-5">
-        {/* 云端读取失败：不阻塞使用（先用本机缓存），但要明确告知并给重试入口。
-            这条路径下不会自动回写云端，避免用旧缓存覆盖真实数据 */}
-        {loadError && (
+        {/* 云端读取失败 / 有待同步改动且上次推送失败：不阻塞使用，但必须说真话并给重试入口。
+            loadError 期间改动仍会写本机缓存并置 dirty，只是不会自动回写云端（防旧缓存覆盖）。 */}
+        {(loadError || (pendingCount > 0 && syncError)) && (
           <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
             <span className="min-w-0 flex-1">
-              云端数据没加载出来，当前显示的是本机缓存（可能不是最新）。
-              <span className="ml-1 text-xs text-muted-foreground">{loadError}</span>
+              {loadError
+                ? '云端数据没加载出来，当前显示的是本机缓存（可能不是最新）。'
+                : '云端同步还没完成，当前显示的是本机数据。'}
+              {loadError && <span className="ml-1 text-xs text-muted-foreground">{loadError}</span>}
+              {pendingCount > 0 && (
+                <span className="mt-1 block text-xs text-amber-700 dark:text-amber-300">
+                  本机有 {pendingCount} 项改动尚未同步到云端，已保存在本机；联网或点「重试」后会重推，本机版本将覆盖云端版本。
+                </span>
+              )}
             </span>
             <Button size="sm" variant="outline" onClick={retry}>
               重试

@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { loginAndOnboard, waitForCloudSync } from './helpers'
+import { loginAndOnboard, resetBackend, waitForCloudSync } from './helpers'
 
 /**
  * 视觉验收留档（非冒烟）：把 T5 CSV / T4 设置 / T3 反馈三个弹层，
@@ -14,6 +14,11 @@ const VIEWPORTS = [
   { label: '390', width: 390, height: 844 },
   { label: '1440', width: 1440, height: 900 },
 ]
+
+// 弱网截图用例会往 mock 后端注入故障，这里显式清空，保证本用例始终在正常网络下截图
+test.beforeEach(async ({ request }) => {
+  await resetBackend(request)
+})
 
 test('生成 T5/T4/T3 弹层的 390/1440 深浅色截图 @visual', async ({ page }) => {
   mkdirSync(OUT_DIR, { recursive: true })

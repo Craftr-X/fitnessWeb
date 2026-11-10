@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test --grep @smoke",
+    "test:offline": "playwright test --grep @offline",
     "test:visual": "playwright test --grep @visual"
   },
   "dependencies": {

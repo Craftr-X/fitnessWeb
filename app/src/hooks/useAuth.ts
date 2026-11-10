@@ -20,10 +20,19 @@ export function useAuth(): AuthState {
 
   useEffect(() => {
     if (!supabase) return
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null)
-      setLoading(false)
-    })
+    // getSession() reject 时也必须结束 loading，否则页面永久停在
+    // App.tsx 的「正在恢复登录状态…」splash。finally 保证这条路径一定执行。
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        setUser(data.session?.user ?? null)
+      })
+      .catch(() => {
+        setUser(null)
+      })
+      .finally(() => {
+        setLoading(false)
+      })
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {

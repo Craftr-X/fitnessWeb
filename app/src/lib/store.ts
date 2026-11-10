@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { differenceInCalendarWeeks, format, startOfWeek } from 'date-fns'
 import type { ActivityMap, CheckMap, Exercise, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, WeightEntry, WorkoutSet } from '@/types'
 import type { WeightGoal } from '@/types'
@@ -19,6 +19,21 @@ export const cloudCacheKey = (userId: string) => `fitup:u:${userId}`
 /** 未同步标记 key：本地有改动但尚未确认写入云端时置位（值为 '1'） */
 export const cloudDirtyKey = (userId: string) => `fitup:u:${userId}:dirty`
 
+/** 未同步标记存在 localStorage 里，React 无法自动感知变化；用外部 store 订阅驱动 UI */
+const cloudDirtyListeners = new Set<() => void>()
+
+/** 订阅「未同步标记」变化，返回取消订阅函数（供 useSyncExternalStore 使用） */
+export function subscribeCloudDirty(listener: () => void): () => void {
+  cloudDirtyListeners.add(listener)
+  return () => {
+    cloudDirtyListeners.delete(listener)
+  }
+}
+
+function notifyCloudDirty(): void {
+  for (const listener of cloudDirtyListeners) listener()
+}
+
 export function isCloudDirty(userId: string): boolean {
   try {
     return localStorage.getItem(cloudDirtyKey(userId)) === '1'
@@ -33,6 +48,7 @@ export function markCloudDirty(userId: string): void {
   } catch {
     /* ignore */
   }
+  notifyCloudDirty()
 }
 
 export function clearCloudDirty(userId: string): void {
@@ -41,6 +57,7 @@ export function clearCloudDirty(userId: string): void {
   } catch {
     /* ignore */
   }
+  notifyCloudDirty()
 }
 
 /** 体重目标的中文展示（Home 头部 / Onboarding / planEngine 共享） */
@@ -404,7 +421,15 @@ export interface CloudStore {
   syncError: boolean
   /** 首次拉取云端数据失败的错误信息；null = 正常。此时界面用本机缓存，且不会回写云端 */
   loadError: string | null
-  /** 重新拉取云端数据（loadError 时给用户的重试入口） */
+  /**
+   * 本机尚未同步到云端的改动数（未同步标记为 1，无标记为 0）。
+   * 与 cloudDirtyKey 同源，由外部 store 订阅驱动，界面可据此显示真实状态。
+   */
+  pendingCount: number
+  /**
+   * 重新同步：本机有未同步改动时改为「整份重推」（不能重拉，会冲掉离线写入），
+   * 否则重新拉取远端。网络恢复事件也走这里。
+   */
   retry: () => void
   /** 立即把最新状态写入云端（退出登录前调用，避免防抖窗口丢数据）。返回是否成功 */
   flush: () => Promise<boolean>
@@ -451,6 +476,31 @@ function readCache(userId: string): CloudState | null {
 }
 
 /**
+ * 把远端文档合并进本机状态（纯函数，便于单测）。
+ *
+ * - `protectLocal=false`（默认）：远端整份覆盖，沿用历史行为。
+ * - `protectLocal=true`：**只补本机缺失的域**，本机已有域一律保留。
+ *   用于本机存在未同步改动的竞态——此时远端是旧版本，整份覆盖会抹掉
+ *   离线期间的打卡 / 记组 / 体重。只做域级兜底，不做字段级合并：
+ *   字段级合并属于 T7b，提前做反而会引入难以察觉的静默覆盖。
+ */
+export function mergeRemoteState(
+  local: CloudState,
+  remote: Partial<CloudState>,
+  protectLocal = false,
+): CloudState {
+  if (!protectLocal) return { ...local, ...remote }
+  const out: CloudState = { ...local }
+  for (const key of Object.keys(remote) as (keyof CloudState)[]) {
+    const value = remote[key]
+    if (value !== undefined && out[key] === undefined) {
+      Object.assign(out, { [key]: value })
+    }
+  }
+  return out
+}
+
+/**
  * 云端同步存储：登录用户的单一数据源。
  * 启动时先用本地缓存秒开，再拉远端覆盖；远端为空则自动迁移旧版本地数据。
  * 之后每次变更写缓存并防抖 800ms 同步到 Supabase。
@@ -458,6 +508,9 @@ function readCache(userId: string): CloudState | null {
  * 防丢数据：变更在防抖窗口内（或断网/保存失败时）只落了本地缓存，若下次启动
  * 直接让远端覆盖，这部分改动就丢了。因此每次变更先置「未同步标记」，保存成功
  * 才清除；启动时检测到标记就以本地缓存为准、跳过远端拉取，由持久化 effect 重推。
+ *
+ * T7a：云端读取失败（loadError）期间也照常写缓存并置标记，只是禁止自动 upsert，
+ * 等用户点「重试」或网络恢复再整份重推；这样离线输入不会因刷新而蒸发。
  * 注意整文档 last-write-wins：本机有未同步改动时，重推会覆盖期间其他设备的写入。
  */
 export function useCloudStorage(userId: string): CloudStore {
@@ -472,6 +525,12 @@ export function useCloudStorage(userId: string): CloudStore {
   useEffect(() => {
     stateRef.current = state
   }, [state])
+  // 最近一次「已确认同步到云端」的状态引用。用来区分「真的有新改动」与
+  // 「只是 ready / loadError 变了导致 effect 重跑」：后者不该重新标脏或重复推云端。
+  // 每次保存成功后会更新为对应 snapshot。
+  const syncedStateRef = useRef(state)
+  // 未同步标记存在 localStorage，用外部 store 订阅让它能驱动 UI（无需在 effect 里 setState）
+  const hasPending = useSyncExternalStore(subscribeCloudDirty, () => isCloudDirty(userId))
 
   // 初次加载：远端优先；无远端数据时尝试迁移旧本地数据
   useEffect(() => {
@@ -498,7 +557,9 @@ export function useCloudStorage(userId: string): CloudStore {
       if (cancelled) return
       setLoadError(null)
       if (remote && Object.values(remote).some((v) => v !== undefined)) {
-        setState((prev) => ({ ...prev, ...remote }))
+        // 本机有未同步改动时不整份覆盖：只补本机缺失的域，保住离线期间的写入。
+        // 正常路径（无 dirty）仍是远端优先，行为不变。
+        setState((prev) => mergeRemoteState(prev, remote, isCloudDirty(userId)))
       } else {
         const legacy = readLegacyData()
         const next = { ...defaultCloudState(), ...readCache(userId), ...legacy }
@@ -513,25 +574,39 @@ export function useCloudStorage(userId: string): CloudStore {
     }
   }, [userId, reloadKey])
 
-  // 变更持久化：本地缓存 + 防抖同步云端
+  // 变更持久化：本地缓存 + 防抖同步云端。
+  // T7a 把「写本机」与「写云端」拆成两件事：云端读取失败时仍要落本机缓存
+  //（否则离线期间的打卡 / 记组 / 体重只存在 React 内存里，刷新即丢），
+  // 但绝不能自动 upsert —— 本机缓存可能是旧的，推上去会覆盖云端真实数据。
   useEffect(() => {
     if (!ready) return
-    // 云端读取失败时不要回写：本机缓存可能是旧的，推上去会覆盖云端真实数据。
-    // 等用户点「重试」把远端拉回来之后再恢复自动同步。
-    if (loadError) return
+
+    // ① 无论 loadError，先把最新状态落本机
     try {
       localStorage.setItem(cloudCacheKey(userId), JSON.stringify(state))
     } catch {
       /* ignore */
     }
-    // 先置未同步标记，保存成功后才清除：标记存在即代表"缓存里有云端还没有的数据"
-    markCloudDirty(userId)
+    // 只有真的产生了新改动、或启动前就带着未同步标记时才置 dirty。
+    // 读失败但用户什么都没改时不置位：缓存可能比云端旧，不能误报「有待同步改动」，
+    // 更不能让下次启动的 dirty 短路把旧缓存整份推上云端。
+    const changed = state !== syncedStateRef.current
+    if (changed || isCloudDirty(userId)) markCloudDirty(userId)
+
+    // ② 云端读取失败时禁止自动 upsert；改动已安全落本机，等「重试」或联网事件重推
+    if (loadError) return
+    // 没有新改动也没有待同步标记时不必再推一次（重推成功后 loadError 变 null
+    // 会让本 effect 重跑，这里拦掉那次无谓的重复 upsert）
+    if (!changed && !isCloudDirty(userId)) return
+
+    // ③ 原有 800ms 防抖 + snapshot 竞态保护，逻辑不动
     const snapshot = state
     const timer = setTimeout(() => {
       void saveUserData(userId, snapshot).then((ok) => {
         // 保存期间又有了新变更（stateRef 已指向更新的状态）时不能清标记：
         // 新一轮防抖保存会负责清，或由下次启动重推
         if (ok && stateRef.current === snapshot) {
+          syncedStateRef.current = snapshot
           clearCloudDirty(userId)
           setSyncError(false)
         } else if (!ok) {
@@ -544,10 +619,32 @@ export function useCloudStorage(userId: string): CloudStore {
   }, [state, ready, userId, loadError])
 
   const retry = useCallback(() => {
+    // 本机有未同步改动时**不能重拉**：远端是旧版本，整份覆盖会抹掉离线期间的写入。
+    // 改为把本机整份重推。这是用户显式点「重试」或网络恢复触发的写入，
+    // 不属于上面 ② 拦下的「自动 upsert」。
+    // 注意：清 loadError 只表示「本机整份已上云、本机即最新」，**并不代表重新拉取过远端**；
+    // 整文档 last-write-wins 下仍可能覆盖其他设备的写入，留给 T7b 解决。
+    if (isCloudDirty(userId)) {
+      const snapshot = stateRef.current
+      setSyncError(false)
+      void saveUserData(userId, snapshot).then((ok) => {
+        if (ok && stateRef.current === snapshot) {
+          syncedStateRef.current = snapshot
+          clearCloudDirty(userId)
+          setLoadError(null)
+          setSyncError(false)
+        } else if (!ok) {
+          // 保持 loadError 与横幅，syncError 让常驻 toast 提示「尚未上云」
+          setSyncError(true)
+        }
+      })
+      return
+    }
+    // 没有本机改动：走原有重拉路径，把云端最新数据取回来
     setLoadError(null)
     setReady(false)
     setReloadKey((k) => k + 1)
-  }, [])
+  }, [userId])
 
   const flush = useCallback(async () => {
     // 云端数据没拉下来时不允许回写（否则用本地旧数据覆盖云端）
@@ -555,6 +652,7 @@ export function useCloudStorage(userId: string): CloudStore {
     const snapshot = stateRef.current
     const ok = await saveUserData(userId, snapshot)
     if (ok && stateRef.current === snapshot) {
+      syncedStateRef.current = snapshot
       clearCloudDirty(userId)
       setSyncError(false)
     } else if (!ok) {
@@ -585,6 +683,7 @@ export function useCloudStorage(userId: string): CloudStore {
     migrated,
     syncError,
     loadError,
+    pendingCount: hasPending ? 1 : 0,
     retry,
     flush,
   }
