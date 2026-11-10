@@ -2,23 +2,65 @@ import { expect, type APIRequestContext, type Page } from '@playwright/test'
 
 export const MOCK_URL = 'http://127.0.0.1:54321'
 
+export type FaultMode = 'none' | 'offline' | 'slow' | 'error'
+
 interface StateRow {
-  data?: { profile?: { onboarded?: boolean } }
+  data?: {
+    profile?: { onboarded?: boolean }
+    setLogs?: Record<string, unknown>
+    checks?: Record<string, boolean>
+    activity?: Record<string, number>
+  }
 }
 
-/** 每个用例前置清理后端内存 + data.json，避免用例之间串数据 */
+/** 每个用例前置清理后端内存 + data.json + 故障注入，避免用例之间串数据 */
 export async function resetBackend(request: APIRequestContext) {
   const response = await request.post(`${MOCK_URL}/__reset`)
   expect(response.ok()).toBeTruthy()
 }
 
+/** 注入弱网故障；mode=none 恢复。（T7a：/rest/v1/user_data 的 GET / 写请求生效） */
+export async function setFault(request: APIRequestContext, mode: FaultMode, ms = 0) {
+  const response = await request.post(`${MOCK_URL}/__fault`, { data: { mode, ms } })
+  expect(response.ok()).toBeTruthy()
+}
+
+/** 读取 mock 后端的全部 user_data 行 */
+export async function cloudRows(request: APIRequestContext): Promise<Record<string, StateRow>> {
+  const response = await request.get(`${MOCK_URL}/__state`)
+  const { rows } = (await response.json()) as { rows: Record<string, StateRow> }
+  return rows
+}
+
+/** 读取浏览器侧的本机缓存与未同步标记（key 按 userId 生成，这里只筛前缀） */
+export async function readLocalCloud(page: Page): Promise<{
+  cache: Record<string, unknown> | null
+  dirty: string | null
+  keys: string[]
+}> {
+  return page.evaluate(() => {
+    const keys = Object.keys(localStorage).filter((k) => k.startsWith('fitup:u:'))
+    const cacheKey = keys.find((k) => !k.endsWith(':dirty'))
+    const dirtyKey = keys.find((k) => k.endsWith(':dirty'))
+    let cache: Record<string, unknown> | null = null
+    try {
+      cache = cacheKey ? (JSON.parse(localStorage.getItem(cacheKey) || 'null') as Record<string, unknown>) : null
+    } catch {
+      cache = null
+    }
+    return { cache, dirty: dirtyKey ? localStorage.getItem(dirtyKey) : null, keys }
+  })
+}
+
 /**
  * 走完「邮箱 → 任意 6 位验证码 → 2 步引导」，停在已登录、已生成第 1 周计划的首页。
+ * 返回本次用的邮箱，供删号 / 重新登录用例复用。
  * 每个 test 有独立 browser context，localStorage 天然干净。
  */
-export async function loginAndOnboard(page: Page) {
+export async function loginAndOnboard(page: Page): Promise<string> {
+  const email = `e2e-${Date.now()}-${Math.floor(Math.random() * 10000)}@example.com`
   await page.goto('/')
-  await page.getByPlaceholder('you@example.com').fill(`e2e-${Date.now()}@example.com`)
+  await page.getByPlaceholder('you@example.com').fill(email)
   await page.getByRole('button', { name: '发送验证码' }).click()
   await expect(page.getByText('输入验证码')).toBeVisible()
 
@@ -31,6 +73,7 @@ export async function loginAndOnboard(page: Page) {
   await page.getByRole('button', { name: '生成我的计划' }).click()
   await expect(page.getByRole('tab', { name: '今日' })).toBeVisible()
   await expect(page.getByText('第 1 周', { exact: true }).first()).toBeVisible()
+  return email
 }
 
 /**

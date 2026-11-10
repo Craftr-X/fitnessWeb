@@ -12,7 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![Tests](https://img.shields.io/badge/Tests-287%20passed-brightgreen)](#-常用命令)
+[![Tests](https://img.shields.io/badge/Tests-323%20passed-brightgreen)](#-常用命令)
 
 [功能特性](#-功能特性) · [在线预览](#-应用截图) · [快速开始](#-快速开始) · [部署](#-部署) · [项目结构](#-项目结构)
 
@@ -74,7 +74,7 @@
 | 样式 | Tailwind CSS 3、shadcn/ui（Radix UI） |
 | 后端 | Supabase（Auth + Postgres + RLS） |
 | 可视化 | Recharts（懒加载，只在数据页下载） |
-| 测试 | Vitest + Testing Library（287 个单元测试） |
+| 测试 | Vitest + Testing Library（323 个单元测试） |
 | CI/CD | GitHub Actions（lint + test + build → Pages 部署、Supabase 每日保活） |
 
 ## 🚀 快速开始
@@ -104,9 +104,10 @@ Supabase 配置（建表 + RLS + Auth）详见 [`app/README.md`](app/README.md)�
 cd app
 npm run dev        # 开发服务器
 npm run build      # 类型检查 + 生产构建
-npm run test       # 单元测试（287 个）
+npm run test       # 单元测试（323 个）
 npm run test:e2e   # Playwright 冒烟（4 条，真实 Chromium + 本地 mock 后端）
-npm run test:visual # 生成弹层的 390/1440 深浅色截图留档
+npm run test:offline # 弱网 / 离线端到端（3 条，含故障注入）
+npm run test:visual # 生成弹层与离线横幅的 390/1440 深浅色截图留档
 npm run lint       # ESLint
 ```
 
@@ -206,6 +207,19 @@ fitnessWeb/
 - **视觉验收补齐**：用同一套 Chromium 生成 T5 CSV / T4 设置 / T3 反馈三个弹层的
   390 / 1440 × 深浅色共 **12 张截图**，留档 `docs/e2e-screenshots/2026-11-09/`；`npm run test:visual` 可复现
 - 单测数保持 **287**（e2e 用例不计入 Vitest）
+
+### 2026-11-10 · 离线 / 弱网写入加固（T7a）
+
+- **修掉「刷新即丢」**：云端读取失败（`loadError`）期间，打卡 / 记组 / 体重 / 反馈原本连本机缓存都不写，
+  只存在 React 内存里，刷新就丢；现在改动始终落本机并置 dirty，但**仍禁止自动回写云端**（防旧缓存覆盖）
+- **重试与联网**：有未同步改动时点「重试」或触发 `online` 事件改为「整份重推」，不再用远端旧数据冲掉离线写入；
+  横幅如实显示待同步条数与「本机版本将覆盖云端版本」
+- **不再卡死**：`saveUserData` 加 8 秒超时（迁移分支不会永久停在 splash），`getSession()` reject 时也会结束加载态
+- **弱网可回归**：mock 后端新增 `POST /__fault`（offline / slow / error），3 条 `@offline` 端到端用例覆盖
+  「断网记组 → 刷新仍在 → 联网重推」「删号后不重放复活」「慢网读超时不卡 splash」；CI 的 `e2e` job 一并跑
+- 单测 287 → **323**（新增 36 例）；新增 4 张离线横幅截图留档 `docs/e2e-screenshots/2026-11-10/`
+- **仍未解决**：整文档 last-write-wins，多设备并发时离线一方重推仍可能覆盖另一设备的写入；
+  Service Worker / 应用壳离线缓存也不在本轮（见 `docs/2026-11-09-t7a-offline-hardening-plan.md` §5）
 
 ## 🤝 参与贡献
 

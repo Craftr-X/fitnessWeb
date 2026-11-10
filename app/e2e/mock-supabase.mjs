@@ -10,7 +10,8 @@
  *   GET  /rest/v1/user_data 无数据必须返回 `200 []`（配合 .limit(1)，不能返回 406）
  *   POST /rest/v1/user_data upsert 整份文档
  *   DELETE /rest/v1/user_data
- *   POST /__reset          清空内存与 data.json，供每个用例前置清理
+ *   POST /__reset          清空内存、data.json 与故障注入，供每个用例前置清理
+ *   POST /__fault          注入弱网故障：{ mode: 'offline'|'slow'|'error'|'none', ms }
  *   GET  /__health         webServer 就绪探针
  *
  * 数据落在内存，同时镜像到 e2e/data.json 便于本地调试（已加入 .gitignore）。
@@ -29,6 +30,33 @@ const DEFAULT_EMAIL = 'e2e@example.com'
 let rows = new Map()
 /** email -> user 对象 */
 const users = new Map()
+/**
+ * 弱网故障注入（T7a）。只对 /rest/v1/user_data 的 GET / 写请求生效，
+ * auth 端点不受影响（否则连登录都进不去，测不到离线写入）。
+ * mode: none | offline（断链）| slow（延迟响应）| error（503）
+ */
+let fault = { mode: 'none', ms: 0 }
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** 返回 true 表示请求已被故障处理，调用方应直接 return */
+async function applyFault(res) {
+  if (fault.mode === 'none') return false
+  if (fault.mode === 'offline') {
+    // 直接掐断连接，浏览器侧表现为 TypeError: Failed to fetch
+    res.destroy()
+    return true
+  }
+  if (fault.mode === 'slow') {
+    await sleep(fault.ms || 9000)
+    return false
+  }
+  if (fault.mode === 'error') {
+    sendJson(res, 503, { message: 'mock fault: upstream error' })
+    return true
+  }
+  return false
+}
 
 function restore() {
   try {
@@ -147,13 +175,22 @@ const server = createServer(async (req, res) => {
   }
   if (pathname === '/__state' && req.method === 'GET') {
     // 供 waitForCloudSync 轮询：确认引导后的文档已落盘再刷新页面
-    return sendJson(res, 200, { rows: Object.fromEntries(rows) })
+    return sendJson(res, 200, { rows: Object.fromEntries(rows), fault })
+  }
+  if (pathname === '/__fault' && req.method === 'POST') {
+    const allowed = ['none', 'offline', 'slow', 'error']
+    fault = {
+      mode: allowed.includes(body.mode) ? body.mode : 'none',
+      ms: Number(body.ms) || 0,
+    }
+    return sendJson(res, 200, { ok: true, fault })
   }
   if (pathname === '/__reset' && req.method === 'POST') {
     rows = new Map()
     users.clear()
+    fault = { mode: 'none', ms: 0 }
     if (existsSync(DATA_FILE)) unlinkSync(DATA_FILE)
-    return sendJson(res, 200, { ok: true })
+    return sendJson(res, 200, { ok: true, fault })
   }
 
   // ---- GoTrue (auth) ----
@@ -193,11 +230,13 @@ const server = createServer(async (req, res) => {
     const userId = rawUserId.startsWith('eq.') ? rawUserId.slice(3) : userIdFor(DEFAULT_EMAIL)
 
     if (req.method === 'GET') {
+      if (await applyFault(res)) return
       // 关键：无数据返回 200 []，不是 406/PGRST116 —— 后者会被当成读取失败
       const row = rows.get(userId)
       return sendJson(res, 200, row ? [{ data: row.data }] : [])
     }
     if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
+      if (await applyFault(res)) return
       const items = Array.isArray(body) ? body : [body]
       for (const item of items) {
         const id = item.user_id ?? userId

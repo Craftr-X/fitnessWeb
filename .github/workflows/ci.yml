@@ -94,3 +94,4 @@ jobs:
       # Chromium 首次安装约 100MB；--with-deps 补 Linux 系统库
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+      - run: npm run test:offline

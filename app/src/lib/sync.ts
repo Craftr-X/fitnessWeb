@@ -17,10 +17,16 @@ export interface UserData {
 /** 单次读取的超时（毫秒）：线上遇到过请求挂住，页面永久停在「正在同步」 */
 export const LOAD_TIMEOUT_MS = 8000
 
-/** 给 thenable 套一层超时；超时后原请求即使迟到达也被忽略 */
-function withTimeout<T>(thenable: PromiseLike<T>, ms: number): Promise<T> {
+/** 单次写入的超时（毫秒）：防止迁移分支的 await saveUserData 挂住导致永久 splash */
+export const SAVE_TIMEOUT_MS = 8000
+
+/**
+ * 给 thenable 套一层超时；超时后原请求即使迟到达也被忽略。
+ * 注意：这里只是忽略结果，**不取消底层请求**（T7a 不引入 AbortController）。
+ */
+function withTimeout<T>(thenable: PromiseLike<T>, ms: number, label = '加载'): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`加载超时（${ms}ms）`)), ms)
+    const timer = setTimeout(() => reject(new Error(`${label}超时（${ms}ms）`)), ms)
     Promise.resolve(thenable).then(
       (v) => {
         clearTimeout(timer)
@@ -61,17 +67,33 @@ export async function loadUserData(userId: string, timeoutMs: number = LOAD_TIME
   return remote
 }
 
-/** 整文档 upsert 到远端 */
-export async function saveUserData(userId: string, data: UserData): Promise<boolean> {
+/**
+ * 整文档 upsert 到远端。
+ * 超时/异常一律返回 false（保持调用方的 boolean 语义），绝不抛错：
+ * 加载阶段的迁移分支直接 await 这里，抛错会让页面永久停在 splash。
+ */
+export async function saveUserData(
+  userId: string,
+  data: UserData,
+  timeoutMs: number = SAVE_TIMEOUT_MS,
+): Promise<boolean> {
   if (!supabase) return false
-  const { error } = await supabase
+  const query = supabase
     .from('user_data')
-    .upsert({ user_id: userId, data, updated_at: new Date().toISOString() })
-  if (error) {
-    console.error('[FitUp] 同步到云端失败：', error.message)
+    .upsert({ user_id: userId, data, updated_at: new Date().toISOString() }) as unknown as PromiseLike<{
+    error: { message: string } | null
+  }>
+  try {
+    const { error } = await withTimeout(query, timeoutMs, '保存')
+    if (error) {
+      console.error('[FitUp] 同步到云端失败：', error.message)
+      return false
+    }
+    return true
+  } catch (e) {
+    console.error('[FitUp] 同步到云端失败：', e instanceof Error ? e.message : String(e))
     return false
   }
-  return true
 }
 
 function readLegacy<T>(key: string): T | undefined {

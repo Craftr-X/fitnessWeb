@@ -7,7 +7,8 @@ export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.spec.ts',
   // 不在 config 里设 grep：CLI 的 --grep 会与它取交集。
-  // 两个 npm script 各自带过滤：test:e2e → @smoke（4 条），test:visual → @visual（截图留档）
+  // 三个 npm script 各自带过滤：test:e2e → @smoke（4 条）、test:offline → @offline（弱网）、
+  // test:visual → @visual（截图留档）。workers:1 串行，所有 tag 共用有状态的 mock 后端。
   timeout: 60_000,
   expect: { timeout: 10_000 },
   // 4 条用例共用同一个有状态的 mock 后端，并行会互相 /__reset，必须串行
