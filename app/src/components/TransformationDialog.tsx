@@ -62,7 +62,7 @@ function Poster({
 
         {/* 主标题 */}
         <div className="mt-6 flex flex-1 flex-col justify-center">
-          <p className="text-sm text-white/70">我的蜕变</p>
+          <p className="text-sm text-white/90">我的蜕变</p>
           <h2 className="mt-1 text-3xl font-black leading-tight">{copy.headline}</h2>
           {copy.verdict && <p className="mt-2 text-sm text-orange-200">{copy.verdict}</p>}
 
@@ -83,12 +83,12 @@ function Poster({
             />
           </div>
           {stats.avgCompletion != null && (
-            <p className="mt-3 text-center text-xs text-white/60">平均完成度 {stats.avgCompletion}%</p>
+            <p className="mt-3 text-center text-xs text-white/90">平均完成度 {stats.avgCompletion}%</p>
           )}
         </div>
 
         {/* 页脚 */}
-        <div className="flex items-center justify-between text-[10px] text-white/40">
+        <div className="flex items-center justify-between text-xs text-white/90">
           <span>{format(new Date(), 'yyyy.MM.dd')}</span>
           <span>坚持记录，本身就是蜕变</span>
         </div>
@@ -112,7 +112,7 @@ function PosterStat({
     <div className="rounded-lg bg-white/10 p-2 text-center">
       <div className="flex items-center justify-center text-orange-300">{icon}</div>
       <div className={`mt-0.5 text-sm font-bold ${accent}`}>{value}</div>
-      <div className="text-[10px] text-white/50">{label}</div>
+      <div className="text-xs text-white/90">{label}</div>
     </div>
   )
 }

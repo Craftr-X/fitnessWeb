@@ -102,7 +102,7 @@ interface ExerciseLogDialogProps {
 function StatItem({ label, value, unit, color }: { label: string; value: number; unit: string; color: string }) {
   return (
     <div className="min-w-0">
-      <p className={`text-[11px] font-medium ${color}`}>{label}</p>
+      <p className={`text-xs font-medium ${color}`}>{label}</p>
       <p className="mt-0.5 text-xl font-bold leading-tight tracking-tight">
         {value > 0 ? value.toLocaleString() : '—'}
         <span className="ml-0.5 text-xs font-normal text-muted-foreground">{unit}</span>
@@ -284,7 +284,7 @@ function ExerciseLogDialog({
           {/* 组编辑列表 */}
           <div>
             <div
-              className={`mb-1.5 grid items-center gap-2 px-1 text-[11px] text-muted-foreground ${
+              className={`mb-1.5 grid items-center gap-2 px-1 text-xs text-muted-foreground ${
                 weighted ? 'grid-cols-[2rem_1fr_auto_1fr_2.5rem]' : 'grid-cols-[2rem_1fr_2.5rem]'
               }`}
             >
@@ -341,7 +341,7 @@ function ExerciseLogDialog({
                     onClick={() => removeSet(i)}
                     disabled={sets.length <= 1}
                     aria-label={`删除第 ${i + 1} 组`}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-30"
+                    className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-30"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -504,7 +504,7 @@ function ReplaceExerciseDialog({
                     </span>
                   </span>
                   {demo && (
-                    <Badge variant="secondary" className="mt-0.5 shrink-0 text-[10px]">
+                    <Badge variant="secondary" className="mt-0.5 shrink-0 text-xs">
                       有示范
                     </Badge>
                   )}
@@ -663,7 +663,7 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
               {planDiff && planDiff.changes.length > 0 ? (
                 <span>
                   {summarizePlanDiff(planDiff)}
-                  <span className="ml-1 text-xs text-white/70">（依据第 {weekPlan.week - 1} 周反馈）</span>
+                  <span className="ml-1 text-xs text-white/90">（依据第 {weekPlan.week - 1} 周反馈）</span>
                 </span>
               ) : (
                 <span>{weekPlan.adjustmentNote}</span>
@@ -674,7 +674,7 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
                 <button
                   type="button"
                   onClick={() => setShowDiff((v) => !v)}
-                  className="ml-6 w-fit text-xs text-white/75 underline underline-offset-2 hover:text-white"
+                  className="ml-6 w-fit text-xs text-white/90 underline underline-offset-2 hover:text-white"
                 >
                   {showDiff ? '收起明细' : `展开明细（${planDiff.changes.length} 处）`}
                 </button>
@@ -685,11 +685,11 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
                         <span className="truncate">
                           {c.day} · {c.name}
                         </span>
-                        <span className="shrink-0 tabular-nums text-white/70">{describeChange(c)}</span>
+                        <span className="shrink-0 tabular-nums text-white/90">{describeChange(c)}</span>
                       </li>
                     ))}
                     {planDiff.changes.length > 8 && (
-                      <li className="text-white/60">…另有 {planDiff.changes.length - 8} 处（同一天多个动作一起调整）</li>
+                      <li className="text-white/90">…另有 {planDiff.changes.length - 8} 处（同一天多个动作一起调整）</li>
                     )}
                   </ul>
                 )}

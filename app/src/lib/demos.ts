@@ -24,6 +24,14 @@ export interface DemoInfo {
   mediaLabels?: [string, string]
 }
 
+/**
+ * 视频首帧：同一组 sources 里排在视频后面的静态图，通常就是同一个动作的备用示范图。
+ * 直接复用它当 poster，不新增外链、不改 DEMOS 表结构；找不到时由组件退化为 CSS 占位。
+ */
+export function pickVideoPoster(sources: DemoSource[]): string | undefined {
+  return sources.find((s) => s.type === 'img')?.url
+}
+
 const MW_BASE = 'https://media.musclewiki.com/media/uploads/videos/branded'
 const FED_BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises'
 

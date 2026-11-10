@@ -3,12 +3,12 @@ import { format } from 'date-fns'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import {
   Activity,
   CalendarCheck,
+  ChevronDown,
   Flame,
   MessageSquareHeart,
   Moon,
@@ -87,6 +87,8 @@ export default function Overview({
 }: Props) {
   const [rebuilding, setRebuilding] = useState(false)
   const [showTransformation, setShowTransformation] = useState(false)
+  // 关键提醒默认只显示前 2 条，展开后 5 条齐全；状态只放内存，不新增 localStorage key
+  const [showAllTips, setShowAllTips] = useState(false)
   const latest = weights[weights.length - 1]
   const weight = latest?.weight ?? profile.weightKg ?? 0
   const bmiValue = bmi(weight, profile.heightCm)
@@ -95,24 +97,11 @@ export default function Overview({
   const todayIdx = (new Date().getDay() + 6) % 7
   const todayPlan = weekPlan.days[todayIdx]
 
-  const { done, total } = useMemo(() => {
-    let d = 0
-    let t = 0
-    weekPlan.days.forEach((day, di) => {
-      day.exercises.forEach((_, ei) => {
-        t += 1
-        if (checks[`${weekPlan.week}:${di}:${ei}`]) d += 1
-      })
-    })
-    return { done: d, total: t }
-  }, [weekPlan, checks])
-  const weekPct = total === 0 ? 0 : Math.round((done / total) * 100)
-
+  // 完成度 / 已打卡数统一由 TodayHero 的进度环呈现，这里不再重复计算与展示
   // 关键数字 count-up 动画
   const animatedWeight = useCountUp(weight)
   const animatedFat = useCountUp(latest?.bodyFat ?? 0)
   const animatedBmi = useCountUp(bmiValue)
-  const animatedPct = useCountUp(weekPct)
 
   const first = weights[0]
   const weightDelta = first && latest ? latest.weight - first.weight : 0
@@ -258,27 +247,17 @@ export default function Overview({
         </CardContent>
       </Card>
 
-      {/* 本周进度 */}
+      {/* 本周 vs 上周：完成度 / 训练天数 / 体重（完成度总量由英雄卡进度环呈现，不重复） */}
       <Card className={cardCls}>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/15">
               <CalendarCheck className="h-4 w-4 text-emerald-500" />
             </span>
-            第 {weekPlan.week} 周进度
+            本周 vs 上周
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex items-end justify-between">
-            <span className="bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-3xl font-bold tabular-nums text-transparent">
-              {Math.round(animatedPct)}%
-            </span>
-            <span className="text-sm text-muted-foreground">
-              已打卡 {done} / {total} 项
-            </span>
-          </div>
-          <Progress value={weekPct} />
-          {/* 本周 vs 上周：完成度 / 训练天数 / 体重 */}
           <div className="space-y-1.5 rounded-lg bg-muted/40 px-3 py-2 text-sm">
             <CompareRow
               label="完成度"
@@ -357,7 +336,8 @@ export default function Overview({
               蛋白质和热量建议会更贴合你。
             </p>
           )}
-          <ul className="space-y-2 text-sm">
+          {/* 默认只显示最相关的 2 条；展开后 5 条一字不少，避免移动端一屏被长文案占满 */}
+          <ul id="key-tips" className="space-y-2 text-sm">
             <li className="flex gap-2">
               <Activity className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" />
               <span>
@@ -372,20 +352,34 @@ export default function Overview({
                 ? '请先记录体重，再计算每日蛋白质目标。'
                 : <>每天蛋白质 {pMin}–{pMax} g（约 {Math.round(weight * 1.6 / 30)} 个鸡蛋 + 一份鸡胸/鱼肉）。</>}
             </li>
-            <li className="flex gap-2">
-              <TrendingUp className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-              {weightTrendTip}。
-            </li>
-            <li className="flex gap-2">
-              <Moon className="mt-0.5 h-4 w-4 shrink-0 text-indigo-400" />
-              睡够 7-9 小时，肌肉在睡眠中生长；同一肌群至少间隔 48 小时再练。
-            </li>
-            <li className="flex gap-2">
-              <CalendarCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-              每周日用电子秤空腹称重并填反馈，计划会随你的反馈逐周进阶。
-              最近一次记录：{latest ? format(new Date(latest.date + 'T00:00:00'), 'M月d日') : '—'}
-            </li>
+            {showAllTips && (
+              <>
+                <li className="flex gap-2">
+                  <TrendingUp className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                  {weightTrendTip}。
+                </li>
+                <li className="flex gap-2">
+                  <Moon className="mt-0.5 h-4 w-4 shrink-0 text-indigo-400" />
+                  睡够 7-9 小时，肌肉在睡眠中生长；同一肌群至少间隔 48 小时再练。
+                </li>
+                <li className="flex gap-2">
+                  <CalendarCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                  每周日用电子秤空腹称重并填反馈，计划会随你的反馈逐周进阶。
+                  最近一次记录：{latest ? format(new Date(latest.date + 'T00:00:00'), 'M月d日') : '—'}
+                </li>
+              </>
+            )}
           </ul>
+          <button
+            type="button"
+            aria-expanded={showAllTips}
+            aria-controls="key-tips"
+            onClick={() => setShowAllTips((v) => !v)}
+            className="mt-2 flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-primary"
+          >
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showAllTips ? 'rotate-180' : ''}`} />
+            {showAllTips ? '收起提醒' : '查看全部 5 条提醒'}
+          </button>
           {onOpenNutrition && (
             <button
               type="button"

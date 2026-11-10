@@ -14,7 +14,7 @@ interface Props {
   done: number
   total: number
   latestWeight: number | null
-  /** 计划进行到第几周（"已坚持周数"，与头部「第 N 周」口径一致；之前用的是反馈条数，会出现 0 与 16 并存的矛盾） */
+  /** 计划进行到第几周，与头部「第 N 周」Badge 同一数值（之前用反馈条数，会出现 0 与 16 并存的矛盾） */
   weeksPersisted: number
   /** 紧凑模式：计划/数据页用，压成一行，把首屏留给正文 */
   compact?: boolean
@@ -68,7 +68,7 @@ export default function TodayHero({
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">今天：{todayPlan.focus}</p>
-            <p className="truncate text-xs text-white/75">
+            <p className="truncate text-xs text-white/90">
               本周 {done}/{total} 项 · {weekPct}%
             </p>
           </div>
@@ -103,13 +103,13 @@ export default function TodayHero({
 
       <div className="relative flex flex-wrap items-center gap-5">
         <div className="min-w-56 flex-1">
-          <p className="text-sm text-white/80">
+          <p className="text-sm text-white/90">
             {greeting()}！{format(new Date(), 'M月d日')}
           </p>
           <h2 className="mt-0.5 text-xl font-bold">
             今天：{todayPlan.day} · {todayPlan.focus}
           </h2>
-          <p className="mt-1 text-sm text-white/80">{tipOf(todayPlan)}</p>
+          <p className="mt-1 text-sm text-white/90">{tipOf(todayPlan)}</p>
 
           {/* 本周打卡点：亮=当天有打卡，光环=今天 */}
           <div className="mt-3 flex items-center gap-1.5">
@@ -122,7 +122,7 @@ export default function TodayHero({
                 } ${di === todayIdx ? 'ring-2 ring-white/80 ring-offset-2 ring-offset-teal-500' : ''}`}
               />
             ))}
-            <span className="ml-2 text-xs text-white/75">本周已练 {daysTrained} 天</span>
+            <span className="ml-2 text-xs text-white/90">本周已练 {daysTrained} 天</span>
           </div>
 
           <Button
@@ -153,7 +153,7 @@ export default function TodayHero({
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-lg font-bold leading-none">{Math.round(animatedPct)}%</span>
-              <span className="mt-0.5 text-[10px] text-white/75">本周进度</span>
+              <span className="mt-0.5 text-xs text-white/90">本周进度</span>
             </div>
           </div>
 
@@ -161,7 +161,7 @@ export default function TodayHero({
             {latestWeight && (
               <div className="text-center">
                 <div className="text-2xl font-bold tabular-nums">{latestWeight.toFixed(2)}</div>
-                <div className="text-xs text-white/75">当前体重 kg</div>
+                <div className="text-xs text-white/90">当前体重 kg</div>
               </div>
             )}
             <div className="text-center">
@@ -169,7 +169,7 @@ export default function TodayHero({
                 <Flame className="h-5 w-5" />
                 {weeksPersisted}
               </div>
-              <div className="text-xs text-white/75">已坚持周数</div>
+              <div className="text-xs text-white/90">计划周数</div>
             </div>
           </div>
         </div>

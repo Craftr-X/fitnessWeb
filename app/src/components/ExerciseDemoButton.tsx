@@ -10,6 +10,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CirclePlay, Loader2, ImageOff } from 'lucide-react'
+import { pickVideoPoster } from '@/lib/demos'
 import type { DemoInfo, DemoSource } from '@/lib/demos'
 
 interface Props {
@@ -66,9 +67,16 @@ function DemoMedia({ sources, label, exerciseName }: { sources: DemoSource[]; la
   }
 
   const source = sources[idx]
+  const poster = source.type === 'video' ? pickVideoPoster(sources) : undefined
 
   return (
     <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-muted">
+      {/* 视频没有可用首帧时用图标占位，弱网下不再是纯黑块加转圈 */}
+      {source.type === 'video' && !poster && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
+          <CirclePlay className="h-10 w-10 text-muted-foreground" />
+        </div>
+      )}
       {loading && !failed && (
         <div className="absolute inset-0 flex items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -83,6 +91,7 @@ function DemoMedia({ sources, label, exerciseName }: { sources: DemoSource[]; la
         <video
           key={source.url}
           src={source.url}
+          poster={poster}
           className="h-full w-full object-contain"
           autoPlay
           loop
@@ -111,7 +120,7 @@ function DemoMedia({ sources, label, exerciseName }: { sources: DemoSource[]; la
           onError={onError}
         />
       )}
-      <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
+      <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-xs font-medium text-white">
         {label}
       </span>
     </div>

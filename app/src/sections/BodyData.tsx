@@ -110,7 +110,7 @@ function TrainingCalendarCard({
             <p className="mt-2 text-center sm:text-left">
               本月训练 {stats.trained} 天 · 称重 {stats.weigh} 次 · 反馈 {stats.fb} 次
             </p>
-            <p className="max-w-52 text-center text-[11px] text-muted-foreground/70 sm:text-left">
+            <p className="max-w-52 text-center text-xs text-muted-foreground sm:text-left">
               训练打卡自本版本起记录；此前数据仅显示体重与反馈标记。
             </p>
           </div>
@@ -226,7 +226,7 @@ export default function BodyData({ weights, setWeights, heightCm, activity, feed
               />
             </div>
             <div className="space-y-1">
-              <Label>BMI</Label>
+              <Label>BMI（自动计算）</Label>
               <div className="flex h-9 w-24 items-center justify-center rounded-md border bg-muted/60 text-sm font-semibold">
                 {(() => {
                   const w = parseFloat(weight)
@@ -264,23 +264,23 @@ export default function BodyData({ weights, setWeights, heightCm, activity, feed
           <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-lg bg-muted/60 p-3 text-center">
               <div className="text-xl font-bold">{latest ? latest.weight.toFixed(2) : '—'} kg</div>
-              <div className="text-xs text-muted-foreground">最新体重</div>
+              <div className="text-xs text-muted-foreground">{latest ? '最新体重' : '还没有体重记录'}</div>
             </div>
             <div className="rounded-lg bg-muted/60 p-3 text-center">
               <div className="text-xl font-bold">
                 {latest?.bodyFat ? `${latest.bodyFat.toFixed(1)}%` : '—'}
               </div>
-              <div className="text-xs text-muted-foreground">最新体脂率</div>
+              <div className="text-xs text-muted-foreground">{latest?.bodyFat ? '最新体脂率' : '记录体脂后显示'}</div>
             </div>
             <div className="rounded-lg bg-muted/60 p-3 text-center">
               <div className={`text-xl font-bold ${weekDelta == null ? '' : weekDelta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
                 {weekDelta == null ? '—' : `${weekDelta >= 0 ? '+' : ''}${weekDelta.toFixed(2)} kg`}
               </div>
-              <div className="text-xs text-muted-foreground">近 7 天变化</div>
+              <div className="text-xs text-muted-foreground">{weekDelta == null ? '满 7 天后显示' : '近 7 天变化'}</div>
             </div>
             <div className="rounded-lg bg-muted/60 p-3 text-center">
               <div className="text-xl font-bold">{latest ? bmi(latest.weight, heightCm).toFixed(1) : '—'}</div>
-              <div className="text-xs text-muted-foreground">当前 BMI</div>
+              <div className="text-xs text-muted-foreground">{latest ? '当前 BMI' : '填体重后自动计算'}</div>
             </div>
           </div>
 
@@ -344,7 +344,7 @@ export default function BodyData({ weights, setWeights, heightCm, activity, feed
                   <TableCell className="text-right">{e.bodyFat != null ? e.bodyFat.toFixed(1) : '—'}</TableCell>
                   <TableCell className="text-right">{bmi(e.weight, heightCm).toFixed(1)}</TableCell>
                   <TableCell>
-                    <Button size="icon" variant="ghost" onClick={() => remove(keyOf(e))}>
+                    <Button size="icon" variant="ghost" className="h-11 w-11" onClick={() => remove(keyOf(e))}>
                       <Trash2 className="h-4 w-4 text-muted-foreground" />
                     </Button>
                   </TableCell>

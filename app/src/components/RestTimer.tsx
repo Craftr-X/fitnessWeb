@@ -92,11 +92,11 @@ export const RestTimer = forwardRef<RestTimerHandle>(function RestTimer(_props, 
               key={s}
               type="button"
               onClick={() => start(s)}
-              className={`rounded-full px-1.5 py-0.5 text-[11px] tabular-nums transition-colors ${
+              className={`rounded-full px-1.5 py-0.5 text-xs tabular-nums transition-colors ${
                 // 当前剩余恰好等于某预设时高亮（刚点过它）
                 remaining === s
                   ? 'bg-teal-400/30 text-teal-100'
-                  : 'text-white/60 hover:bg-white/10 hover:text-white'
+                  : 'text-white/90 hover:bg-white/10 hover:text-white'
               }`}
             >
               {s}s
@@ -107,7 +107,7 @@ export const RestTimer = forwardRef<RestTimerHandle>(function RestTimer(_props, 
           size="icon"
           variant="ghost"
           aria-label="取消休息计时"
-          className="h-7 w-7 rounded-full text-white/70 hover:bg-white/10 hover:text-white"
+          className="h-7 w-7 rounded-full text-white/90 hover:bg-white/10 hover:text-white"
           onClick={stop}
         >
           <X className="h-3.5 w-3.5" />
