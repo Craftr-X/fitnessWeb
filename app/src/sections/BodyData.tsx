@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/table'
 import { CalendarCheck, LineChart as LineChartIcon, Plus, Trash2 } from 'lucide-react'
 import { bmi } from '@/lib/store'
+import { dailyChartData } from '@/lib/weightChart'
 import type { ActivityMap, WeekFeedback, WeightEntry } from '@/types'
 
 interface Props {
@@ -135,17 +136,8 @@ export default function BodyData({ weights, setWeights, heightCm, activity, feed
     [weights],
   )
 
-  const chartData = useMemo(() => {
-    const cutoff =
-      range === 'all' ? null : format(subDays(new Date(), range === '7' ? 7 : 30), 'yyyy-MM-dd')
-    return sorted
-      .filter((e) => !cutoff || e.date >= cutoff)
-      .map((e) => ({
-        date: format(new Date(e.date + 'T00:00:00'), 'M/d') + (e.time ? ` ${e.time}` : ''),
-        体重: e.weight,
-        体脂: e.bodyFat ?? undefined,
-      }))
-  }, [sorted, range])
+  // 趋势图一天一个点：窗口过滤 + 按天聚合（同天取最后一条）见 weightChart.ts
+  const chartData = useMemo(() => dailyChartData(weights, range), [weights, range])
 
   const latest = sorted[sorted.length - 1]
   const weekAgo = useMemo(() => {
