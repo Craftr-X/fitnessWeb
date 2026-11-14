@@ -1,6 +1,6 @@
 # FitUp T9 趋势图按天聚合技术方案
 
-> 状态:**已定稿**(2026-11-14,PM)· 来源:T8 方案 §2.6 低优先可选项,本次独立实施
+> 状态:**已实施**(2026-11-14,PM 回填 PR 与验收)· 来源:T8 方案 §2.6 低优先可选项,本次独立实施
 > 流水线:产品/PM=主会话;研发=独立子代理;测试=另一子代理(与研发不同代理);审阅=code-review 双轴
 > 分支:`feat/chart-day-aggregation` · commit 前缀 `feat:`
 
@@ -53,6 +53,9 @@
 
 ## 5. 验收回填(实施后由 PM 填写)
 
-- PR:待回填
-- 单测数:待回填
-- 各门禁实跑结果:待回填
+- PR:[#58](https://github.com/Craftr-X/fitnessWeb/pull/58)
+- 单测数:339 → **347**(新增 8 例:`weightChart.test.ts` 6 + `bodyData.chart.test.tsx` 2);视觉用例 3 → 4
+- commits:d341a71(实现)→ 044aeea(测试)→ 17ad1cb(审阅 P2:keyOf 抽取共享)→ 2f0b053(docs 入库与口径)
+- 本地门禁实跑:`lint` 0 error;`test` 347/347;`build` 通过(tsc -b + vite);`@smoke` 连跑 3 次 4/4;`@visual` 4 条全绿(044aeea,后续 refactor 无视觉输出变化故未重跑);远端 CI 合并前确认 success(见 PR checks)
+- 截图留档:`docs/e2e-screenshots/2026-11-14-t9/` 4 张(390/1440 × 深浅色),e2e 经页面真实表单录入体重驱动折线(onboarding 自动写入今日 1 条,历史表 6 条、今天 3 条仍聚合 1 点,断言按此设计)
+- 审阅裁定:Standards 2 条「硬违规」(README 口径 / 方案入库)属 PM 合并前职责,已在本 PR 完成;Spec 轴无阻断偏差,「空态断言代替字面 1 点断言」与 §2.3 自洽,裁定接受
