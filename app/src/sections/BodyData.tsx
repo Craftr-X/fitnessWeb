@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/table'
 import { CalendarCheck, LineChart as LineChartIcon, Plus, Trash2 } from 'lucide-react'
 import { bmi } from '@/lib/store'
+import { compareWeightEntries, dailyChartData, weightEntryKey } from '@/lib/weightChart'
 import type { ActivityMap, WeekFeedback, WeightEntry } from '@/types'
 
 interface Props {
@@ -127,25 +128,13 @@ export default function BodyData({ weights, setWeights, heightCm, activity, feed
   const [bodyFat, setBodyFat] = useState('')
   const [range, setRange] = useState<'7' | '30' | 'all'>('30')
 
-  // 同一天可有多条记录（早晚），以 日期+时间 作为唯一键
-  const keyOf = (e: WeightEntry) => `${e.date}T${e.time ?? ''}`
-
   const sorted = useMemo(
-    () => [...weights].sort((a, b) => keyOf(a).localeCompare(keyOf(b))),
+    () => [...weights].sort(compareWeightEntries),
     [weights],
   )
 
-  const chartData = useMemo(() => {
-    const cutoff =
-      range === 'all' ? null : format(subDays(new Date(), range === '7' ? 7 : 30), 'yyyy-MM-dd')
-    return sorted
-      .filter((e) => !cutoff || e.date >= cutoff)
-      .map((e) => ({
-        date: format(new Date(e.date + 'T00:00:00'), 'M/d') + (e.time ? ` ${e.time}` : ''),
-        体重: e.weight,
-        体脂: e.bodyFat ?? undefined,
-      }))
-  }, [sorted, range])
+  // 趋势图一天一个点：窗口过滤 + 按天聚合（同天取最后一条）见 weightChart.ts
+  const chartData = useMemo(() => dailyChartData(weights, range), [weights, range])
 
   const latest = sorted[sorted.length - 1]
   const weekAgo = useMemo(() => {
@@ -167,14 +156,14 @@ export default function BodyData({ weights, setWeights, heightCm, activity, feed
     }
     setWeights((prev) => {
       // 同一日期+时间覆盖，否则新增（同一天早晚可各记一条）
-      const rest = prev.filter((e) => keyOf(e) !== keyOf(entry))
-      return [...rest, entry].sort((a, b) => keyOf(a).localeCompare(keyOf(b)))
+      const rest = prev.filter((e) => weightEntryKey(e) !== weightEntryKey(entry))
+      return [...rest, entry].sort(compareWeightEntries)
     })
     setWeight('')
     setBodyFat('')
   }
 
-  const remove = (key: string) => setWeights((prev) => prev.filter((e) => keyOf(e) !== key))
+  const remove = (key: string) => setWeights((prev) => prev.filter((e) => weightEntryKey(e) !== key))
 
   return (
     <div className="space-y-4">
@@ -337,14 +326,14 @@ export default function BodyData({ weights, setWeights, heightCm, activity, feed
             </TableHeader>
             <TableBody>
               {[...sorted].reverse().slice(0, 15).map((e) => (
-                <TableRow key={keyOf(e)}>
+                <TableRow key={weightEntryKey(e)}>
                   <TableCell>{format(new Date(e.date + 'T00:00:00'), 'yyyy年M月d日')}</TableCell>
                   <TableCell>{e.time ?? '—'}</TableCell>
                   <TableCell className="text-right">{e.weight.toFixed(2)}</TableCell>
                   <TableCell className="text-right">{e.bodyFat != null ? e.bodyFat.toFixed(1) : '—'}</TableCell>
                   <TableCell className="text-right">{bmi(e.weight, heightCm).toFixed(1)}</TableCell>
                   <TableCell>
-                    <Button size="icon" variant="ghost" className="h-11 w-11" onClick={() => remove(keyOf(e))}>
+                    <Button size="icon" variant="ghost" className="h-11 w-11" onClick={() => remove(weightEntryKey(e))}>
                       <Trash2 className="h-4 w-4 text-muted-foreground" />
                     </Button>
                   </TableCell>
