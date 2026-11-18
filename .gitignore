@@ -11,3 +11,6 @@ app/.env.local
 
 # WorkBuddy 工作区记忆（本地助手数据，不入库）
 .workbuddy/
+
+# mirror-demos 本地下载缓存
+app/scripts/.demo-cache/

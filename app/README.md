@@ -35,4 +35,16 @@ anon key 放在前端是安全的：数据隔离由 Postgres RLS 保证，每个
 npm run dev      # 开发服务器（端口 3000）
 npm run build    # 类型检查 + 生产构建
 npm run lint     # ESLint
+npm run mirror:demos   # 维护者：镜像示范视频到 Storage（需 service role）
 ```
+
+## 示范视频 Storage（维护者）
+
+前端在有 `VITE_SUPABASE_URL` 时会从公开 bucket 读取 `exercise-demos/videos/{key}.mp4`。首次上线或补片后按顺序：
+
+1. 在 Supabase **SQL Editor** 执行 `supabase/storage-exercise-demos.sql`（建 bucket + 公开读策略）。
+2. 本机配置 `SUPABASE_SERVICE_ROLE_KEY`（仅 shell / 本地秘密，**勿提交**；与 `VITE_SUPABASE_URL` 同属一个项目）。不要用 anon key 跑镜像。
+3. 在 `app/` 目录执行 `npm run mirror:demos`（从 MuscleWiki 下载、可选 ffmpeg 压缩、上传到 Storage）。
+4. 验证若干动作示范后推 `main` 发版。
+
+缺口清单见仓库 `docs/demo-video-gaps.md`，可用 `npm run gaps:demo` 重新生成。
