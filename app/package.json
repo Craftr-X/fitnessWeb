@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test --grep @smoke",
     "test:offline": "playwright test --grep @offline",
-    "test:visual": "playwright test --grep @visual"
+    "test:visual": "playwright test --grep @visual",
+    "gaps:demo": "vitest run src/test/writeDemoGapsDoc.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
