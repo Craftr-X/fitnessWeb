@@ -51,7 +51,7 @@
   - `demoVideoUrl(key: string, supabaseUrl: string | undefined): string` — 有 supabaseUrl 时返回 Storage URL，否则返回 MuscleWiki URL
   - `collectDemoVideoKeys(): string[]` — 从 DEMOS 收集去重 key（在 demos.ts）
 
-- [ ] **Step 1: 写失败单测** `app/src/test/demoUrls.test.ts`
+- [x] **Step 1: 写失败单测** `app/src/test/demoUrls.test.ts`
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -79,12 +79,12 @@ describe('demoVideoUrl', () => {
 })
 ```
 
-- [ ] **Step 2: 跑测确认失败**
+- [x] **Step 2: 跑测确认失败**
 
 Run: `cd app && npx vitest run src/test/demoUrls.test.ts`  
 Expected: FAIL（模块不存在）
 
-- [ ] **Step 3: 实现 `demoUrls.ts`**
+- [x] **Step 3: 实现 `demoUrls.ts`**
 
 ```ts
 export const MW_MEDIA_BASE = 'https://media.musclewiki.com/media/uploads/videos/branded'
@@ -103,7 +103,7 @@ export function demoVideoUrl(key: string, supabaseUrl: string | undefined): stri
 }
 ```
 
-- [ ] **Step 4: 改 `demos.ts` 的 `mw`**
+- [x] **Step 4: 改 `demos.ts` 的 `mw`**
 
 ```ts
 import { demoVideoUrl } from '@/lib/demoUrls'
@@ -129,12 +129,12 @@ export function collectDemoVideoKeys(): string[] {
 
 同步更新 `collectDemoVideoUrls` 仍返回完整 URL 列表；`demoMedia.test.ts` 里 banned 断言继续用 `endsWith(`/${key}.mp4`)`（对 Storage 与 MW 都成立）。
 
-- [ ] **Step 5: 跑测通过**
+- [x] **Step 5: 跑测通过**
 
 Run: `cd app && npx vitest run src/test/demoUrls.test.ts src/test/demoMedia.test.tsx`  
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/src/lib/demoUrls.ts app/src/lib/demos.ts app/src/test/demoUrls.test.ts
@@ -159,7 +159,7 @@ git commit -m "feat(demo): 示范视频 URL 改走 Supabase Storage 基址"
   - `classifyDemoGaps(names: string[], getDemoFn, isAllowedMissing): DemoGap[]`
   - `formatDemoGapsMarkdown(gaps: DemoGap[], generatedAt: string): string`
 
-- [ ] **Step 1: 写失败单测**
+- [x] **Step 1: 写失败单测**
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -216,12 +216,12 @@ describe('formatDemoGapsMarkdown', () => {
 })
 ```
 
-- [ ] **Step 2: 跑测确认失败**
+- [x] **Step 2: 跑测确认失败**
 
 Run: `cd app && npx vitest run src/test/demoGaps.test.ts`  
 Expected: FAIL
 
-- [ ] **Step 3: 实现 `demoGaps.ts`**
+- [x] **Step 3: 实现 `demoGaps.ts`**
 
 ```ts
 import type { DemoInfo } from '@/lib/demos'
@@ -276,7 +276,7 @@ export function formatDemoGapsMarkdown(gaps: DemoGap[], generatedAt: string): st
 }
 ```
 
-- [ ] **Step 4: 实现生成脚本** `app/scripts/generate-demo-gaps.mjs`
+- [x] **Step 4: 实现生成脚本** `app/scripts/generate-demo-gaps.mjs`
 
 脚本职责：用 `npx tsx` 加载 `planEngine` 的 POOL + INJURY_SUBSTITUTES 动作名 + `demos` 的 getDemo；白名单与 `demos.coverage.test.ts` 的 `ALLOW_MISSING` 对齐；写 `docs/demo-video-gaps.md`。
 
@@ -346,12 +346,12 @@ export const DEMO_GAP_ALLOW_MISSING = [ ... ]
 
 测试文件调用 `classifyDemoGaps` + `writeFileSync` 写出文档（测试环境已有 vite env）。文档仍提交进 git。
 
-- [ ] **Step 5: 跑测 + 生成文档**
+- [x] **Step 5: 跑测 + 生成文档**
 
 Run: `cd app && npx vitest run src/test/demoGaps.test.ts src/test/writeDemoGapsDoc.test.ts`  
 Expected: PASS，且 `docs/demo-video-gaps.md` 生成
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/src/lib/demoGaps.ts app/src/test/demoGaps.test.ts app/src/test/writeDemoGapsDoc.test.ts docs/demo-video-gaps.md
@@ -373,7 +373,7 @@ git commit -m "docs(demo): 生成教学示范缺口清单"
 - Consumes: `collectDemoVideoKeys` 的输出；环境变量 `VITE_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
 - Produces: Storage 对象 `videos/{key}.mp4`
 
-- [ ] **Step 1: SQL 文件**
+- [x] **Step 1: SQL 文件**
 
 ```sql
 -- 在 Supabase SQL Editor 执行一次
@@ -389,7 +389,7 @@ using (bucket_id = 'exercise-demos');
 
 （若项目已有同名 policy，文档注明可 `drop policy if exists` 后重建。）
 
-- [ ] **Step 2: gitignore**
+- [x] **Step 2: gitignore**
 
 追加：
 
@@ -397,7 +397,7 @@ using (bucket_id = 'exercise-demos');
 app/scripts/.demo-cache/
 ```
 
-- [ ] **Step 3: mirror 脚本核心行为**
+- [x] **Step 3: mirror 脚本核心行为**
 
 `app/scripts/mirror-demos.mjs`：
 
@@ -421,17 +421,17 @@ for (const m of src.matchAll(/mw\(([^)]*)\)/g)) {
    Header: `Authorization: Bearer ${SERVICE_ROLE}`，`Content-Type: video/mp4`，`x-upsert: true`
 6. 汇总打印 ok/fail
 
-- [ ] **Step 4: package.json script**
+- [x] **Step 4: package.json script**
 
 ```json
 "mirror:demos": "node scripts/mirror-demos.mjs"
 ```
 
-- [ ] **Step 5: README 短说明**（`app/README.md` 末尾加一节）
+- [x] **Step 5: README 短说明**（`app/README.md` 末尾加一节）
 
 顺序：① 执行 SQL ② 本机配置 `SUPABASE_SERVICE_ROLE_KEY` ③ `npm run mirror:demos` ④ 发版
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/supabase/storage-exercise-demos.sql app/scripts/mirror-demos.mjs .gitignore app/package.json app/README.md
@@ -446,7 +446,7 @@ git commit -m "chore(demo): Supabase Storage bucket SQL 与镜像上传脚本"
 - Modify: `docs/superpowers/specs/2026-11-18-demo-supabase-storage-design.md`（状态 → 实施中/已实施）
 - Modify: `docs/superpowers/plans/2026-11-18-demo-supabase-storage.md`（勾选完成项）
 
-- [ ] **Step 1: 全量验证**
+- [x] **Step 1: 全量验证**
 
 ```bash
 cd app && npm run lint && npm test
@@ -454,7 +454,7 @@ cd app && npm run lint && npm test
 
 Expected: lint 0 error；测试全绿（含新增用例）
 
-- [ ] **Step 2: 更新 spec 状态行为「已实施（代码侧）；上传需维护者本地执行 mirror」**
+- [x] **Step 2: 更新 spec 状态行为「已实施（代码侧）；上传需维护者本地执行 mirror」**
 
 - [ ] **Step 3: 开 PR**（基于 `feat/demo-supabase-storage`）
 

@@ -1,7 +1,7 @@
 # 教学示范视频 · Supabase Storage 镜像设计
 
 **日期**：2026-11-18  
-**状态**：已批准（2026-11-18）；实现计划见 `docs/superpowers/plans/2026-11-18-demo-supabase-storage.md`  
+**状态**：已实施（代码侧）；上传需维护者本地执行 `app/supabase/storage-exercise-demos.sql` + `npm run mirror:demos`（`app/` 目录）。实现计划见 `docs/superpowers/plans/2026-11-18-demo-supabase-storage.md`  
 **范围**：迁现有 MuscleWiki 视频到自有 Storage + 产出缺视频/缺示范清单  
 **非目标**：本轮不批量抓取国外新站视频、不改计划引擎动作池
 
