@@ -58,8 +58,8 @@ function feda(...ids: string[]): DemoSource[] {
 const DEMOS: Record<string, DemoInfo> = {
   俯卧撑: {
     level: '初级',
-    front: [...mw('male-bodyweight-push-up-front', 'male-Bodyweight-push-up-front'), ...fed(0, 'Pushups')],
-    side: [...mw('male-bodyweight-push-up-side', 'male-Bodyweight-push-up-side'), ...fed(1, 'Pushups')],
+    front: [...mw('male-Bodyweight-push-up-front'), ...fed(0, 'Pushups')],
+    side: [...mw('male-Bodyweight-push-up-side'), ...fed(1, 'Pushups')],
     steps: [
       '双手稳稳撑地，位于肩膀正下方，略宽于肩',
       '背部放平，全身成一条直线，缓慢下放身体',
@@ -70,11 +70,11 @@ const DEMOS: Record<string, DemoInfo> = {
   上斜俯卧撑: {
     level: '初级',
     front: [
-      ...mw('male-bodyweight-incline-push-up-front', 'male-dumbbell-incline-bench-press-front_q2q0T12', 'male-dumbbell-incline-bench-press-front'),
+      ...mw('male-dumbbell-incline-bench-press-front'),
       ...fed(0, 'Incline_Push-Up', 'Incline_Push-Up_Medium'),
     ],
     side: [
-      ...mw('male-bodyweight-incline-push-up-side', 'male-dumbbell-incline-bench-press-side_2HBfFN3', 'male-dumbbell-incline-bench-press-side'),
+      ...mw('male-dumbbell-incline-bench-press-side'),
       ...fed(1, 'Incline_Push-Up', 'Incline_Push-Up_Medium'),
     ],
     steps: [
@@ -97,8 +97,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   凳上臂屈伸: {
     level: '中级',
-    front: [...mw('male-bodyweight-bench-dips-front', 'male-Bodyweight-bench-dips-front'), ...fed(0, 'Bench_Dips')],
-    side: [...mw('male-bodyweight-bench-dips-side', 'male-Bodyweight-bench-dips-side'), ...fed(1, 'Bench_Dips')],
+    front: [...mw('male-Bodyweight-bench-dips-front'), ...fed(0, 'Bench_Dips')],
+    side: [...mw('male-Bodyweight-bench-dips-side'), ...fed(1, 'Bench_Dips')],
     steps: [
       '背对凳子，双手撑在凳沿，指尖朝前',
       '双腿前伸，臀部悬空并靠近凳子',
@@ -125,8 +125,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   俯身哑铃划船: {
     level: '中级',
-    front: [...mw('male-dumbbell-row-bilateral-front', 'male-Dumbbells-dumbbell-row-bilateral-front'), ...fed(0, 'Bent_Over_Two-Dumbbell_Row')],
-    side: [...mw('male-dumbbell-row-bilateral-side', 'male-Dumbbells-dumbbell-row-bilateral-side'), ...fed(1, 'Bent_Over_Two-Dumbbell_Row')],
+    front: [...mw('male-Dumbbells-dumbbell-row-bilateral-front'), ...fed(0, 'Bent_Over_Two-Dumbbell_Row')],
+    side: [...mw('male-Dumbbells-dumbbell-row-bilateral-side'), ...fed(1, 'Bent_Over_Two-Dumbbell_Row')],
     steps: [
       '双手各持一只哑铃，屈髋俯身约 45°，背部平直',
       '双臂自然下垂，掌心相对',
@@ -136,8 +136,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   俯身反向飞鸟: {
     level: '中级',
-    front: [...mw('male-dumbbell-rear-delt-fly-front', 'male-Dumbbells-dumbbell-rear-delt-fly-front'), ...fed(0, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
-    side: [...mw('male-dumbbell-rear-delt-fly-side', 'male-Dumbbells-dumbbell-rear-delt-fly-side'), ...fed(1, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
+    front: [...mw('male-Dumbbells-dumbbell-rear-delt-fly-front'), ...fed(0, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
+    side: [...mw('male-Dumbbells-dumbbell-rear-delt-fly-side'), ...fed(1, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
     steps: [
       '双手持哑铃，屈髋俯身，背部平直',
       '手肘微屈保持固定角度，双臂垂于胸前',
@@ -158,8 +158,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   锤式弯举: {
     level: '初级',
-    front: [...mw('male-dumbbell-hammer-curl-front', 'male-Dumbbells-dumbbell-hammer-curl-front'), ...fed(0, 'Hammer_Curls')],
-    side: [...mw('male-dumbbell-hammer-curl-side', 'male-Dumbbells-dumbbell-hammer-curl-side'), ...fed(1, 'Hammer_Curls')],
+    front: [...mw('male-Dumbbells-dumbbell-hammer-curl-front'), ...fed(0, 'Hammer_Curls')],
+    side: [...mw('male-Dumbbells-dumbbell-hammer-curl-side'), ...fed(1, 'Hammer_Curls')],
     steps: [
       '双手持哑铃，掌心相对（锤式握法）',
       '大臂固定在体侧，只动小臂',
@@ -180,8 +180,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   哑铃侧平举: {
     level: '初级',
-    front: [...mw('male-dumbbell-lateral-raise-front', 'male-Dumbbells-dumbbell-lateral-raise-front'), ...fed(0, 'Side_Lateral_Raise', 'Dumbbell_Raise')],
-    side: [...mw('male-dumbbell-lateral-raise-side', 'male-Dumbbells-dumbbell-lateral-raise-side'), ...fed(1, 'Side_Lateral_Raise', 'Dumbbell_Raise')],
+    front: [...mw('male-Dumbbells-dumbbell-lateral-raise-front'), ...fed(0, 'Side_Lateral_Raise', 'Dumbbell_Raise')],
+    side: [...mw('male-Dumbbells-dumbbell-lateral-raise-side'), ...fed(1, 'Side_Lateral_Raise', 'Dumbbell_Raise')],
     steps: [
       '站立，双手持哑铃垂于体侧，手肘微屈',
       '向两侧举起手臂，到与肩同高即可',
@@ -191,8 +191,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   俯身侧平举: {
     level: '中级',
-    front: [...mw('male-dumbbell-rear-delt-fly-front', 'male-Dumbbells-dumbbell-rear-delt-fly-front'), ...fed(0, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
-    side: [...mw('male-dumbbell-rear-delt-fly-side', 'male-Dumbbells-dumbbell-rear-delt-fly-side'), ...fed(1, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
+    front: [...mw('male-Dumbbells-dumbbell-rear-delt-fly-front'), ...fed(0, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
+    side: [...mw('male-Dumbbells-dumbbell-rear-delt-fly-side'), ...fed(1, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
     steps: [
       '双手持轻哑铃，俯身约 45°，背部平直',
       '手肘微屈，双臂垂于胸前',
@@ -202,8 +202,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   平板支撑: {
     level: '初级',
-    front: [...mw('male-bodyweight-forearm-plank-front'), ...fed(0, 'Plank')],
-    side: [...mw('male-bodyweight-forearm-plank-side'), ...fed(1, 'Plank')],
+    front: [...mw('male-Bodyweight-forearm-plank-front'), ...fed(0, 'Plank')],
+    side: [...mw('male-Bodyweight-forearm-plank-side'), ...fed(1, 'Plank')],
     steps: [
       '前臂撑地，手肘位于肩膀正下方',
       '身体从头到脚跟成一条直线',
@@ -585,8 +585,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   俯身哑铃反向飞鸟: {
     level: '中级',
-    front: [...mw('male-dumbbell-rear-delt-fly-front', 'male-Dumbbells-dumbbell-rear-delt-fly-front'), ...fed(0, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
-    side: [...mw('male-dumbbell-rear-delt-fly-side', 'male-Dumbbells-dumbbell-rear-delt-fly-side'), ...fed(1, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
+    front: [...mw('male-Dumbbells-dumbbell-rear-delt-fly-front'), ...fed(0, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
+    side: [...mw('male-Dumbbells-dumbbell-rear-delt-fly-side'), ...fed(1, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
     steps: [
       '双手持哑铃，屈髋俯身，背部平直',
       '手肘微屈保持固定角度，双臂垂于胸前',
@@ -598,8 +598,8 @@ const DEMOS: Record<string, DemoInfo> = {
   // ===== 肩部 =====
   侧平举: {
     level: '初级',
-    front: [...mw('male-dumbbell-lateral-raise-front', 'male-Dumbbells-dumbbell-lateral-raise-front'), ...feda('Side_Lateral_Raise'), ...fed(0, 'Dumbbell_Raise')],
-    side: [...mw('male-dumbbell-lateral-raise-side', 'male-Dumbbells-dumbbell-lateral-raise-side'), ...fed(1, 'Side_Lateral_Raise'), ...fed(1, 'Dumbbell_Raise')],
+    front: [...mw('male-Dumbbells-dumbbell-lateral-raise-front'), ...feda('Side_Lateral_Raise'), ...fed(0, 'Dumbbell_Raise')],
+    side: [...mw('male-Dumbbells-dumbbell-lateral-raise-side'), ...fed(1, 'Side_Lateral_Raise'), ...fed(1, 'Dumbbell_Raise')],
     steps: [
       '站立，双手持哑铃（或装满水的水瓶）垂于体侧，手肘微屈',
       '向两侧举起手臂，到与肩同高即可',
@@ -631,8 +631,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   俯身哑铃侧平举: {
     level: '中级',
-    front: [...mw('male-dumbbell-rear-delt-fly-front', 'male-Dumbbells-dumbbell-rear-delt-fly-front'), ...fed(0, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
-    side: [...mw('male-dumbbell-rear-delt-fly-side', 'male-Dumbbells-dumbbell-rear-delt-fly-side'), ...fed(1, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
+    front: [...mw('male-Dumbbells-dumbbell-rear-delt-fly-front'), ...fed(0, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
+    side: [...mw('male-Dumbbells-dumbbell-rear-delt-fly-side'), ...fed(1, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
     steps: [
       '双手持轻哑铃，俯身约 45°，背部平直',
       '手肘微屈，双臂垂于胸前',
@@ -664,8 +664,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   反向飞鸟: {
     level: '中级',
-    front: [...mw('male-dumbbell-rear-delt-fly-front', 'male-Dumbbells-dumbbell-rear-delt-fly-front'), ...fed(0, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
-    side: [...mw('male-dumbbell-rear-delt-fly-side', 'male-Dumbbells-dumbbell-rear-delt-fly-side'), ...fed(1, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
+    front: [...mw('male-Dumbbells-dumbbell-rear-delt-fly-front'), ...fed(0, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
+    side: [...mw('male-Dumbbells-dumbbell-rear-delt-fly-side'), ...fed(1, 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench')],
     steps: [
       '双手持轻哑铃，屈髋俯身，背部平直',
       '手肘微屈，双臂自然下垂',
@@ -824,8 +824,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   轻量侧平举: {
     level: '初级',
-    front: [...mw('male-dumbbell-lateral-raise-front', 'male-Dumbbells-dumbbell-lateral-raise-front'), ...feda('Side_Lateral_Raise')],
-    side: [...mw('male-dumbbell-lateral-raise-side', 'male-Dumbbells-dumbbell-lateral-raise-side'), ...fed(1, 'Side_Lateral_Raise')],
+    front: [...mw('male-Dumbbells-dumbbell-lateral-raise-front'), ...feda('Side_Lateral_Raise')],
+    side: [...mw('male-Dumbbells-dumbbell-lateral-raise-side'), ...fed(1, 'Side_Lateral_Raise')],
     steps: [
       '站立，双手持轻哑铃（或水瓶）垂于体侧',
       '小幅向两侧抬起，到与肩高 70% 即可，不追求大幅度',
@@ -916,3 +916,39 @@ export function getDemo(exerciseName: string): DemoInfo | undefined {
   }
   return undefined
 }
+
+/** 收集示范库里全部视频 URL（去重），供健康检查 / 镜像脚本使用 */
+export function collectDemoVideoUrls(): string[] {
+  const urls = new Set<string>()
+  for (const demo of Object.values(DEMOS)) {
+    for (const source of [...demo.front, ...demo.side]) {
+      if (source.type === 'video') urls.add(source.url)
+    }
+  }
+  return [...urls]
+}
+
+/**
+ * 已实测 404、禁止再出现在示范表里的 MuscleWiki 文件名（不含扩展名）。
+ * 多半是大小写错误或带失效 hash 的旧路径；CI 静态断言用。
+ */
+export const BANNED_MW_VIDEO_KEYS = [
+  'male-bodyweight-push-up-front',
+  'male-bodyweight-push-up-side',
+  'male-bodyweight-incline-push-up-front',
+  'male-bodyweight-incline-push-up-side',
+  'male-bodyweight-bench-dips-front',
+  'male-bodyweight-bench-dips-side',
+  'male-bodyweight-forearm-plank-front',
+  'male-bodyweight-forearm-plank-side',
+  'male-dumbbell-row-bilateral-front',
+  'male-dumbbell-row-bilateral-side',
+  'male-dumbbell-rear-delt-fly-front',
+  'male-dumbbell-rear-delt-fly-side',
+  'male-dumbbell-hammer-curl-front',
+  'male-dumbbell-hammer-curl-side',
+  'male-dumbbell-lateral-raise-front',
+  'male-dumbbell-lateral-raise-side',
+  'male-dumbbell-incline-bench-press-front_q2q0T12',
+  'male-dumbbell-incline-bench-press-side_2HBfFN3',
+] as const
