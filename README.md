@@ -12,7 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![Tests](https://img.shields.io/badge/Tests-358%20passed-brightgreen)](#-常用命令)
+[![Tests](https://img.shields.io/badge/Tests-370%20passed-brightgreen)](#-常用命令)
 
 [功能特性](#-功能特性) · [应用截图](#-应用截图) · [快速开始](#-快速开始) · [部署](#-部署) · [项目结构](#-项目结构) · [更新日志](#-更新日志)
 
@@ -92,7 +92,7 @@
 | 样式 | Tailwind CSS 3、shadcn/ui（Radix UI） |
 | 后端 | Supabase（Auth + Postgres + RLS） |
 | 可视化 | Recharts（懒加载，只在数据页下载） |
-| 测试 | Vitest + Testing Library（358 个单元测试）；Playwright（4 条冒烟 + 3 条离线 + 4 条视觉，真实 Chromium + 本地 mock 后端） |
+| 测试 | Vitest + Testing Library（370 个单元测试）；Playwright（4 条冒烟 + 3 条离线 + 4 条视觉，真实 Chromium + 本地 mock 后端） |
 | CI/CD | GitHub Actions：`check`（lint + test + build）→ Pages 部署；PR 额外跑独立 `e2e` job；Supabase 每日保活 |
 
 ## 🚀 快速开始
@@ -122,7 +122,7 @@ Supabase 配置（建表 + RLS + Auth）详见 [`app/README.md`](app/README.md)�
 cd app
 npm run dev          # 开发服务器（http://localhost:3000）
 npm run build        # 类型检查 + 生产构建
-npm run test         # 单元测试（358 个）
+npm run test         # 单元测试（370 个）
 npm run test:e2e     # Playwright 冒烟（4 条，真实 Chromium + 本地 mock 后端）
 npm run test:offline # 弱网 / 离线端到端（3 条，含故障注入）
 npm run test:visual  # 生成弹层 / 离线横幅 / UI 前后对比的 390/1440 深浅色截图留档
@@ -149,7 +149,7 @@ fitnessWeb/
 │   │   ├── components/       # 业务组件（TodayHero、SettingsDialog、FeedbackDialog 等）
 │   │   ├── components/ui/    # shadcn/ui 组件（按需保留，23 个）
 │   │   ├── hooks/            # useAuth、useCountUp 等
-│   │   ├── test/             # Vitest 单元测试（30 个测试文件 / 358 例）
+│   │   ├── test/             # Vitest 单元测试（31 个测试文件 / 370 例）
 │   │   └── types/            # TypeScript 类型定义
 │   ├── e2e/                  # Playwright 用例（冒烟 / 离线 / 视觉）+ 本地 mock Supabase
 │   ├── supabase/schema.sql   # 建表 + RLS 策略
@@ -298,6 +298,15 @@ fitnessWeb/
 - **缺口清单**：`docs/demo-video-gaps.md` 由 `classifyDemoGaps` 生成；日常 `npm test` 只防内容与清单漂移，`npm run gaps:demo` 才重写文档
 - **本地镜像**：`npm run mirror:demos` 下载 MW、可选 ffmpeg 压缩后用 service role 上传（需 `apikey` + `Authorization`）
 - 单测 347 → **358**（新增 `demoUrls` / `demoGaps` / `writeDemoGapsDoc` 等 11 例，30 个测试文件）
+
+### 2026-11-19 · 记组弹窗迷你趋势 + PR 标记（T10）
+
+- **迷你趋势**：记组弹窗内对负重动作展示最近 5 次最大重量 SVG 折线（不开新页）
+- **PR 标记**：末点达历史最大显示 PR；保存创新高时 toast「新纪录」
+- 单测 358 → **370**（新增 `setLogTrend` 与弹窗趋势/PR 断言等 12 例，31 个测试文件）；
+  `lint` 0 error、`build` 通过、`@smoke` 连跑 3 次全绿
+- 方案见 `docs/2026-11-19-t10-setlog-mini-trend-plan.md`；**本轮不含** 完整历史页（触发制）、
+  自重/时间类次数趋势、SW / PWA
 
 ## 🤝 参与贡献
 
