@@ -21,6 +21,13 @@ import { describeChange, diffWeekPlans, summarizePlanDiff } from '@/lib/planDiff
 import { burstAt, celebrateDayDone, celebrateWeekDone } from '@/lib/celebrate'
 import { getDemo } from '@/lib/demos'
 import ExerciseDemoButton from '@/components/ExerciseDemoButton'
+import SetLogMiniTrend from '@/components/SetLogMiniTrend'
+import {
+  allTimeMaxWeight,
+  isNewPr,
+  recentMaxWeightPoints,
+  sessionMaxWeight,
+} from '@/lib/setLogTrend'
 import type { ActivityMap, CheckMap, Exercise, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, WorkoutSet } from '@/types'
 
 interface Props {
@@ -89,6 +96,8 @@ interface ExerciseLogDialogProps {
   weekRecords: ExerciseLogRecord[]
   /** 本周（>= 周一）其他日期的记录，倒序展示 */
   weekHistory: ExerciseLogRecord[]
+  /** 该动作全部训练记录（含跨周，受 cap 限制），用于迷你趋势与 PR */
+  historyRecords: ExerciseLogRecord[]
   todayStr: string
   /** 校验通过后提交本次编辑（X / 遮罩关闭不会触发） */
   onSave: (sets: WorkoutSet[]) => void
@@ -131,12 +140,21 @@ function ExerciseLogDialog({
   lastRec,
   weekRecords,
   weekHistory,
+  historyRecords,
   todayStr,
   onSave,
   onClear,
   onRestStart,
 }: ExerciseLogDialogProps) {
   const weighted = loadType === 'weighted'
+  const trendPoints = useMemo(
+    () => (weighted ? recentMaxWeightPoints(historyRecords, todayStr, 5) : []),
+    [weighted, historyRecords, todayStr],
+  )
+  const allTimeMax = useMemo(
+    () => (weighted ? allTimeMaxWeight(historyRecords) : 0),
+    [weighted, historyRecords],
+  )
   /** 次数列的单位与文案（时间类动作记秒数） */
   const repsUnit = loadType === 'timed' ? '秒' : '次'
   // 编辑草稿：弹窗打开期间的唯一真相，完成时才提交
@@ -224,6 +242,12 @@ function ExerciseLogDialog({
       toast.error(`第 ${idx + 1} 组的${fields}为 0，请填写实际数值后再完成`)
       return
     }
+    if (weighted) {
+      const newSessionMax = sessionMaxWeight(effective)
+      if (newSessionMax != null && isNewPr(allTimeMax, newSessionMax)) {
+        toast.success('新纪录 🎉 刷新个人最好重量')
+      }
+    }
     onSave(sets)
     onOpenChange(false)
     onRestStart?.() // 保存成功 = 训练在继续，自动开始组间休息
@@ -271,6 +295,10 @@ function ExerciseLogDialog({
                 color="text-sky-600 dark:text-sky-400"
               />
             </div>
+          )}
+
+          {weighted && trendPoints.length > 0 && (
+            <SetLogMiniTrend points={trendPoints} allTimeMax={allTimeMax} />
           )}
 
           {/* 上次记录提示（训记式预填来源） */}
@@ -902,6 +930,7 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
                 .filter((r) => r.date >= weekPlan.startDate && r.date !== todayStr)
                 .slice()
                 .reverse()}
+              historyRecords={records}
               todayStr={todayStr}
               onSave={(sets) => {
                 setSetLogs((prev) =>
