@@ -268,6 +268,38 @@ describe('负重动作（哑铃弯举）', () => {
     expect(within(dialog).getByText(/已为你预填/)).toBeInTheDocument()
     expect((screen.getByLabelText('第 1 组重量（kg）') as HTMLInputElement).value).toBe('10')
     expect((screen.getByLabelText('第 3 组重量（kg）') as HTMLInputElement).value).toBe('12.5')
+    expect(within(dialog).getByTestId('setlog-mini-trend')).toBeInTheDocument()
+    expect(within(dialog).getByText('仅 1 次记录')).toBeInTheDocument()
+    expect(within(dialog).getByTestId('setlog-pr-badge')).toBeInTheDocument()
+  })
+
+  it('≥2 次历史时展示迷你折线与最近场次文案', async () => {
+    const user = userEvent.setup()
+    const d1 = format(addDays(today, -14), 'yyyy-MM-dd')
+    const d2 = format(addDays(today, -7), 'yyyy-MM-dd')
+    const initialLogs: ExerciseLogMap = {
+      [WEIGHTED_EX]: [
+        { date: d1, week: 1, sets: [{ weightKg: 15, reps: 10 }] },
+        { date: d2, week: 1, sets: [{ weightKg: 12.5, reps: 8 }] },
+      ],
+    }
+    render(<Harness initialLogs={initialLogs} />)
+    const dialog = await openDialogFor(user, WEIGHTED_EX)
+    expect(within(dialog).getByTestId('setlog-mini-trend')).toBeInTheDocument()
+    expect(within(dialog).getByText('最近 2 次')).toBeInTheDocument()
+    expect(within(dialog).queryByTestId('setlog-pr-badge')).not.toBeInTheDocument()
+  })
+
+  it('破纪录保存后 toast 轻提示', async () => {
+    const user = userEvent.setup()
+    const initialLogs: ExerciseLogMap = {
+      [WEIGHTED_EX]: [{ date: format(addDays(today, -3), 'yyyy-MM-dd'), week: 1, sets: [{ weightKg: 20, reps: 6 }] }],
+    }
+    render(<Harness initialLogs={initialLogs} />)
+    const dialog = await openDialogFor(user, WEIGHTED_EX)
+    await fillSet(user, 1, '25', '5')
+    await user.click(within(dialog).getByRole('button', { name: '完成' }))
+    expect(await screen.findByText(/新纪录/)).toBeInTheDocument()
   })
 
   it('今天的记录显示为"本次"而不是"上次"', () => {
