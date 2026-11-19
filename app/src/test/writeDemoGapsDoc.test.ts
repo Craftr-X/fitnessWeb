@@ -16,7 +16,9 @@ const shouldWriteDoc =
   process.env.GAPS_WRITE === '1' || process.env.npm_lifecycle_event === 'gaps:demo'
 
 function stripGeneratedDateLine(md: string): string {
-  return md.replace(/^> 生成日期：.*\n/m, '> 生成日期：<fixed>\n')
+  return md
+    .replace(/\r\n/g, '\n')
+    .replace(/^> 生成日期：.*\n/m, '> 生成日期：<fixed>\n')
 }
 
 describe('writeDemoGapsDoc', () => {
