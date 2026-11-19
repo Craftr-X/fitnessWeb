@@ -110,6 +110,7 @@ for (const key of [...keys].sort()) {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${serviceRoleKey}`,
+        apikey: serviceRoleKey,
         'Content-Type': 'video/mp4',
         'x-upsert': 'true',
       },
