@@ -111,11 +111,11 @@ const DEMOS: Record<string, DemoInfo> = {
   单臂哑铃划船: {
     level: '初级',
     front: [
-      ...mw('male-Dumbbells-dumbbell-kneeling-single-arm-row-front', 'male-dumbbell-kneeling-single-arm-row-front'),
+      ...mw('male-Dumbbells-dumbbell-kneeling-single-arm-row-front'),
       ...fed(0, 'One-Arm_Dumbbell_Row'),
     ],
     side: [
-      ...mw('male-Dumbbells-dumbbell-kneeling-single-arm-row-side', 'male-dumbbell-kneeling-single-arm-row-side'),
+      ...mw('male-Dumbbells-dumbbell-kneeling-single-arm-row-side'),
       ...fed(1, 'One-Arm_Dumbbell_Row'),
     ],
     steps: [
@@ -149,8 +149,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   哑铃弯举: {
     level: '初级',
-    front: [...mw('male-Dumbbells-dumbbell-curl-front', 'male-dumbbell-bicep-curl-front'), ...fed(0, 'Dumbbell_Bicep_Curl')],
-    side: [...mw('male-Dumbbells-dumbbell-curl-side', 'male-dumbbell-bicep-curl-side'), ...fed(1, 'Dumbbell_Bicep_Curl')],
+    front: [...mw('male-Dumbbells-dumbbell-curl-front'), ...fed(0, 'Dumbbell_Bicep_Curl')],
+    side: [...mw('male-Dumbbells-dumbbell-curl-side'), ...fed(1, 'Dumbbell_Bicep_Curl')],
     steps: [
       '站立，双手各持一只哑铃，掌心朝前',
       '大臂贴紧身体，固定不动',
@@ -171,8 +171,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   哑铃肩上推举: {
     level: '中级',
-    front: [...mw('male-Dumbbells-dumbbell-overhead-press-front', 'male-dumbbell-shoulder-press-front'), ...fed(0, 'Dumbbell_Shoulder_Press')],
-    side: [...mw('male-Dumbbells-dumbbell-overhead-press-side', 'male-dumbbell-shoulder-press-side'), ...fed(1, 'Dumbbell_Shoulder_Press')],
+    front: [...mw('male-Dumbbells-dumbbell-overhead-press-front'), ...fed(0, 'Dumbbell_Shoulder_Press')],
+    side: [...mw('male-Dumbbells-dumbbell-overhead-press-side'), ...fed(1, 'Dumbbell_Shoulder_Press')],
     steps: [
       '坐在椅子或站立，双手持哑铃举到耳侧，掌心朝前',
       '核心收紧，腰背不要过度后仰',
@@ -644,8 +644,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   '杠铃/哑铃肩上推举': {
     level: '中级',
-    front: [...mw('male-Dumbbells-dumbbell-overhead-press-front', 'male-dumbbell-shoulder-press-front'), ...fed(0, 'Dumbbell_Shoulder_Press')],
-    side: [...mw('male-Dumbbells-dumbbell-overhead-press-side', 'male-dumbbell-shoulder-press-side'), ...fed(1, 'Dumbbell_Shoulder_Press')],
+    front: [...mw('male-Dumbbells-dumbbell-overhead-press-front'), ...fed(0, 'Dumbbell_Shoulder_Press')],
+    side: [...mw('male-Dumbbells-dumbbell-overhead-press-side'), ...fed(1, 'Dumbbell_Shoulder_Press')],
     steps: [
       '双手持杠铃或哑铃，举到肩部高度，掌心朝前',
       '核心收紧，腰背不要过度后仰',
@@ -655,8 +655,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   肩上推举: {
     level: '中级',
-    front: [...mw('male-Dumbbells-dumbbell-overhead-press-front', 'male-dumbbell-shoulder-press-front'), ...fed(0, 'Dumbbell_Shoulder_Press')],
-    side: [...mw('male-Dumbbells-dumbbell-overhead-press-side', 'male-dumbbell-shoulder-press-side'), ...fed(1, 'Dumbbell_Shoulder_Press')],
+    front: [...mw('male-Dumbbells-dumbbell-overhead-press-front'), ...fed(0, 'Dumbbell_Shoulder_Press')],
+    side: [...mw('male-Dumbbells-dumbbell-overhead-press-side'), ...fed(1, 'Dumbbell_Shoulder_Press')],
     steps: [
       '双手持杠铃或哑铃，举到肩部高度，掌心朝前',
       '核心收紧，腰背不要过度后仰',
@@ -966,4 +966,10 @@ export const BANNED_MW_VIDEO_KEYS = [
   'male-dumbbell-lateral-raise-side',
   'male-dumbbell-incline-bench-press-front_q2q0T12',
   'male-dumbbell-incline-bench-press-side_2HBfFN3',
+  'male-dumbbell-bicep-curl-front',
+  'male-dumbbell-bicep-curl-side',
+  'male-dumbbell-kneeling-single-arm-row-front',
+  'male-dumbbell-kneeling-single-arm-row-side',
+  'male-dumbbell-shoulder-press-front',
+  'male-dumbbell-shoulder-press-side',
 ] as const
