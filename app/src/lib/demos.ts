@@ -362,8 +362,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   哑铃高脚杯深蹲: {
     level: '初级',
-    front: [...feda('Dumbbell_Squat'), ...fed(0, 'Bodyweight_Squat')],
-    side: [...fed(1, 'Dumbbell_Squat'), ...fed(1, 'Bodyweight_Squat')],
+    front: [...mw('male-dumbbell-goblet-squat-front'), ...feda('Dumbbell_Squat'), ...fed(0, 'Bodyweight_Squat')],
+    side: [...mw('male-dumbbell-goblet-squat-side'), ...fed(1, 'Dumbbell_Squat'), ...fed(1, 'Bodyweight_Squat')],
     steps: [
       '双手捧一只哑铃竖立于胸前（高脚杯握法）',
       '双脚与肩同宽，挺胸收腹，哑铃贴近身体',
@@ -439,8 +439,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   腿举: {
     level: '中级',
-    front: [...fed(0, 'Leg_Press')],
-    side: [...fed(1, 'Leg_Press')],
+    front: [...mw('male-Machine-machine-leg-press-front'), ...fed(0, 'Leg_Press')],
+    side: [...mw('male-Machine-machine-leg-press-side'), ...fed(1, 'Leg_Press')],
     steps: [
       '坐在腿举机上，双脚与肩同宽放在踏板中上部',
       '解锁安全锁，双脚蹬起重量，膝盖不完全锁死',
@@ -452,8 +452,8 @@ const DEMOS: Record<string, DemoInfo> = {
   // ===== 胸部（卧推 / 飞鸟补充） =====
   哑铃卧推: {
     level: '初级',
-    front: [...feda('Dumbbell_Bench_Press')],
-    side: [...fed(1, 'Dumbbell_Bench_Press')],
+    front: [...mw('male-dumbbell-bench-press-front'), ...feda('Dumbbell_Bench_Press')],
+    side: [...mw('male-dumbbell-bench-press-side'), ...fed(1, 'Dumbbell_Bench_Press')],
     steps: [
       '仰卧在凳子或地板上，双手持哑铃置于胸部两侧',
       '掌心朝前，哑铃与身体在同一平面，手肘约 45°',
@@ -463,8 +463,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   哑铃上斜卧推: {
     level: '初级',
-    front: [...fed(0, 'Dumbbell_Bench_Press'), ...fed(0, 'Incline_Dumbbell_Press')],
-    side: [...fed(1, 'Dumbbell_Bench_Press'), ...fed(1, 'Incline_Dumbbell_Press')],
+    front: [...mw('male-dumbbell-incline-bench-press-front'), ...fed(0, 'Dumbbell_Bench_Press'), ...fed(0, 'Incline_Dumbbell_Press')],
+    side: [...mw('male-dumbbell-incline-bench-press-side'), ...fed(1, 'Dumbbell_Bench_Press'), ...fed(1, 'Incline_Dumbbell_Press')],
     steps: [
       '仰卧在上斜凳上（30-45°），双手持哑铃置于胸部两侧',
       '掌心朝前，哑铃与身体在同一平面，手肘约 45°',
@@ -474,8 +474,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   上斜哑铃卧推: {
     level: '初级',
-    front: [...fed(0, 'Incline_Dumbbell_Press'), ...fed(0, 'Dumbbell_Bench_Press')],
-    side: [...fed(1, 'Incline_Dumbbell_Press'), ...fed(1, 'Dumbbell_Bench_Press')],
+    front: [...mw('male-dumbbell-incline-bench-press-front'), ...fed(0, 'Incline_Dumbbell_Press'), ...fed(0, 'Dumbbell_Bench_Press')],
+    side: [...mw('male-dumbbell-incline-bench-press-side'), ...fed(1, 'Incline_Dumbbell_Press'), ...fed(1, 'Dumbbell_Bench_Press')],
     steps: [
       '仰卧在上斜凳上（30-45°），双手持哑铃置于胸部两侧',
       '掌心朝前，哑铃与身体在同一平面，手肘约 45°',
@@ -496,8 +496,10 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   毛巾飞鸟: {
     level: '初级',
-    front: [...fed(0, 'Dumbbell_Flyes')],
-    side: [...fed(1, 'Dumbbell_Flyes')],
+    // 近似：哑铃飞鸟（毛巾版无独立片源）
+    front: [...mw('male-dumbbell-chest-fly-front'), ...fed(0, 'Dumbbell_Flyes')],
+    side: [...mw('male-dumbbell-chest-fly-side'), ...fed(1, 'Dumbbell_Flyes')],
+    mediaLabels: ['哑铃飞鸟（近似）', '侧面'],
     steps: [
       '仰卧在瑜伽垫上，双手各握毛巾一端横跨胸前（模拟哑铃飞鸟）',
       '双手向两侧打开，主动收紧胸部，毛巾保持张力',
@@ -507,8 +509,10 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   绳索飞鸟: {
     level: '中级',
-    front: [...fed(0, 'Dumbbell_Flyes')],
-    side: [...fed(1, 'Dumbbell_Flyes')],
+    // 近似：哑铃飞鸟（绳索片源暂缺）
+    front: [...mw('male-dumbbell-chest-fly-front'), ...fed(0, 'Dumbbell_Flyes')],
+    side: [...mw('male-dumbbell-chest-fly-side'), ...fed(1, 'Dumbbell_Flyes')],
+    mediaLabels: ['哑铃飞鸟（近似）', '侧面'],
     steps: [
       '把绳索滑轮调到高位或中位，双手握把手前倾站立',
       '双臂微屈固定，身体略前倾，核心收紧',
@@ -553,9 +557,10 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   '俯卧 Y-T-W': {
     level: '初级',
-    front: [...feda('Superman')],
-    side: [...fed(1, 'Superman')],
-    mediaLabels: ['超人式（近似）', '超人式侧面'],
+    // 近似：俯身反向飞鸟（上背/肩后束激活）；无独立 Y-T-W 片源
+    front: [...mw('male-Dumbbells-dumbbell-rear-delt-fly-front'), ...feda('Superman')],
+    side: [...mw('male-Dumbbells-dumbbell-rear-delt-fly-side'), ...fed(1, 'Superman')],
+    mediaLabels: ['反向飞鸟（近似）', '侧面'],
     steps: [
       '俯卧在瑜伽垫上，双手向前伸直，拇指朝上',
       '肩胛骨下沉后收，把手臂抬离地面呈 Y 字形',
@@ -565,8 +570,10 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   超人式: {
     level: '初级',
-    front: [...feda('Superman')],
-    side: [...fed(1, 'Superman')],
+    // 近似：俯身反向飞鸟（暂无超人式独立片源）
+    front: [...mw('male-Dumbbells-dumbbell-rear-delt-fly-front'), ...feda('Superman')],
+    side: [...mw('male-Dumbbells-dumbbell-rear-delt-fly-side'), ...fed(1, 'Superman')],
+    mediaLabels: ['反向飞鸟（近似）', '侧面'],
     steps: [
       '俯卧在瑜伽垫上，双手向前伸直，双腿并拢',
       '同时抬起双手和双脚，胸口和大腿抬离地面',
@@ -576,8 +583,10 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   反向雪天使: {
     level: '初级',
-    front: [...feda('Superman')],
-    side: [...fed(1, 'Superman')],
+    // 近似：俯身反向飞鸟（上背激活）
+    front: [...mw('male-Dumbbells-dumbbell-rear-delt-fly-front'), ...feda('Superman')],
+    side: [...mw('male-Dumbbells-dumbbell-rear-delt-fly-side'), ...fed(1, 'Superman')],
+    mediaLabels: ['反向飞鸟（近似）', '侧面'],
     steps: [
       '俯卧在瑜伽垫上，额头贴地，双手放体侧掌心朝下',
       '双手和前臂抬离地面，沿体侧向脚的方向划动',
@@ -611,8 +620,10 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   折刀俯卧撑: {
     level: '中级',
-    front: [...feda('Incline_Push-Up'), ...fed(0, 'Handstand_Push-Ups')],
-    side: [...fed(1, 'Incline_Push-Up'), ...fed(1, 'Handstand_Push-Ups')],
+    // 近似：肩上推举（肩部主导发力模式）；无折刀俯卧撑独立片源
+    front: [...mw('male-Dumbbells-dumbbell-overhead-press-front'), ...feda('Incline_Push-Up'), ...fed(0, 'Handstand_Push-Ups')],
+    side: [...mw('male-Dumbbells-dumbbell-overhead-press-side'), ...fed(1, 'Incline_Push-Up'), ...fed(1, 'Handstand_Push-Ups')],
+    mediaLabels: ['肩推（近似）', '侧面'],
     steps: [
       '从下犬式开始，双手撑地略宽于肩，臀部高抬成倒 V 字',
       '头部正对双手之间，重心前移',
@@ -622,8 +633,10 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   靠墙倒立撑: {
     level: '中级',
-    front: [...fed(0, 'Handstand_Push-Ups')],
-    side: [...fed(1, 'Handstand_Push-Ups')],
+    // 近似：肩上推举（垂直推模式）
+    front: [...mw('male-Dumbbells-dumbbell-overhead-press-front'), ...fed(0, 'Handstand_Push-Ups')],
+    side: [...mw('male-Dumbbells-dumbbell-overhead-press-side'), ...fed(1, 'Handstand_Push-Ups')],
+    mediaLabels: ['肩推（近似）', '侧面'],
     steps: [
       '面对墙双手撑地，双腿蹬上墙成倒立，双手与肩同宽',
       '核心收紧，身体保持一条直线，避免塌腰',
@@ -679,8 +692,10 @@ const DEMOS: Record<string, DemoInfo> = {
   // ===== 手臂 =====
   哑铃三头臂屈伸: {
     level: '初级',
-    front: [...feda('Standing_Dumbbell_Triceps_Extension')],
-    side: [...fed(1, 'Standing_Dumbbell_Triceps_Extension')],
+    // 近似：绳索下压（三头主导）；无独立颈后臂屈伸片源
+    front: [...mw('male-Cables-cable-push-down-front'), ...feda('Standing_Dumbbell_Triceps_Extension')],
+    side: [...mw('male-Cables-cable-push-down-side'), ...fed(1, 'Standing_Dumbbell_Triceps_Extension')],
+    mediaLabels: ['绳索下压（近似）', '侧面'],
     steps: [
       '站立或坐姿，双手托住一只哑铃顶端，举过头顶',
       '大臂贴近耳朵保持固定，手肘指向天花板',
@@ -690,8 +705,10 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   哑铃颈后臂屈伸: {
     level: '初级',
-    front: [...feda('Standing_Dumbbell_Triceps_Extension')],
-    side: [...fed(1, 'Standing_Dumbbell_Triceps_Extension')],
+    // 近似：绳索下压（三头主导）
+    front: [...mw('male-Cables-cable-push-down-front'), ...feda('Standing_Dumbbell_Triceps_Extension')],
+    side: [...mw('male-Cables-cable-push-down-side'), ...fed(1, 'Standing_Dumbbell_Triceps_Extension')],
+    mediaLabels: ['绳索下压（近似）', '侧面'],
     steps: [
       '坐姿或站立，单手或双手持哑铃举过头顶',
       '大臂贴近耳朵保持固定不动',
@@ -712,8 +729,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   牧师椅弯举: {
     level: '初级',
-    front: [...feda('Preacher_Curl')],
-    side: [...fed(1, 'Preacher_Curl')],
+    front: [...mw('male-Dumbbells-dumbbell-preacher-curl-front'), ...feda('Preacher_Curl')],
+    side: [...mw('male-Dumbbells-dumbbell-preacher-curl-side'), ...fed(1, 'Preacher_Curl')],
     steps: [
       '坐在牧师椅前，大臂贴紧斜垫，双手握杠（或哑铃）',
       '大臂固定在垫上不动，肩膀放松',
@@ -723,8 +740,8 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   杠铃弯举: {
     level: '初级',
-    front: [...feda('Barbell_Curl')],
-    side: [...fed(1, 'Barbell_Curl')],
+    front: [...mw('male-Barbell-barbell-curl-front'), ...feda('Barbell_Curl')],
+    side: [...mw('male-Barbell-barbell-curl-side'), ...fed(1, 'Barbell_Curl')],
     steps: [
       '站立，双手反握杠铃与肩同宽，大臂贴紧身体',
       '大臂固定不动，肩膀放松下沉',
@@ -734,8 +751,10 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   窄距俯卧撑: {
     level: '中级',
-    front: [...feda('Push-Ups_-_Close_Triceps_Position'), ...fed(0, 'Pushups')],
-    side: [...fed(1, 'Push-Ups_-_Close_Triceps_Position'), ...fed(1, 'Pushups')],
+    // 近似：标准俯卧撑（窄距独立片源暂缺）
+    front: [...mw('male-Bodyweight-push-up-front'), ...feda('Push-Ups_-_Close_Triceps_Position'), ...fed(0, 'Pushups')],
+    side: [...mw('male-Bodyweight-push-up-side'), ...fed(1, 'Push-Ups_-_Close_Triceps_Position'), ...fed(1, 'Pushups')],
+    mediaLabels: ['俯卧撑（近似）', '侧面'],
     steps: [
       '双手撑地位于胸部正下方，比肩略窄，食指拇指相对成菱形',
       '身体从头到脚成一条直线，核心收紧',
@@ -745,8 +764,10 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   毛巾弯举: {
     level: '初级',
-    front: [...feda('Dumbbell_Bicep_Curl'), ...fed(0, 'Hammer_Curls')],
-    side: [...fed(1, 'Dumbbell_Bicep_Curl'), ...fed(1, 'Hammer_Curls')],
+    // 近似：哑铃弯举（毛巾等长收缩无独立片源）
+    front: [...mw('male-Dumbbells-dumbbell-curl-front'), ...feda('Dumbbell_Bicep_Curl'), ...fed(0, 'Hammer_Curls')],
+    side: [...mw('male-Dumbbells-dumbbell-curl-side'), ...fed(1, 'Dumbbell_Bicep_Curl'), ...fed(1, 'Hammer_Curls')],
+    mediaLabels: ['哑铃弯举（近似）', '侧面'],
     steps: [
       '站立，双手抓毛巾两端，一脚踩毛巾中段',
       '大臂贴紧身体固定，肩膀下沉',
@@ -791,8 +812,10 @@ const DEMOS: Record<string, DemoInfo> = {
   },
   悬垂举腿: {
     level: '中级',
-    front: [...feda('Hanging_Leg_Raise')],
-    side: [...fed(1, 'Hanging_Leg_Raise')],
+    // 近似：卷腹（核心屈曲）；无悬垂举腿独立片源
+    front: [...mw('male-bodyweight-crunch-front'), ...feda('Hanging_Leg_Raise')],
+    side: [...mw('male-bodyweight-crunch-side'), ...fed(1, 'Hanging_Leg_Raise')],
+    mediaLabels: ['卷腹（近似）', '侧面'],
     steps: [
       '双手正握单杠，身体自然下垂，肩胛骨下沉',
       '核心收紧，腹部发力把双腿抬起至与地面平行或更高',
@@ -815,8 +838,8 @@ const DEMOS: Record<string, DemoInfo> = {
   // ===== 伤病替代动作 =====
   靠墙静蹲: {
     level: '初级',
-    front: [...fed(0, 'Bodyweight_Squat')],
-    side: [...fed(1, 'Bodyweight_Squat')],
+    front: [...mw('male-Bodyweight-wall-sit-front'), ...fed(0, 'Bodyweight_Squat')],
+    side: [...mw('male-Bodyweight-wall-sit-side'), ...fed(1, 'Bodyweight_Squat')],
     steps: [
       '背靠墙站立，双脚向前迈出约一步距离',
       '沿墙缓慢下蹲，直到大腿与地面平行（膝盖不超过 90°）',

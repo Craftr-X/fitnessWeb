@@ -1,6 +1,6 @@
 # 教学示范视频缺口清单
 
-> 生成日期：2026-11-18。再生成：`cd app && npm run gaps:demo`（或 `vitest run src/test/writeDemoGapsDoc.test.ts`）。勿手改分类结果。
+> 生成日期：2026-11-19。再生成：`cd app && npm run gaps:demo`（或 `vitest run src/test/writeDemoGapsDoc.test.ts`）。勿手改分类结果。
 
 补片流程：压缩上传到 `exercise-demos/videos/{key}.mp4` → 在 `demos.ts` 的对应动作加 `mw('key')` → 重跑 `npm run gaps:demo`。
 
@@ -10,24 +10,4 @@
 
 ## 仅有图无视频
 
-- 超人式（练下背）
-- 反向雪天使
-- 俯卧 Y-T-W 抬起（练上背）
-- 杠铃弯举
-- 靠墙倒立撑（进阶）
-- 靠墙静蹲
-- 毛巾飞鸟
-- 毛巾弯举（等长收缩）
-- 牧师椅弯举
-- 上斜哑铃卧推
-- 绳索飞鸟 / 蝴蝶机
-- 腿举
-- 悬垂举腿
-- 哑铃高脚杯深蹲
-- 哑铃颈后臂屈伸（三头）
-- 哑铃三头臂屈伸
-- 哑铃上斜卧推
-- 哑铃卧推
-- 哑铃卧推（地板/凳子）
-- 窄距俯卧撑（练三头）
-- 折刀俯卧撑（练肩）
+- （无）
