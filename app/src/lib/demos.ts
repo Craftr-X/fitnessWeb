@@ -1,3 +1,5 @@
+import { demoVideoUrl } from '@/lib/demoUrls'
+
 /**
  * 动作示范数据。
  * 首选动图来源：MuscleWiki（https://musclewiki.com/zh-cn）的品牌示范视频（mp4，正面/侧面双视角）；
@@ -32,12 +34,12 @@ export function pickVideoPoster(sources: DemoSource[]): string | undefined {
   return sources.find((s) => s.type === 'img')?.url
 }
 
-const MW_BASE = 'https://media.musclewiki.com/media/uploads/videos/branded'
 const FED_BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises'
 
 /** MuscleWiki 示范视频，key 为文件名（不含扩展名） */
 function mw(...keys: string[]): DemoSource[] {
-  return keys.map((key) => ({ type: 'video' as const, url: `${MW_BASE}/${key}.mp4` }))
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
+  return keys.map((key) => ({ type: 'video' as const, url: demoVideoUrl(key, supabaseUrl) }))
 }
 
 /** free-exercise-db 备用图，id 为目录名，frame 0=正面 1=侧面 */
@@ -926,6 +928,19 @@ export function collectDemoVideoUrls(): string[] {
     }
   }
   return [...urls]
+}
+
+/** 收集示范库视频 key（文件名无扩展名），供镜像脚本 / gaps 使用 */
+export function collectDemoVideoKeys(): string[] {
+  const keys = new Set<string>()
+  for (const demo of Object.values(DEMOS)) {
+    for (const source of [...demo.front, ...demo.side]) {
+      if (source.type !== 'video') continue
+      const m = source.url.match(/\/([^/]+)\.mp4(?:\?.*)?$/)
+      if (m) keys.add(m[1])
+    }
+  }
+  return [...keys]
 }
 
 /**
