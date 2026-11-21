@@ -12,9 +12,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ArrowLeftRight, ArrowRightCircle, BedDouble, CalendarClock, ChevronDown, Copy, Dumbbell, History, Info, Leaf, Plus, Timer, Trash2, Trophy } from 'lucide-react'
+import { ArrowLeftRight, ArrowRightCircle, ArrowRightLeft, BedDouble, CalendarClock, ChevronDown, Copy, Dumbbell, History, Info, Leaf, Plus, Timer, Trash2, Trophy } from 'lucide-react'
 import { toast } from 'sonner'
-import { currentMonday, bumpActivity, exerciseWeekStats, getLastLogBefore, getLogForDate, inferLoadType, parseSetTarget, removeExerciseLog, upsertExerciseLog } from '@/lib/store'
+import { bumpActivity, clearChecksForDays, currentMonday, exerciseWeekStats, getLastLogBefore, getLogForDate, inferLoadType, parseSetTarget, removeExerciseLog, rescheduleTrainingDay, upsertExerciseLog } from '@/lib/store'
 import type { SetTarget } from '@/lib/store'
 import { buildNextWeekPlan, buildWeekPlanFromProfile, copyWeekPlanFromProfile, groupFromFocus, listAlternatives, tuneByGoal } from '@/lib/planEngine'
 import { describeChange, diffWeekPlans, summarizePlanDiff } from '@/lib/planDiff'
@@ -609,6 +609,19 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
     toast.success(`已替换为「${replacement.name}」`)
   }
 
+  // 今日训练顺延到下一个休息日：交换两天后清理两天的勾选，
+  // 避免原日期的完成状态跟着动作错位（训练日历活跃度保留为历史记录）。
+  const rescheduleToday = (todayIdx: number) => {
+    const result = rescheduleTrainingDay(weekPlan, todayIdx)
+    if (!result) {
+      toast.error('本周没有可顺延的休息日')
+      return
+    }
+    setWeekPlan(result.plan)
+    setChecks((prev) => clearChecksForDays(prev, weekPlan.week, [todayIdx, result.targetIdx]))
+    toast.success(`已将今日训练顺延至${result.plan.days[result.targetIdx].day}`)
+  }
+
   const toggle = (di: number, ei: number) => {
     const key = `${weekPlan.week}:${di}:${ei}`
     const willCheck = !checks[key]
@@ -765,12 +778,13 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
             >
               {/* 头部色条 */}
               {/* 头部即折叠开关：折叠时仍保留「周几 · 练什么 · 完成度」，不丢信息 */}
+              <div className={`flex items-center bg-gradient-to-r transition-colors hover:brightness-[1.03] ${style.header}`}>
               <button
                 type="button"
                 onClick={() => toggleDay(di)}
                 aria-expanded={open}
                 aria-controls={`day-body-${di}`}
-                className={`flex w-full items-center gap-2.5 bg-gradient-to-r px-4 py-3 text-left transition-colors hover:brightness-[1.03] ${style.header}`}
+                className="flex min-w-0 flex-1 items-center gap-2.5 px-4 py-3 text-left"
               >
                 <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${style.badge}`}>
                   <Icon className="h-4 w-4" />
@@ -791,13 +805,28 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
                   </p>
                 </div>
                 <Badge variant="outline" className={style.badge}>
-                  {allDone ? '✓ 完成' : `${doneCount}/${day.exercises.length}`}
+                  {weekPlan.skippedDays?.[String(di)] ? '已顺延' : allDone ? '✓ 完成' : `${doneCount}/${day.exercises.length}`}
                 </Badge>
                 <ChevronDown
                   className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? '' : '-rotate-90'}`}
                   aria-hidden
                 />
               </button>
+              {/* 顺延按钮不能嵌在头部 <button> 内（按钮嵌套非法），与折叠开关并列放在头部行 */}
+              {isToday && day.type !== 'rest' && !weekPlan.skippedDays?.[String(di)] && (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="mr-3 h-7 w-7 shrink-0 text-muted-foreground hover:bg-background/60"
+                  aria-label="顺延今日训练"
+                  title="顺延到下一个休息日"
+                  onClick={() => rescheduleToday(di)}
+                >
+                  <ArrowRightLeft className="h-4 w-4" />
+                </Button>
+              )}
+              </div>
 
               {open && (
                 <CardContent id={`day-body-${di}`} className="space-y-2 p-3">

@@ -26,7 +26,7 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Dumbbell, EllipsisVertical, FileSpreadsheet, LogOut, MessageCircle, Settings } from 'lucide-react'
-import { currentMonday, hasUsageTrace, mergeOnboardingWeight, needsOnboarding, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
+import { calcWeekProgress, currentMonday, hasUsageTrace, mergeOnboardingWeight, needsOnboarding, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
 import { buildExportPayload, clearLocalData, deleteAccount, deleteCloudRow, downloadExport } from '@/lib/account'
 import { checksCsv, csvFileName, downloadCsv, trainingCsv, weightsCsv } from '@/lib/exportCsv'
 import { buildNextWeekPlan } from '@/lib/planEngine'
@@ -38,7 +38,7 @@ import SettingsDialog from '@/components/SettingsDialog'
 import TodayHero from '@/components/TodayHero'
 import { RestTimer, type RestTimerHandle } from '@/components/RestTimer'
 import Onboarding from '@/pages/Onboarding'
-import type { Profile, WeekPlan } from '@/types'
+import type { FeedbackDraft, Profile, WeekPlan } from '@/types'
 
 // 路由级懒加载：5 个 section 按需加载，减轻首屏 bundle
 const Overview = lazy(() => import('@/sections/Overview'))
@@ -68,6 +68,8 @@ export default function Home({ user }: { user: User }) {
   const [feedbacks, setFeedbacks] = cloud.feedbacks
   const [setLogs, setSetLogs] = cloud.setLogs
   const [activity, setActivity] = cloud.activity
+  // 反馈表单位于弹层内（关闭即卸载），草稿放在页面层避免关闭/重开弹层丢失输入。
+  const [feedbackDraft, setFeedbackDraft] = useState<FeedbackDraft | null>(null)
   // 一级导航收成 3 个：今日（原「总览」）/ 计划 / 数据。
   // 导航状态放进 URL（#/today、#/plan、#/data）：刷新能保持，返回键回上一个 Tab 而不是退出应用
   const location = useLocation()
@@ -107,6 +109,7 @@ export default function Home({ user }: { user: User }) {
     const lastFb = feedbacks.find((f) => f.week === weekPlan.week)
     const next = buildNextWeekPlan(profile, weekPlan, lastFb, targetWeek)
     setWeekPlan(next)
+    setFeedbackDraft(null)
     toast.success(
       gap === 1
         ? `📅 新的一周开始了，已为你生成第 ${targetWeek} 周计划！`
@@ -160,6 +163,7 @@ export default function Home({ user }: { user: User }) {
   const handleOnboard = (newProfile: Profile, newPlan: WeekPlan) => {
     setProfile({ ...newProfile, onboarded: true })
     setWeekPlan(newPlan)
+    setFeedbackDraft(null)
     // 旧打卡 key（周:日:动作序号）会错配到新计划，直接清空；
     // 历史完成度已快照在 feedbacks.completion，体重历史保留
     setChecks({})
@@ -176,6 +180,7 @@ export default function Home({ user }: { user: User }) {
   const handleRebuild = (newProfile: Profile, newPlan: WeekPlan) => {
     setProfile({ ...newProfile, onboarded: true })
     setWeekPlan(newPlan)
+    setFeedbackDraft(null)
     setChecks({}) // 同 handleOnboard：防止旧打卡错配到新计划
     syncWeightFromProfile(newProfile.weightKg ?? 0)
     toast.success('🔄 计划已按你的最新情况重新生成！')
@@ -242,22 +247,10 @@ export default function Home({ user }: { user: User }) {
   const latestWeight = weights[weights.length - 1]?.weight
 
   // 本周打卡统计：完成项数 + 每天是否打过卡（作战卡进度环 / 打卡点用）
-  const { done, total, dayChecked } = useMemo(() => {
-    let d = 0
-    let t = 0
-    const perDay = new Array<boolean>(7).fill(false)
-    weekPlan.days.forEach((day, di) => {
-      day.exercises.forEach((_, ei) => {
-        t += 1
-        if (checks[`${weekPlan.week}:${di}:${ei}`]) {
-          d += 1
-          perDay[di] = true
-        }
-      })
-    })
-    return { done: d, total: t, dayChecked: perDay }
-  }, [weekPlan, checks])
-  const weekPct = total === 0 ? 0 : Math.round((done / total) * 100)
+  const { done, total, dayChecked } = useMemo(
+    () => calcWeekProgress(weekPlan, checks),
+    [weekPlan, checks],
+  )
   const daysTrained = dayChecked.filter(Boolean).length
 
   // 新用户首次进入 / 老用户软迁移：走 onboarding 引导（老用户带画像预填）
@@ -514,7 +507,9 @@ export default function Home({ user }: { user: User }) {
               weekPlan={weekPlan}
               setWeekPlan={setWeekPlan}
               profile={profile}
-              weekProgressPct={weekPct}
+              checks={checks}
+              draft={feedbackDraft}
+              setDraft={setFeedbackDraft}
               onGoPlan={() => {
                 setWeekFeedbackOpen(false)
                 setTab('plan')

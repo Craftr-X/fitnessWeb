@@ -332,6 +332,94 @@ export function needsOnboarding(state: { ready: boolean; onboarded: boolean | un
   return state.ready && !state.onboarded
 }
 
+/**
+ * 本周训练完成度：只统计力量/运动日动作，休息日的睡眠/复盘提示不计入分母。
+ */
+export function calcWeekProgress(weekPlan: WeekPlan, checks: CheckMap): {
+  done: number
+  total: number
+  pct: number
+  dayChecked: boolean[]
+} {
+  let done = 0
+  let total = 0
+  const dayChecked = new Array<boolean>(7).fill(false)
+  weekPlan.days.forEach((day, di) => {
+    if (day.type === 'rest') return
+    day.exercises.forEach((_, ei) => {
+      total += 1
+      if (checks[`${weekPlan.week}:${di}:${ei}`]) {
+        done += 1
+        dayChecked[di] = true
+      }
+    })
+  })
+  return {
+    done,
+    total,
+    pct: total === 0 ? 0 : Math.round((done / total) * 100),
+    dayChecked,
+  }
+}
+
+/** 达标周数：历史反馈完成度 ≥80，或本周实时完成度 ≥80。 */
+export function countCompletedWeeks(
+  feedbacks: WeekFeedback[],
+  currentWeek: number,
+  currentPct: number,
+): number {
+  const weeks = new Set(feedbacks.filter((f) => f.completion >= 80).map((f) => f.week))
+  if (currentPct >= 80) weeks.add(currentWeek)
+  return weeks.size
+}
+
+const DAY_NAMES = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'] as const
+
+/**
+ * 将某训练日顺延到其后最近的休息日；无可顺延休息日时返回 null。
+ * 不修改入参，返回新 plan + 目标日索引。
+ */
+export function rescheduleTrainingDay(
+  plan: WeekPlan,
+  fromIdx: number,
+): { plan: WeekPlan; targetIdx: number } | null {
+  if (fromIdx < 0 || fromIdx >= plan.days.length) return null
+  if (plan.days[fromIdx]?.type === 'rest') return null
+  const targetIdx = plan.days.findIndex((day, i) => i > fromIdx && day.type === 'rest')
+  if (targetIdx < 0) return null
+
+  const days = plan.days.map((day) => ({
+    ...day,
+    exercises: day.exercises.map((ex) => ({ ...ex })),
+  }))
+  ;[days[fromIdx], days[targetIdx]] = [days[targetIdx], days[fromIdx]]
+  days.forEach((day, i) => {
+    day.day = DAY_NAMES[i]
+  })
+
+  return {
+    targetIdx,
+    plan: {
+      ...plan,
+      days,
+      skippedDays: { ...plan.skippedDays, [String(fromIdx)]: true },
+      adjustmentNote: `${plan.adjustmentNote} 已将今日训练顺延至${DAY_NAMES[targetIdx]}。`,
+    },
+  }
+}
+
+/** 清除指定周内若干天的全部打卡 key（顺延交换后避免完成态错位）。 */
+export function clearChecksForDays(checks: CheckMap, week: number, dayIndices: number[]): CheckMap {
+  const drop = new Set(dayIndices)
+  const next: CheckMap = {}
+  for (const [key, value] of Object.entries(checks)) {
+    const [w, di] = key.split(':')
+    if (Number(w) === week && drop.has(Number(di))) continue
+    next[key] = value
+  }
+  return next
+}
+
 /** 计算 BMI */
 export function bmi(weightKg: number, heightCm: number): number {
   const m = heightCm / 100

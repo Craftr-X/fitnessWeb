@@ -8,6 +8,10 @@ import {
   mergeOnboardingWeight,
   hasUsageTrace,
   needsOnboarding,
+  calcWeekProgress,
+  countCompletedWeeks,
+  rescheduleTrainingDay,
+  clearChecksForDays,
   parseSetTarget,
   upsertExerciseLog,
   removeExerciseLog,
@@ -19,7 +23,7 @@ import {
   inferLoadType,
   EXERCISE_LOG_CAP,
 } from '@/lib/store'
-import type { CheckMap, ExerciseLogMap, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
+import type { CheckMap, DayPlan, ExerciseLogMap, WeekFeedback, WeekPlan, WeightEntry } from '@/types'
 
 /* ------------------------------------------------------------------ */
 /* bmi —— 体重 / 身高²                                                */
@@ -497,6 +501,92 @@ describe('weightDeltaTone', () => {
   it('goal 为 undefined：兜底按增肌方向（涨好跌坏）', () => {
     expect(weightDeltaTone(undefined, 1)).toBe('good')
     expect(weightDeltaTone(undefined, -1)).toBe('bad')
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* calcWeekProgress / countCompletedWeeks / rescheduleTrainingDay     */
+/* ------------------------------------------------------------------ */
+function day(partial: Partial<DayPlan> & Pick<DayPlan, 'type' | 'exercises'>): DayPlan {
+  return { day: '周一', focus: '测', ...partial }
+}
+
+function samplePlan(days: DayPlan[]): WeekPlan {
+  return { week: 2, startDate: '2026-08-10', days, adjustmentNote: '基线。' }
+}
+
+describe('calcWeekProgress', () => {
+  const plan = samplePlan([
+    day({ day: '周一', type: 'strength', exercises: [{ name: '卧推', sets: '3 组 × 8 次' }, { name: '飞鸟', sets: '3 组 × 12 次' }] }),
+    day({ day: '周二', type: 'rest', exercises: [{ name: '睡眠', sets: '7-8h' }] }),
+    day({ day: '周三', type: 'sport', exercises: [{ name: '跑步', sets: '30 分钟' }] }),
+    day({ day: '周四', type: 'rest', exercises: [] }),
+    day({ day: '周五', type: 'rest', exercises: [] }),
+    day({ day: '周六', type: 'rest', exercises: [] }),
+    day({ day: '周日', type: 'rest', exercises: [{ name: '复盘', sets: '10 分钟' }] }),
+  ])
+
+  it('休息日动作不计入分母，力量/运动日计入', () => {
+    const checks: CheckMap = { '2:0:0': true, '2:1:0': true, '2:2:0': true }
+    const r = calcWeekProgress(plan, checks)
+    expect(r.total).toBe(3) // 2 strength + 1 sport
+    expect(r.done).toBe(2) // rest 勾选被忽略
+    expect(r.pct).toBe(67)
+    expect(r.dayChecked[0]).toBe(true)
+    expect(r.dayChecked[1]).toBe(false)
+    expect(r.dayChecked[2]).toBe(true)
+  })
+
+  it('全空返回 0', () => {
+    expect(calcWeekProgress(plan, {}).pct).toBe(0)
+  })
+})
+
+describe('countCompletedWeeks', () => {
+  it('历史 ≥80 与本周 ≥80 去重计数', () => {
+    const fbs: WeekFeedback[] = [
+      { week: 1, date: 'a', completion: 90, difficulty: 3, soreness: [], sleep: '', diet: '', note: '' },
+      { week: 2, date: 'b', completion: 50, difficulty: 3, soreness: [], sleep: '', diet: '', note: '' },
+    ]
+    expect(countCompletedWeeks(fbs, 3, 80)).toBe(2) // week1 + 本周3
+    expect(countCompletedWeeks(fbs, 1, 100)).toBe(1) // 本周与历史 week1 去重
+    expect(countCompletedWeeks(fbs, 3, 79)).toBe(1)
+  })
+})
+
+describe('rescheduleTrainingDay / clearChecksForDays', () => {
+  const plan = samplePlan([
+    day({ day: '周一', type: 'strength', focus: '推', exercises: [{ name: '卧推', sets: '3 组 × 8 次' }] }),
+    day({ day: '周二', type: 'rest', exercises: [] }),
+    day({ day: '周三', type: 'strength', focus: '拉', exercises: [{ name: '划船', sets: '3 组 × 8 次' }] }),
+    day({ day: '周四', type: 'rest', exercises: [] }),
+    day({ day: '周五', type: 'rest', exercises: [] }),
+    day({ day: '周六', type: 'rest', exercises: [] }),
+    day({ day: '周日', type: 'rest', exercises: [] }),
+  ])
+
+  it('顺延到下一个休息日并标记 skippedDays', () => {
+    const result = rescheduleTrainingDay(plan, 0)
+    expect(result).not.toBeNull()
+    expect(result!.targetIdx).toBe(1)
+    expect(result!.plan.days[0].type).toBe('rest')
+    expect(result!.plan.days[1].type).toBe('strength')
+    expect(result!.plan.days[1].focus).toBe('推')
+    expect(result!.plan.skippedDays?.['0']).toBe(true)
+    expect(result!.plan.adjustmentNote).toContain('顺延至周二')
+  })
+
+  it('无可顺延休息日 / 休息日本身 → null', () => {
+    const packed = samplePlan(
+      plan.days.map((d) => ({ ...d, type: 'strength' as const, exercises: [{ name: 'x', sets: '1' }] })),
+    )
+    expect(rescheduleTrainingDay(packed, 0)).toBeNull()
+    expect(rescheduleTrainingDay(plan, 1)).toBeNull()
+  })
+
+  it('clearChecksForDays 只清指定天', () => {
+    const checks: CheckMap = { '2:0:0': true, '2:1:0': true, '2:2:0': true, '3:0:0': true }
+    expect(clearChecksForDays(checks, 2, [0, 1])).toEqual({ '2:2:0': true, '3:0:0': true })
   })
 })
 

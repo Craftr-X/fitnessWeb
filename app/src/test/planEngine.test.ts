@@ -283,26 +283,18 @@ describe('assembleWeek', () => {
     expect(strengthDays).toHaveLength(3)
   })
 
-  it('trainDays=6 + hasSport：6 个肌群全部保留，运动日在周六', () => {
-    // splitMuscleGroups(6, true) = 胸/背/肩/手臂/腿/核心
-    const groups = splitMuscleGroups(6, true)
+  it('trainDays=5 + hasSport：5 力量 + 周六运动 + 周日复盘', () => {
+    // buildWeekPlanFromProfile 会把 hasSport 时的 6 天请求降为 5
+    const groups = splitMuscleGroups(5, true)
     const days = assembleWeek(groups, {
       ...baseOpts,
       sport: 'running',
       sportHours: 2,
     })
-    // 6 天力量 + 1 天运动满载 7 天，第 6 个训练日让出周六后挪到周日避免丢失肌群
-    expect(days.filter((d) => d.type === 'strength')).toHaveLength(6)
+    expect(days.filter((d) => d.type === 'strength')).toHaveLength(5)
     expect(days.filter((d) => d.type === 'sport')).toHaveLength(1)
     expect(days[5].type).toBe('sport')
-    // 6 个肌群全部保留，不丢失任何一个
-    const foci = days.filter((d) => d.type === 'strength').map((d) => d.focus)
-    expect(foci).toContain('胸 + 三头')
-    expect(foci).toContain('背 + 二头')
-    expect(foci).toContain('肩')
-    expect(foci).toContain('手臂（二头 + 三头）')
-    expect(foci).toContain('腿 + 臀')
-    expect(foci).toContain('核心')
+    expect(days[6].type).toBe('rest')
   })
 })
 
@@ -690,6 +682,17 @@ describe('生成动作的 loadType 标注', () => {
     const exs = strengthExercises(plan)
     const plank = exs.find((e) => e.name.includes('平板支撑'))
     if (plank) expect(plank.loadType).toBe('timed')
+  })
+
+  it('trainDays=6 + hasSport：力量日降为 5，周日保留复盘', () => {
+    const plan = buildWeekPlanFromProfile(
+      { ...BASE_PROFILE, trainDaysPerWeek: 6, sport: 'running', sportHours: 2 },
+      1,
+    )
+    expect(plan.days.filter((d) => d.type === 'strength')).toHaveLength(5)
+    expect(plan.days.filter((d) => d.type === 'sport')).toHaveLength(1)
+    expect(plan.days[5].type).toBe('sport')
+    expect(plan.days[6].type).toBe('rest')
   })
 })
 

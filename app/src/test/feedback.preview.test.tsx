@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import Feedback from '@/sections/Feedback'
 import { buildWeekPlanFromProfile } from '@/lib/planEngine'
-import type { Profile, WeekFeedback, WeekPlan } from '@/types'
+import type { FeedbackDraft, Profile, WeekFeedback, WeekPlan } from '@/types'
 
 /**
  * 反馈闭环：保存后要立刻告诉用户「下周会怎么变」，而不是只给一句 adjustmentNote。
@@ -29,6 +29,7 @@ const PROFILE: Profile = {
 function Harness({ onGoPlan }: { onGoPlan?: () => void }) {
   const [feedbacks, setFeedbacks] = useState<WeekFeedback[]>([])
   const [weekPlan, setWeekPlan] = useState<WeekPlan>(() => buildWeekPlanFromProfile(PROFILE, 2))
+  const [draft, setDraft] = useState<FeedbackDraft | null>(null)
   return (
     <>
       <Feedback
@@ -37,7 +38,9 @@ function Harness({ onGoPlan }: { onGoPlan?: () => void }) {
         weekPlan={weekPlan}
         setWeekPlan={setWeekPlan}
         profile={PROFILE}
-        weekProgressPct={42}
+        checks={{}}
+        draft={draft}
+        setDraft={setDraft}
         onGoPlan={onGoPlan ?? (() => {})}
       />
       <output data-testid="week">{weekPlan.week}</output>
@@ -94,9 +97,9 @@ describe('每周反馈 → 下周计划预览', () => {
     expect(onGoPlan).not.toHaveBeenCalled()
   })
 
-  it('完成度高时不出现降量文案（42% 才会降）', async () => {
+  it('完成度低（无打卡 = 0%）时走降量路径', async () => {
     const user = userEvent.setup()
-    // 这个用例只验证「预览面板本身存在且方向正确」，用默认 42% 覆盖降量路径
+    // 这个用例只验证「预览面板本身存在且方向正确」，用 0% 打卡覆盖降量路径
     render(<Harness />)
     await user.click(screen.getByRole('button', { name: /保存本周反馈/ }))
     const panel = (await screen.findByText(/周计划已按本次反馈算好/)).closest('div')!

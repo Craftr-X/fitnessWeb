@@ -12,7 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![Tests](https://img.shields.io/badge/Tests-370%20passed-brightgreen)](#-常用命令)
+[![Tests](https://img.shields.io/badge/Tests-377%20passed-brightgreen)](#-常用命令)
 
 [功能特性](#-功能特性) · [应用截图](#-应用截图) · [快速开始](#-快速开始) · [部署](#-部署) · [项目结构](#-项目结构) · [更新日志](#-更新日志)
 
@@ -29,12 +29,14 @@
 ## ✨ 功能特性
 
 - 🔐 **邮箱验证码登录** — passwordless，无需记忆密码
-- 🎯 **个性化计划引擎** — 按目标（增肌/减脂/塑形/保持）、器械、训练频率、专项运动、伤病生成差异化一周计划
+- 🎯 **个性化计划引擎** — 按目标（增肌/减脂/塑形/保持）、器械、训练频率、专项运动、伤病生成差异化一周计划；填了专项运动时力量日最多 5 天，保留运动日与周日复盘
 - 📈 **渐进超负荷** — 计划随周数自动进阶，并根据上周反馈难度动态调节
 - 🔁 **动作替换** — 某个动作不想练？一键换成同肌群、同器械、避开伤病的平替，组数次数按当周进度换算，替换后自动清理该动作打卡、保留历史重量记录
+- 🧭 **引导计划预览** — 新用户采集画像后先预览首周计划，再开始使用
+- ⏭️ **今日训练顺延** — 今天练不了，一键把训练日换到下一个休息日（自动清理两天的错位打卡）
 - ✅ **打卡 + 记组** — 逐动作勾选；也可以只记重量/次数，保存后自动打卡，省掉再点一次的重复操作
 - ⚖️ **身体数据追踪** — 体重/体脂记录与趋势图
-- 🔄 **每周反馈** — 完成度、难度、酸痛、睡眠、饮食，完成度默认取本周真实打卡率，反馈驱动下周调整
+- 🔄 **每周反馈** — 完成度按本周真实打卡自动计算（休息日不计入），难度、酸痛、睡眠、饮食手填；草稿提升到页面层，关闭弹层不丢输入，反馈驱动下周调整
 - ⏱️ **组间休息计时器** — 记完一组自动倒计时，切页不中断，结束三连音 + 手机振动
 - 📅 **训练日历** — 打卡、称重、反馈按月回看（中文月历）
 - 🍗 **营养建议** — 按体重目标计算热量盈余/缺口与蛋白质摄入，从今日页一键打开
@@ -92,7 +94,7 @@
 | 样式 | Tailwind CSS 3、shadcn/ui（Radix UI） |
 | 后端 | Supabase（Auth + Postgres + RLS） |
 | 可视化 | Recharts（懒加载，只在数据页下载） |
-| 测试 | Vitest + Testing Library（370 个单元测试）；Playwright（4 条冒烟 + 3 条离线 + 4 条视觉，真实 Chromium + 本地 mock 后端） |
+| 测试 | Vitest + Testing Library（377 个单元测试）；Playwright（4 条冒烟 + 3 条离线 + 4 条视觉，真实 Chromium + 本地 mock 后端） |
 | CI/CD | GitHub Actions：`check`（lint + test + build）→ Pages 部署；PR 额外跑独立 `e2e` job；Supabase 每日保活 |
 
 ## 🚀 快速开始
@@ -122,7 +124,7 @@ Supabase 配置（建表 + RLS + Auth）详见 [`app/README.md`](app/README.md)�
 cd app
 npm run dev          # 开发服务器（http://localhost:3000）
 npm run build        # 类型检查 + 生产构建
-npm run test         # 单元测试（370 个）
+npm run test         # 单元测试（377 个）
 npm run test:e2e     # Playwright 冒烟（4 条，真实 Chromium + 本地 mock 后端）
 npm run test:offline # 弱网 / 离线端到端（3 条，含故障注入）
 npm run test:visual  # 生成弹层 / 离线横幅 / UI 前后对比的 390/1440 深浅色截图留档
@@ -149,7 +151,7 @@ fitnessWeb/
 │   │   ├── components/       # 业务组件（TodayHero、SettingsDialog、FeedbackDialog 等）
 │   │   ├── components/ui/    # shadcn/ui 组件（按需保留，23 个）
 │   │   ├── hooks/            # useAuth、useCountUp 等
-│   │   ├── test/             # Vitest 单元测试（31 个测试文件 / 370 例）
+│   │   ├── test/             # Vitest 单元测试（31 个测试文件 / 377 例）
 │   │   └── types/            # TypeScript 类型定义
 │   ├── e2e/                  # Playwright 用例（冒烟 / 离线 / 视觉）+ 本地 mock Supabase
 │   ├── supabase/schema.sql   # 建表 + RLS 策略
