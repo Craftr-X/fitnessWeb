@@ -129,6 +129,37 @@ describe('英雄卡与周数口径', () => {
     expect(screen.getByText('计划周数')).toBeInTheDocument()
     expect(screen.queryByText('已坚持周数')).not.toBeInTheDocument()
   })
+
+  it('休息日导向下次训练日，不再只说「查看本周计划」', () => {
+    const restPlan = {
+      ...WEEK_PLAN,
+      days: WEEK_PLAN.days.map((d, i) =>
+        i === 5
+          ? { ...d, type: 'rest' as const, focus: '休息 / 主动恢复', exercises: [{ name: '拉伸', sets: '10 分钟' }] }
+          : d,
+      ),
+    }
+    // 找一个 strength 日作为「下次」
+    const nextIdx = restPlan.days.findIndex((d, i) => i > 5 && (d.type === 'strength' || d.type === 'sport'))
+    const wrapIdx = restPlan.days.findIndex((d) => d.type === 'strength' || d.type === 'sport')
+    const next = restPlan.days[nextIdx >= 0 ? nextIdx : wrapIdx]
+    render(
+      <TodayHero
+        weekPlan={restPlan}
+        todayPlan={restPlan.days[5]}
+        todayIdx={5}
+        dayChecked={new Array<boolean>(7).fill(false)}
+        daysTrained={0}
+        done={0}
+        total={10}
+        latestWeight={null}
+        weeksPersisted={1}
+        onStart={() => {}}
+      />,
+    )
+    expect(screen.getByRole('button', { name: new RegExp(`去练${next.day}`) })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '查看本周计划' })).not.toBeInTheDocument()
+  })
 })
 
 describe('数据页空态说明', () => {

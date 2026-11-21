@@ -12,6 +12,9 @@ import {
   countCompletedWeeks,
   rescheduleTrainingDay,
   clearChecksForDays,
+  nextTrainDayIndex,
+  defaultExpandedDayIndices,
+  shouldOfferWeekAdvance,
   parseSetTarget,
   upsertExerciseLog,
   removeExerciseLog,
@@ -587,6 +590,37 @@ describe('rescheduleTrainingDay / clearChecksForDays', () => {
   it('clearChecksForDays 只清指定天', () => {
     const checks: CheckMap = { '2:0:0': true, '2:1:0': true, '2:2:0': true, '3:0:0': true }
     expect(clearChecksForDays(checks, 2, [0, 1])).toEqual({ '2:2:0': true, '3:0:0': true })
+  })
+})
+
+describe('nextTrainDayIndex / defaultExpandedDayIndices / shouldOfferWeekAdvance', () => {
+  const days: DayPlan[] = [
+    day({ day: '周一', type: 'strength', focus: '推', exercises: [{ name: 'a', sets: '1' }] }),
+    day({ day: '周二', type: 'rest', exercises: [] }),
+    day({ day: '周三', type: 'strength', focus: '拉', exercises: [{ name: 'b', sets: '1' }] }),
+    day({ day: '周四', type: 'rest', exercises: [] }),
+    day({ day: '周五', type: 'sport', focus: '跑', exercises: [{ name: 'c', sets: '1' }] }),
+    day({ day: '周六', type: 'rest', exercises: [] }),
+    day({ day: '周日', type: 'rest', exercises: [] }),
+  ]
+
+  it('nextTrainDayIndex：含当天；休息日则找后面；周末可回绕到周一', () => {
+    expect(nextTrainDayIndex(days, 0)).toBe(0)
+    expect(nextTrainDayIndex(days, 1)).toBe(2)
+    expect(nextTrainDayIndex(days, 5)).toBe(0) // 回绕
+    expect(nextTrainDayIndex(days.map((d) => ({ ...d, type: 'rest' as const })), 0)).toBeNull()
+  })
+
+  it('defaultExpandedDayIndices：训练日只开今天；休息日再开下次训练', () => {
+    expect(defaultExpandedDayIndices(days, 0)).toEqual([0])
+    expect(defaultExpandedDayIndices(days, 5)).toEqual([0, 5]) // 周六休息 → 再开周一
+  })
+
+  it('shouldOfferWeekAdvance：完成度 ≥50% 才露周切换强 CTA', () => {
+    expect(shouldOfferWeekAdvance(0)).toBe(false)
+    expect(shouldOfferWeekAdvance(49)).toBe(false)
+    expect(shouldOfferWeekAdvance(50)).toBe(true)
+    expect(shouldOfferWeekAdvance(100)).toBe(true)
   })
 })
 
