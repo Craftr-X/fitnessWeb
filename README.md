@@ -12,7 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![Tests](https://img.shields.io/badge/Tests-377%20passed-brightgreen)](#-常用命令)
+[![Tests](https://img.shields.io/badge/Tests-381%20passed-brightgreen)](#-常用命令)
 
 [功能特性](#-功能特性) · [应用截图](#-应用截图) · [快速开始](#-快速开始) · [部署](#-部署) · [项目结构](#-项目结构) · [更新日志](#-更新日志)
 
@@ -33,7 +33,9 @@
 - 📈 **渐进超负荷** — 计划随周数自动进阶，并根据上周反馈难度动态调节
 - 🔁 **动作替换** — 某个动作不想练？一键换成同肌群、同器械、避开伤病的平替，组数次数按当周进度换算，替换后自动清理该动作打卡、保留历史重量记录
 - 🧭 **引导计划预览** — 新用户采集画像后先预览首周计划，再开始使用
+- 🌅 **休息日不空落** — 周中打开若今天是休息日，主 CTA 指向本周下次训练日，并滚到对应日卡
 - ⏭️ **今日训练顺延** — 今天练不了，一键把训练日换到下一个休息日（自动清理两天的错位打卡）
+- 🧘 **首周不催收尾** — 完成度不足 50% 时收起「完成本周 / 沿用」大按钮；计划默认只展开今天（休息日再展开下次训练）
 - ✅ **打卡 + 记组** — 逐动作勾选；也可以只记重量/次数，保存后自动打卡，省掉再点一次的重复操作
 - ⚖️ **身体数据追踪** — 体重/体脂记录与趋势图
 - 🔄 **每周反馈** — 完成度按本周真实打卡自动计算（休息日不计入），难度、酸痛、睡眠、饮食手填；草稿提升到页面层，关闭弹层不丢输入，反馈驱动下周调整
@@ -94,7 +96,7 @@
 | 样式 | Tailwind CSS 3、shadcn/ui（Radix UI） |
 | 后端 | Supabase（Auth + Postgres + RLS） |
 | 可视化 | Recharts（懒加载，只在数据页下载） |
-| 测试 | Vitest + Testing Library（377 个单元测试）；Playwright（4 条冒烟 + 3 条离线 + 4 条视觉，真实 Chromium + 本地 mock 后端） |
+| 测试 | Vitest + Testing Library（381 个单元测试）；Playwright（4 条冒烟 + 3 条离线 + 4 条视觉，真实 Chromium + 本地 mock 后端） |
 | CI/CD | GitHub Actions：`check`（lint + test + build）→ Pages 部署；PR 额外跑独立 `e2e` job；Supabase 每日保活 |
 
 ## 🚀 快速开始
@@ -124,7 +126,7 @@ Supabase 配置（建表 + RLS + Auth）详见 [`app/README.md`](app/README.md)�
 cd app
 npm run dev          # 开发服务器（http://localhost:3000）
 npm run build        # 类型检查 + 生产构建
-npm run test         # 单元测试（377 个）
+npm run test         # 单元测试（381 个）
 npm run test:e2e     # Playwright 冒烟（4 条，真实 Chromium + 本地 mock 后端）
 npm run test:offline # 弱网 / 离线端到端（3 条，含故障注入）
 npm run test:visual  # 生成弹层 / 离线横幅 / UI 前后对比的 390/1440 深浅色截图留档
@@ -151,7 +153,7 @@ fitnessWeb/
 │   │   ├── components/       # 业务组件（TodayHero、SettingsDialog、FeedbackDialog 等）
 │   │   ├── components/ui/    # shadcn/ui 组件（按需保留，23 个）
 │   │   ├── hooks/            # useAuth、useCountUp 等
-│   │   ├── test/             # Vitest 单元测试（31 个测试文件 / 377 例）
+│   │   ├── test/             # Vitest 单元测试（31 个测试文件 / 381 例）
 │   │   └── types/            # TypeScript 类型定义
 │   ├── e2e/                  # Playwright 用例（冒烟 / 离线 / 视觉）+ 本地 mock Supabase
 │   ├── supabase/schema.sql   # 建表 + RLS 策略
@@ -309,6 +311,21 @@ fitnessWeb/
   `lint` 0 error、`build` 通过、`@smoke` 连跑 3 次全绿
 - 方案见 `docs/2026-11-19-t10-setlog-mini-trend-plan.md`；**本轮不含** 完整历史页（触发制）、
   自重/时间类次数趋势、SW / PWA
+
+### 2026-11-21 · 反馈自动完成度 / 计划预览 / 训练顺延
+
+- **反馈**：完成度按打卡自动算（休息日不计），草稿提升到 Home，关弹层不丢
+- **引导**：新用户可「先看计划」再正式开始；有专项运动时力量日上限 5
+- **顺延**：今日训练可换到下一休息日并清理错位打卡
+- 合入 [#65](https://github.com/Craftr-X/fitnessWeb/pull/65)；单测口径至 **377**
+
+### 2026-11-21 · 首周体验三连
+
+- **休息日导向**：主 CTA「去练周X」，并滚到下次力量/运动日卡
+- **弱化周切换**：完成度 &lt; 50% 时收起「沿用 / 完成本周」大按钮
+- **计划默认折叠**：只展开今天（休息日再展开下次训练），桌面也不再默认全开
+- 合入 [#67](https://github.com/Craftr-X/fitnessWeb/pull/67)；单测 377 → **381**；
+  方案见 `docs/superpowers/plans/2026-11-21-ux-first-session.md`
 
 ## 🤝 参与贡献
 
