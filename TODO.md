@@ -1,13 +1,13 @@
 # 待办 / 下一步
 
 > 新会话接续：先读 `README.md`「更新日志」，再读本文件。方案细节在 `docs/2026-11-*.md` 与 `AGENTS.md`，这里不重复。
-> 核对日期：2026-11-20。`main` = `origin/main` = `386cf0a`（PR #64）。
+> 核对日期：2026-11-21。`main` = `origin/main` = `c48d14f`（PR #65）。
 
 ---
 
 ## 当前状态
 
-- **主线已清空**。T1–T10 与教学视频 Storage 都已合入，方案文档已回填。最近一次 `main` push CI 成功。
+- **主线已清空**。T1–T10、教学视频 Storage，以及反馈自动完成度 / 计划预览 / 训练顺延都已合入。最近一次 `main` push CI 成功。
 - 无 open PR、无 open issue、无 stash。本地与远程都只剩 `main`。
 - 单测 **377** 例 / **31** 个文件。
 - **没有必须现在做的开发任务。** 下面两项是触发制，条件未满足前不开工。
@@ -24,18 +24,20 @@
 | T9 趋势图按天聚合 | [#58](https://github.com/Craftr-X/fitnessWeb/pull/58) |
 | 教学视频 Storage / 清洗 / 补缺口 | [#61](https://github.com/Craftr-X/fitnessWeb/pull/61) [#62](https://github.com/Craftr-X/fitnessWeb/pull/62) [#63](https://github.com/Craftr-X/fitnessWeb/pull/63) |
 | T10 记组迷你趋势 + PR | [#64](https://github.com/Craftr-X/fitnessWeb/pull/64) |
+| 反馈自动完成度 / 计划预览 / 训练顺延 | [#65](https://github.com/Craftr-X/fitnessWeb/pull/65) |
 
 2026-11-20 删除已合入的 `docs/demo-supabase-storage-spec`（本地 + `origin`）。PR #60 当时是关闭未合并，其提交已随 #61 进入 `main`。
 
 ---
 
-## 本轮合并收尾（2026-11-21，`codex/priority-product-improvements`）
+## 本轮合并收尾（2026-11-21，已合入 [#65](https://github.com/Craftr-X/fitnessWeb/pull/65)）
 
 - [x] 反馈完成度按打卡自动计算（`calcWeekProgress`，休息日不计入）；反馈草稿提升到 Home，换周 / 引导 / 重新定制时清空
 - [x] 今日训练可顺延到下一休息日（`rescheduleTrainingDay` + `clearChecksForDays`）
 - [x] Onboarding 新用户「先看计划」预览
 - [x] `hasSport` 时力量日上限 5（原「低优先 · 未排期」里的专项运动挤占周日问题已处理）
 - [x] `countCompletedWeeks` 保留在 `store.ts` 并有单测；主线 `TodayHero` 展示「计划周数」，不再展示「达标周数」
+- [x] 特性分支已删除；本地 / 远程仅剩 `main`
 
 ---
 
