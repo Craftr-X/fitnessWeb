@@ -22,6 +22,8 @@ export interface WeekPlan {
   startDate: string // ISO date of 周一
   days: DayPlan[]
   adjustmentNote: string // 本周计划相对上周的调整说明
+  /** 用户临时调整的日期，key 为周内索引（0=周一） */
+  skippedDays?: Record<string, boolean>
 }
 
 export interface WeightEntry {
@@ -58,6 +60,16 @@ export interface WeekFeedback {
   sleep: string
   diet: string
   note: string
+}
+
+/** 每周反馈尚未提交时的草稿，跨 Tab 保留但不计入历史记录 */
+export interface FeedbackDraft {
+  completion?: number
+  difficulty?: number
+  soreness?: string[]
+  sleep?: string
+  diet?: string
+  note?: string
 }
 
 // —— onboarding 收集的画像枚举（v2 新增，全部可选以兼容老数据）——

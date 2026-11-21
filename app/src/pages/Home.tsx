@@ -9,14 +9,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Spinner } from '@/components/ui/spinner'
 import { ArrowRight, Dumbbell, Flame, LogOut, MessageCircle } from 'lucide-react'
 import { useCountUp } from '@/hooks/useCountUp'
-import { currentMonday, hasUsageTrace, mergeOnboardingWeight, needsOnboarding, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
+import { calcWeekProgress, countCompletedWeeks, currentMonday, hasUsageTrace, mergeOnboardingWeight, needsOnboarding, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
 import { buildNextWeekPlan } from '@/lib/planEngine'
 import { useAuth } from '@/hooks/useAuth'
 import ThemeToggle from '@/components/ThemeToggle'
 import AppSplash from '@/components/AppSplash'
 import FeedbackDialog from '@/components/FeedbackDialog'
 import Onboarding from '@/pages/Onboarding'
-import type { Profile, WeekPlan } from '@/types'
+import type { FeedbackDraft, Profile, WeekPlan } from '@/types'
 
 // 路由级懒加载：5 个 section 按需加载，减轻首屏 bundle
 const Overview = lazy(() => import('@/sections/Overview'))
@@ -44,6 +44,8 @@ export default function Home({ user }: { user: User }) {
   const [feedbacks, setFeedbacks] = cloud.feedbacks
   const [setLogs, setSetLogs] = cloud.setLogs
   const [tab, setTab] = useState('overview')
+  // 反馈表单位于懒加载 Tab 内，草稿放在页面层避免切换 Tab 丢失输入。
+  const [feedbackDraft, setFeedbackDraft] = useState<FeedbackDraft | null>(null)
 
   // 未 onboarded 一律走引导：真·新用户首次配置；老用户（账号体系上线前已有数据）
   // 借此软迁移到规则引擎计划——onboarding 是生成计划的唯一入口
@@ -64,6 +66,7 @@ export default function Home({ user }: { user: User }) {
     const lastFb = feedbacks.find((f) => f.week === weekPlan.week)
     const next = buildNextWeekPlan(profile, weekPlan, lastFb, targetWeek)
     setWeekPlan(next)
+    setFeedbackDraft(null)
     toast.success(
       gap === 1
         ? `📅 新的一周开始了，已为你生成第 ${targetWeek} 周计划！`
@@ -104,6 +107,7 @@ export default function Home({ user }: { user: User }) {
   const handleOnboard = (newProfile: Profile, newPlan: WeekPlan) => {
     setProfile({ ...newProfile, onboarded: true })
     setWeekPlan(newPlan)
+    setFeedbackDraft(null)
     // 旧打卡 key（周:日:动作序号）会错配到新计划，直接清空；
     // 历史完成度已快照在 feedbacks.completion，体重历史保留
     setChecks({})
@@ -120,6 +124,7 @@ export default function Home({ user }: { user: User }) {
   const handleRebuild = (newProfile: Profile, newPlan: WeekPlan) => {
     setProfile({ ...newProfile, onboarded: true })
     setWeekPlan(newPlan)
+    setFeedbackDraft(null)
     setChecks({}) // 同 handleOnboard：防止旧打卡错配到新计划
     syncWeightFromProfile(newProfile.weightKg ?? 0)
     toast.success('🔄 计划已按你的最新情况重新生成！')
@@ -139,28 +144,21 @@ export default function Home({ user }: { user: User }) {
   const latestWeight = weights[weights.length - 1]?.weight
 
   // 本周打卡统计：完成项数 + 每天是否打过卡（作战卡进度环 / 打卡点用）
-  const { done, total, dayChecked } = useMemo(() => {
-    let d = 0
-    let t = 0
-    const perDay = new Array<boolean>(7).fill(false)
-    weekPlan.days.forEach((day, di) => {
-      day.exercises.forEach((_, ei) => {
-        t += 1
-        if (checks[`${weekPlan.week}:${di}:${ei}`]) {
-          d += 1
-          perDay[di] = true
-        }
-      })
-    })
-    return { done: d, total: t, dayChecked: perDay }
-  }, [weekPlan, checks])
-  const weekPct = total === 0 ? 0 : Math.round((done / total) * 100)
+  const { done, total, pct: weekPct, dayChecked } = useMemo(
+    () => calcWeekProgress(weekPlan, checks),
+    [weekPlan, checks],
+  )
   const daysTrained = dayChecked.filter(Boolean).length
 
   // 作战卡数字 count-up
   const animatedPct = useCountUp(weekPct)
   const animatedWeight = useCountUp(latestWeight ?? 0)
-  const animatedWeeks = useCountUp(feedbacks.length)
+  // 达标周数由真实完成度计算，不再把“填写过反馈”误称为坚持。
+  const completedWeeks = useMemo(
+    () => countCompletedWeeks(feedbacks, weekPlan.week, weekPct),
+    [feedbacks, weekPct, weekPlan.week],
+  )
+  const animatedWeeks = useCountUp(completedWeeks)
 
   // 新用户首次进入 / 老用户软迁移：走 onboarding 引导（老用户带画像预填）
   if (needsOnboardingVal) {
@@ -318,7 +316,7 @@ export default function Home({ user }: { user: User }) {
                     <Flame className="h-5 w-5" />
                     {Math.round(animatedWeeks)}
                   </div>
-                  <div className="text-xs text-white/75">已坚持周数</div>
+                  <div className="text-xs text-white/75">达标周数</div>
                 </div>
               </div>
             </div>
@@ -378,6 +376,9 @@ export default function Home({ user }: { user: User }) {
                 setWeekPlan={setWeekPlan}
                 profile={profile}
                 onGoPlan={() => setTab('plan')}
+                checks={checks}
+                draft={feedbackDraft}
+                setDraft={setFeedbackDraft}
               />
             </TabsContent>
             <TabsContent value="nutrition" className="fade-enter">

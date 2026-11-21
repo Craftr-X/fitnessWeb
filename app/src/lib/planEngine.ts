@@ -731,11 +731,13 @@ export function buildWeekPlanFromProfile(
   const equipment: Equipment = profile.equipment ?? 'none'
   const experience: Experience = profile.experience ?? 'beginner'
   const goal: WeightGoal = profile.weightGoal ?? 'gain'
-  const trainDays = Math.min(Math.max(profile.trainDaysPerWeek ?? 3, 2), 6)
   const sport: Sport = profile.sport ?? 'none'
   const sportHours = profile.sportHours ?? 0
+  const hasSport = sport !== 'none' && sportHours > 0
+  // 有专项运动时力量日上限 5：留给周六运动 + 周日复盘，避免挤掉休息日
+  const trainDays = Math.min(Math.max(profile.trainDaysPerWeek ?? 3, 2), hasSport ? 5 : 6)
 
-  const groups = splitMuscleGroups(trainDays, sport !== 'none' && sportHours > 0)
+  const groups = splitMuscleGroups(trainDays, hasSport)
   const base = computeProgression(week, feedback?.difficulty)
   const { progression, notes } = feedback
     ? tuneProgressionByFeedback(base, week, feedback)

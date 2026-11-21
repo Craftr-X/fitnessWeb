@@ -12,9 +12,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ArrowRightCircle, BedDouble, CalendarClock, Copy, Dumbbell, History, Info, Leaf, Plus, Trash2, Trophy } from 'lucide-react'
+import { ArrowRightCircle, ArrowRightLeft, BedDouble, CalendarClock, Copy, Dumbbell, History, Info, Leaf, Plus, Trash2, Trophy } from 'lucide-react'
 import { toast } from 'sonner'
-import { currentMonday, exerciseWeekStats, getLastLogBefore, getLogForDate, inferLoadType, parseSetTarget, removeExerciseLog, upsertExerciseLog } from '@/lib/store'
+import { clearChecksForDays, currentMonday, exerciseWeekStats, getLastLogBefore, getLogForDate, inferLoadType, parseSetTarget, removeExerciseLog, rescheduleTrainingDay, upsertExerciseLog } from '@/lib/store'
 import type { SetTarget } from '@/lib/store'
 import { buildNextWeekPlan, copyWeekPlanFromProfile } from '@/lib/planEngine'
 import { burstAt, celebrateDayDone, celebrateWeekDone } from '@/lib/celebrate'
@@ -436,6 +436,18 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
   const clickPos = useRef<{ x: number; y: number } | null>(null)
   const todayStr = format(new Date(), 'yyyy-MM-dd')
 
+  const rescheduleToday = (todayIdx: number) => {
+    const result = rescheduleTrainingDay(weekPlan, todayIdx)
+    if (!result) {
+      toast.error('本周没有可顺延的休息日')
+      return
+    }
+    setWeekPlan(result.plan)
+    // 交换日后清理两天的勾选，避免原日期的完成状态跟着动作错位。
+    setChecks((prev) => clearChecksForDays(prev, weekPlan.week, [todayIdx, result.targetIdx]))
+    toast.success(`已将今日训练顺延至${result.plan.days[result.targetIdx].day}`)
+  }
+
   const toggle = (di: number, ei: number) => {
     const key = `${weekPlan.week}:${di}:${ei}`
     const willCheck = !checks[key]
@@ -566,8 +578,21 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
                   <p className="text-xs text-muted-foreground">{day.focus}</p>
                 </div>
                 <Badge variant="outline" className={style.badge}>
-                  {allDone ? '✓ 完成' : `${doneCount}/${day.exercises.length}`}
+                  {weekPlan.skippedDays?.[String(di)] ? '已顺延' : allDone ? '✓ 完成' : `${doneCount}/${day.exercises.length}`}
                 </Badge>
+                {isToday && day.type !== 'rest' && !weekPlan.skippedDays?.[String(di)] && (
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-muted-foreground hover:bg-background/60"
+                    aria-label="顺延今日训练"
+                    title="顺延到下一个休息日"
+                    onClick={() => rescheduleToday(di)}
+                  >
+                    <ArrowRightLeft className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
 
               <CardContent className="space-y-2 p-3">
@@ -679,11 +704,22 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
                 .reverse()}
               todayStr={todayStr}
               onSave={(sets) =>
-                setSetLogs((prev) =>
-                  upsertExerciseLog(prev, ex.name, { date: todayStr, week: weekPlan.week, sets }, weekPlan.startDate),
-                )
+                (() => {
+                  setSetLogs((prev) =>
+                    upsertExerciseLog(prev, ex.name, { date: todayStr, week: weekPlan.week, sets }, weekPlan.startDate),
+                  )
+                  // 有效训练记录就是完成动作的证据，免去用户重复勾选。
+                  setChecks((prev) => ({ ...prev, [`${weekPlan.week}:${loggerPos.di}:${loggerPos.ei}`]: true }))
+                })()
               }
-              onClear={() => setSetLogs((prev) => removeExerciseLog(prev, ex.name, todayStr))}
+              onClear={() => {
+                setSetLogs((prev) => removeExerciseLog(prev, ex.name, todayStr))
+                setChecks((prev) => {
+                  const next = { ...prev }
+                  delete next[`${weekPlan.week}:${loggerPos.di}:${loggerPos.ei}`]
+                  return next
+                })
+              }}
             />
           )
         })()}

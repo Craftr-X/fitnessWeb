@@ -12,7 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![Tests](https://img.shields.io/badge/Tests-171%20passed-brightgreen)](#-常用命令)
+[![Tests](https://img.shields.io/badge/Tests-199%20passed-brightgreen)](#-常用命令)
 
 [功能特性](#-功能特性) · [在线预览](#-应用截图) · [快速开始](#-快速开始) · [部署](#-部署) · [项目结构](#-项目结构)
 
@@ -30,11 +30,16 @@
 
 - 🔐 **邮箱验证码登录** — passwordless，无需记忆密码
 - 🎯 **个性化计划引擎** — 按目标（增肌/减脂/塑形/保持）、器械、训练频率、专项运动、伤病生成差异化一周计划
-- 📈 **渐进超负荷** — 计划随周数自动进阶，并根据上周反馈难度动态调节
-- ✅ **每日打卡** — 训练动作逐项勾选，完成动画激励
+- 🧭 **引导与软迁移** — 新用户采集画像后预览首周计划；老用户补全画像后平滑迁入规则引擎
+- 📈 **渐进超负荷** — 计划随周数自动进阶，并根据上周反馈（完成度/难度/酸痛/睡眠/饮食）动态调节
+- ✅ **每日打卡** — 训练动作逐项勾选，完成动画激励；今日训练可顺延至下一休息日
+- 🏋️ **训记式重量记录** — 按动作负荷类型（负重/自重/时间）记录组次，支持清除当日脏数据
+- 🎬 **动作教学示范** — 计划内动作配套视频/动图示范
 - ⚖️ **身体数据追踪** — 体重/体脂记录与趋势图
-- 🔄 **每周反馈** — 完成度、难度、酸痛、睡眠、饮食，反馈驱动下周调整
+- 🦋 **我的蜕变报告** — 总览页汇总体重/BMI/完成率/力量 PR，可下载分享海报
+- 🔄 **每周反馈** — 完成度按打卡自动计算，草稿跨 Tab 保留，反馈驱动下周调整
 - 🍗 **营养建议** — 按体重目标计算热量盈余/缺口与蛋白质摄入
+- 💬 **意见反馈** — 应用内入口，微信群二维码 + 备用邮箱
 - 🔒 **用户数据隔离** — Supabase RLS 行级安全，每个用户只能访问自己的数据
 - ♻️ **跨周自动续期** — 进入新自然周自动生成新计划，多周未打开可一次性补齐
 - 🌙 **现代前端体验** — 暗色模式、路由懒加载、移动端自适应
@@ -69,7 +74,7 @@
 | 后端 | Supabase（Auth + Postgres + RLS） |
 | 表单 | React Hook Form、Zod |
 | 可视化 | Recharts |
-| 测试 | Vitest + Testing Library（171 个单元测试） |
+| 测试 | Vitest + Testing Library（199 个单元测试） |
 | CI/CD | GitHub Actions（lint + test + build → Pages 部署） |
 
 ## 🚀 快速开始
@@ -99,7 +104,7 @@ Supabase 配置（建表 + RLS + Auth）详见 [`app/README.md`](app/README.md)�
 cd app
 npm run dev        # 开发服务器
 npm run build      # 类型检查 + 生产构建
-npm run test       # 单元测试（171 个）
+npm run test       # 单元测试（199 个）
 npm run lint       # ESLint
 ```
 

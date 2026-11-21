@@ -4,34 +4,36 @@
 
 ---
 
-## 🔴 删老模板死代码（第二步清理）—— ✅ 已完成 2026-08-11
+## 🟢 本轮已完成（2026-11-21）
 
-- **完成时间**：2026-08-11（应 [2026-08-11 代码审核] 要求提前动手）
-- **背景**：`docs/2026-08-10-legacy-onboarding-migration.md` 第四节。软迁移上线后，
-  `store.buildWeekPlan` / `store.copyWeekPlan` 已成事实死代码（规则引擎 `planEngine.buildWeekPlanFromProfile` 成为唯一计划生成入口）。
+### 产品改进收尾（原未提交 WIP）
 
-### 清理清单（全部完成）
+- [x] 反馈完成度按打卡自动计算；草稿跨 Tab 保留
+- [x] 休息日不计入完成度；作战卡「达标周数」按 ≥80% 统计
+- [x] Onboarding：新用户「先看计划」预览后再开始
+- [x] 今日训练可顺延到下一休息日（`skippedDays`）
+- [x] 抽出 `calcWeekProgress` / `rescheduleTrainingDay` 等纯函数并补单测
 
-- [x] `store.buildWeekPlan`、`store.copyWeekPlan` 删除（确认无引用后）
-- [x] `planEngine.buildNextWeekPlan` 的回退分支删除（不再回退到老模板，profile 缺失按默认画像兜底）
-- [x] `WeeklyPlan.tsx` 的 `copyWeekPlan` 换用 `planEngine.copyWeekPlanFromProfile`
-- [x] `defaultCloudState` 的 50.5kg 占位体重 → 空数组 `[]`，`Overview` / `Nutrition` / `Home` 补空态处理
-- [x] `mergeOnboardingWeight` 逻辑简化：空数组时插入当天 entry，已有记录不动
-- [x] `store.test.ts` 删除 `buildWeekPlan` / `copyWeekPlan` 旧 describe 块（23 个用例）
-- [x] `planEngine.test.ts` 的「未 onboarded 回退老模板」测试改为「profile 缺失按默认画像兜底」
-- [x] `weeklyPlan.setlog.test.tsx` 改用固定 `TEST_PLAN` 字面量，不再依赖老模板
-- [x] 跑 `test` / `lint` / `build` 确认全绿（171 tests / lint 0 errors / build ✓）
+### 引擎边界 / 文档
 
-### 待办（未列入本次清理）
+- [x] `hasSport` 时力量日上限 5，保留周六运动 + 周日复盘（不再挤占复盘日）
+- [x] `DEFAULT_PROFILE` 复核：仅保留 `name` + 必填 `heightCm`，无其它老模板残留
+- [x] README 补齐近期功能（蜕变报告 / 训记重量 / 示范 / 软迁移 / 顺延等），测试数 → 199
 
-- [ ] `DEFAULT_PROFILE.heightCm` 等老模板残留个人化字段复核（独立任务，本次未做）
-- [ ] assembleWeek 的 trainDays=6 + hasSport 场景（6 力量 + 1 运动 = 7 天，周日无空位）
-  当前实现把第 6 个训练日挪到周日，会牺牲「周日复盘休息日」。后续可考虑限制 hasSport 时 trainDays 上限为 5，
-  或调整 splitMuscleGroups 预留运动日 slot
+---
+
+## 🟡 后续 backlog（低优）
+
+- [ ] onboarding 判定逻辑补单测（`needsOnboarding` / `hasUsageTrace` 已有部分覆盖，可再补 Home 分支场景）
+- [ ] 废弃老字段 `badmintonHours`（与 `sport` / `sportHours` 语义重叠）
+- [ ] goal 步 UX：步骤边界可再划分（目前「主要目标」单项偏薄）
+- [ ] （可选）自有域名 + Resend 替换 163 SMTP，见 `docs/2026-08-06-otp-email-delivery-issue.md`
 
 ---
 
 ## 历史 / 已完成
 
-- 2026-08-10 老用户软迁移（PR #28）：onboarding 成为生成计划的唯一入口
-- 2026-08-10 cloudDirty 脏标记重推（已合并）：防抖窗口内的改动不再被远端旧数据覆盖
+- 2026-08-16 总览「我的蜕变」报告 + 海报下载（#34）
+- 2026-08-11 删老模板死代码，规则引擎成为唯一计划入口
+- 2026-08-10 老用户软迁移 + 训记式重量记录（#27/#28/#29）
+- 2026-08-10 cloudDirty 脏标记重推：防抖窗口内改动不再被远端旧数据覆盖

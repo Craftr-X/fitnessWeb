@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,7 +17,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { buildNextWeekPlan } from '@/lib/planEngine'
-import type { Profile, WeekFeedback, WeekPlan } from '@/types'
+import { calcWeekProgress } from '@/lib/store'
+import type { CheckMap, FeedbackDraft, Profile, WeekFeedback, WeekPlan } from '@/types'
 
 interface Props {
   feedbacks: WeekFeedback[]
@@ -28,22 +29,32 @@ interface Props {
   profile: Profile
   /** 生成下周计划后切到计划 Tab */
   onGoPlan: () => void
+  checks: CheckMap
+  draft: FeedbackDraft | null
+  setDraft: (draft: FeedbackDraft | null) => void
 }
 
 const SORENESS_OPTIONS = ['胸', '背', '肩', '手臂', '腿', '全身轻微', '无明显酸痛']
 const DIFFICULTY_LABELS = ['', '很轻松', '较轻松', '刚刚好', '偏累', '非常吃力']
 
-export default function Feedback({ feedbacks, setFeedbacks, weekPlan, setWeekPlan, profile, onGoPlan }: Props) {
-  const [completion, setCompletion] = useState(80)
-  const [difficulty, setDifficulty] = useState(3)
-  const [soreness, setSoreness] = useState<string[]>([])
-  const [sleep, setSleep] = useState('7-8')
-  const [diet, setDiet] = useState('基本达标')
-  const [note, setNote] = useState('')
+export default function Feedback({ feedbacks, setFeedbacks, weekPlan, setWeekPlan, profile, onGoPlan, checks, draft, setDraft }: Props) {
+  const [difficulty, setDifficulty] = useState(draft?.difficulty ?? 3)
+  const [soreness, setSoreness] = useState<string[]>(draft?.soreness ?? [])
+  const [sleep, setSleep] = useState(draft?.sleep ?? '7-8')
+  const [diet, setDiet] = useState(draft?.diet ?? '基本达标')
+  const [note, setNote] = useState(draft?.note ?? '')
   const [saved, setSaved] = useState(false)
   const [copied, setCopied] = useState(false)
   // 刚保存的反馈：周数仍等于当前计划周时，露出"生成下周计划"CTA
   const [justSavedFb, setJustSavedFb] = useState<WeekFeedback | null>(null)
+
+  // 完成度来自本周实际打卡，不要求用户再次估算一个数字。
+  const completion = useMemo(() => calcWeekProgress(weekPlan, checks).pct, [checks, weekPlan])
+
+  // 输入变化实时写入页面层，Tab 卸载后仍可恢复。
+  useEffect(() => {
+    setDraft({ completion, difficulty, soreness, sleep, diet, note })
+  }, [completion, difficulty, soreness, sleep, diet, note, setDraft])
 
   const toggleSoreness = (s: string) =>
     setSoreness((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
@@ -61,6 +72,7 @@ export default function Feedback({ feedbacks, setFeedbacks, weekPlan, setWeekPla
     }
     setFeedbacks((prev) => [fb, ...prev.filter((f) => f.week !== weekPlan.week)])
     setJustSavedFb(fb)
+    setDraft(null)
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -109,10 +121,13 @@ export default function Feedback({ feedbacks, setFeedbacks, weekPlan, setWeekPla
         <CardContent className="space-y-5">
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <Label>本周计划完成度</Label>
+              <Label>本周实际完成度</Label>
               <span className="font-medium">{completion}%</span>
             </div>
-            <Slider value={[completion]} min={0} max={100} step={5} onValueChange={(v) => setCompletion(v[0])} />
+            <div className="h-2 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${completion}%` }} />
+            </div>
+            <p className="text-xs text-muted-foreground">根据「每周计划」中的实际打卡自动计算。</p>
           </div>
 
           <div className="space-y-2">

@@ -72,6 +72,7 @@ interface Props {
  */
 export default function Onboarding({ existing, onComplete, onCancel, embedded }: Props) {
   const [step, setStep] = useState<Step>('basics')
+  const [preview, setPreview] = useState<{ profile: Profile; weekPlan: WeekPlan; quick: boolean } | null>(null)
   const [draft, setDraft] = useState<Draft>(() => ({
     gender: existing?.gender ?? 'male',
     age: existing?.age ?? 25,
@@ -113,15 +114,16 @@ export default function Onboarding({ existing, onComplete, onCancel, embedded }:
     if (step === 'details') setStep('basics')
   }
 
-  const finish = () => {
+  const makeProfile = (): Profile => {
     // 防御性 clamp：即便 slider/radio 异常或外部注入，也保证写入的画像落在合法区间
     const heightCm = clamp(draft.heightCm, 100, 250)
     const weightKg = clamp(draft.weightKg, 25, 300)
     const age = clamp(draft.age, 10, 100)
-    const trainDaysPerWeek = clamp(draft.trainDaysPerWeek, 2, 6)
     const sport: Sport = draft.sport
     const sportHours = sport === 'none' ? 0 : clamp(draft.sportHours, 1, 6)
-    const profile: Profile = {
+    // 有专项运动时力量日上限 5，与 planEngine 一致（留给运动日 + 周日复盘）
+    const trainDaysPerWeek = clamp(draft.trainDaysPerWeek, 2, sport === 'none' ? 6 : 5)
+    return {
       ...(existing ?? { name: '我' }),
       gender: draft.gender,
       age,
@@ -136,8 +138,64 @@ export default function Onboarding({ existing, onComplete, onCancel, embedded }:
       injuries: Array.isArray(draft.injuries) ? draft.injuries : [],
       onboarded: true,
     }
+  }
+
+  const finish = () => {
+    const profile = makeProfile()
     const weekPlan = buildWeekPlanFromProfile(profile, 1)
+    // 新用户先看到计划轮廓再正式开始，先让价值可见；老用户重定制仍直接提交。
+    if (!existing) {
+      setPreview({ profile, weekPlan, quick: false })
+      return
+    }
     onComplete(profile, weekPlan)
+  }
+
+  const previewQuick = () => {
+    const profile = makeProfile()
+    setPreview({ profile, weekPlan: buildWeekPlanFromProfile(profile, 1), quick: true })
+  }
+
+  if (preview) {
+    const previewCard = (
+      <Card className={embedded ? 'w-full border-0 shadow-none' : 'w-full max-w-lg rounded-2xl shadow-lg'}>
+        <CardHeader>
+          <CardTitle>你的第 1 周计划已准备好</CardTitle>
+          <CardDescription>
+            {preview.quick ? '这是一份快速预览，补充偏好后计划会更贴合你。' : '先看看安排，再决定从哪一天开始。之后也可以随时重新定制。'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {preview.weekPlan.days.filter((d) => d.type !== 'rest').slice(0, 4).map((day) => (
+            <div key={day.day} className="rounded-xl border bg-muted/30 p-3">
+              <div className="flex items-center justify-between">
+                <span className="font-medium">{day.day} · {day.focus}</span>
+                <span className="text-xs text-muted-foreground">{day.exercises.length} 项</span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{day.exercises.slice(1, 3).map((e) => e.name).join('、')}</p>
+            </div>
+          ))}
+          <div className="flex items-center justify-between pt-2">
+            <Button variant="ghost" onClick={() => setPreview(null)}>
+              <ArrowLeft className="mr-1 h-4 w-4" /> 返回修改
+            </Button>
+            <div className="flex gap-2">
+              {preview.quick && (
+                <Button variant="outline" onClick={() => { setPreview(null); setStep('details') }}>
+                  继续完善偏好
+                </Button>
+              )}
+              <Button onClick={() => onComplete(preview.profile, preview.weekPlan)}>
+                开始第 1 周
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+    if (embedded) return previewCard
+    return <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-primary/5 via-background to-background p-4">{previewCard}</div>
   }
 
   const card = (
@@ -266,17 +324,21 @@ export default function Onboarding({ existing, onComplete, onCancel, embedded }:
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>每周能练几天</Label>
+                  <Label>每周能练几天（力量）</Label>
                   <span className="text-sm font-medium text-primary">{draft.trainDaysPerWeek} 天</span>
                 </div>
                 <Slider
                   value={[draft.trainDaysPerWeek]}
                   min={2}
-                  max={6}
+                  max={draft.sport === 'none' ? 6 : 5}
                   step={1}
                   onValueChange={(v) => setDraft((d) => ({ ...d, trainDaysPerWeek: v[0] }))}
                 />
-                <p className="text-xs text-muted-foreground">2-6 天，强度会根据天数自动分配肌群</p>
+                <p className="text-xs text-muted-foreground">
+                  {draft.sport === 'none'
+                    ? '2-6 天，强度会根据天数自动分配肌群'
+                    : '有专项运动时最多 5 个力量日，另留运动日与周日复盘'}
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -307,7 +369,14 @@ export default function Onboarding({ existing, onComplete, onCancel, embedded }:
                 <Label>专项运动（可选）</Label>
                 <Select
                   value={draft.sport}
-                  onValueChange={(v) => setDraft((d) => ({ ...d, sport: v as Sport, sportHours: v === 'none' ? 0 : d.sportHours || 2 }))}
+                  onValueChange={(v) =>
+                    setDraft((d) => ({
+                      ...d,
+                      sport: v as Sport,
+                      sportHours: v === 'none' ? 0 : d.sportHours || 2,
+                      trainDaysPerWeek: v !== 'none' && d.trainDaysPerWeek > 5 ? 5 : d.trainDaysPerWeek,
+                    }))
+                  }
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="选择你常做的运动" />
@@ -392,10 +461,17 @@ export default function Onboarding({ existing, onComplete, onCancel, embedded }:
                 {existing ? '重新生成计划' : '生成我的计划'}
               </Button>
             ) : (
-              <Button onClick={next}>
-                下一步
-                <ArrowRight className="ml-1 h-4 w-4" />
-              </Button>
+              <div className="flex gap-2">
+                {!existing && (
+                  <Button variant="outline" onClick={previewQuick}>
+                    先看计划
+                  </Button>
+                )}
+                <Button onClick={next}>
+                  下一步
+                  <ArrowRight className="ml-1 h-4 w-4" />
+                </Button>
+              </div>
             )}
           </div>
         </CardContent>
