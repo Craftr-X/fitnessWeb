@@ -1,20 +1,42 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
+import { useLocation, useNavigate } from 'react-router'
 import type { User } from '@supabase/supabase-js'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
-import { ArrowRight, Dumbbell, Flame, LogOut, MessageCircle } from 'lucide-react'
-import { useCountUp } from '@/hooks/useCountUp'
-import { calcWeekProgress, countCompletedWeeks, currentMonday, hasUsageTrace, mergeOnboardingWeight, needsOnboarding, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Dumbbell, EllipsisVertical, FileSpreadsheet, LogOut, MessageCircle, Settings } from 'lucide-react'
+import { calcWeekProgress, currentMonday, hasUsageTrace, mergeOnboardingWeight, needsOnboarding, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
+import { buildExportPayload, clearLocalData, deleteAccount, deleteCloudRow, downloadExport } from '@/lib/account'
+import { checksCsv, csvFileName, downloadCsv, trainingCsv, weightsCsv } from '@/lib/exportCsv'
 import { buildNextWeekPlan } from '@/lib/planEngine'
 import { useAuth } from '@/hooks/useAuth'
 import ThemeToggle from '@/components/ThemeToggle'
 import AppSplash from '@/components/AppSplash'
 import FeedbackDialog from '@/components/FeedbackDialog'
+import SettingsDialog from '@/components/SettingsDialog'
+import TodayHero from '@/components/TodayHero'
+import { RestTimer, type RestTimerHandle } from '@/components/RestTimer'
 import Onboarding from '@/pages/Onboarding'
 import type { FeedbackDraft, Profile, WeekPlan } from '@/types'
 
@@ -25,27 +47,48 @@ const BodyData = lazy(() => import('@/sections/BodyData'))
 const Feedback = lazy(() => import('@/sections/Feedback'))
 const Nutrition = lazy(() => import('@/sections/Nutrition'))
 
-function greeting(): string {
-  const h = new Date().getHours()
-  if (h < 6) return '夜深了'
-  if (h < 12) return '早上好'
-  if (h < 18) return '下午好'
-  return '晚上好'
+/** 一级 Tab 与 URL 的对应关系（HashRouter：#/today、#/plan、#/data） */
+const TAB_KEYS = ['today', 'plan', 'data'] as const
+type TabKey = (typeof TAB_KEYS)[number]
+
+/** 从路由路径解析当前 Tab；未知路径（含根路径 #/）回落到今日 */
+function tabFromPath(pathname: string): TabKey {
+  const seg = pathname.split('/')[1]
+  return (TAB_KEYS as readonly string[]).includes(seg) ? (seg as TabKey) : 'today'
 }
 
 export default function Home({ user }: { user: User }) {
   const cloud = useCloudStorage(user.id)
   const { signOut } = useAuth()
-  const { ready, migrated, syncError } = cloud
+  const { ready, migrated, syncError, loadError, pendingCount, retry } = cloud
   const [profile, setProfile] = cloud.profile
   const [weekPlan, setWeekPlan] = cloud.weekPlan
   const [checks, setChecks] = cloud.checks
   const [weights, setWeights] = cloud.weights
   const [feedbacks, setFeedbacks] = cloud.feedbacks
   const [setLogs, setSetLogs] = cloud.setLogs
-  const [tab, setTab] = useState('overview')
-  // 反馈表单位于懒加载 Tab 内，草稿放在页面层避免切换 Tab 丢失输入。
+  const [activity, setActivity] = cloud.activity
+  // 反馈表单位于弹层内（关闭即卸载），草稿放在页面层避免关闭/重开弹层丢失输入。
   const [feedbackDraft, setFeedbackDraft] = useState<FeedbackDraft | null>(null)
+  // 一级导航收成 3 个：今日（原「总览」）/ 计划 / 数据。
+  // 导航状态放进 URL（#/today、#/plan、#/data）：刷新能保持，返回键回上一个 Tab 而不是退出应用
+  const location = useLocation()
+  const navigate = useNavigate()
+  const tab = tabFromPath(location.pathname)
+  const setTab = useCallback((next: TabKey) => void navigate(`/${next}`), [navigate])
+  // 「开始今日训练」：每次点击 +1，计划区据此把今天那张日卡滚进视口
+  const [todayFocus, setTodayFocus] = useState(0)
+  // 二级弹层：每周反馈 / 营养建议
+  const [weekFeedbackOpen, setWeekFeedbackOpen] = useState(false)
+  const [nutritionOpen, setNutritionOpen] = useState(false)
+  // 页头菜单只留 3 项：意见反馈 / 设置 / 退出登录；导出与删除都收进设置弹层
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [signOutOpen, setSignOutOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [csvOpen, setCsvOpen] = useState(false)
+  // 组间休息计时器：挂 Home 层，切 tab 不中断；WeeklyPlan 经回调触发
+  const restTimerRef = useRef<RestTimerHandle>(null)
 
   // 未 onboarded 一律走引导：真·新用户首次配置；老用户（账号体系上线前已有数据）
   // 借此软迁移到规则引擎计划——onboarding 是生成计划的唯一入口
@@ -83,11 +126,11 @@ export default function Home({ user }: { user: User }) {
     toast.success('📦 已把本机的历史数据迁移到你的云端账号！')
   }, [ready, migrated])
 
-  // 同步状态提示：失败时驻留 toast，网络恢复（syncError 转 false）后自动消失。
-  // 用固定 id 去重，避免每次防抖都弹新 toast。
+  // 同步状态提示：失败时驻留 toast，重推成功（syncError 转 false）后自动消失。
+  // 用固定 id 去重，避免每次防抖都弹新 toast。文案如实区分「本机已保存」与「尚未上云」。
   useEffect(() => {
     if (syncError) {
-      toast.error('同步失败，数据已暂存本地，网络恢复后会自动重试', {
+      toast.error('云端同步失败：改动已保存在本机，尚未上云，联网后会自动重试', {
         id: 'sync-error',
         duration: Infinity,
       })
@@ -95,6 +138,19 @@ export default function Home({ user }: { user: User }) {
       toast.dismiss('sync-error')
     }
   }, [syncError])
+
+  // 网络恢复时把离线期间的改动重推到云端。retry() 内部按 dirty 判断：
+  // 有未同步改动 → 整份重推（不能重拉，会冲掉离线写入）；没有 → 重拉远端。
+  // 只在确实有错误时触发，避免每次 online 事件都做一次无谓的重新加载。
+  useEffect(() => {
+    const handleOnline = () => {
+      // pendingCount>0 也要算：刷新后 dirty 短路会让 loadError 清空，但改动仍没上云，
+      // 只判 loadError/syncError 会漏掉这条路径，网络恢复时没人触发重推。
+      if (loadError || syncError || pendingCount > 0) retry()
+    }
+    window.addEventListener('online', handleOnline)
+    return () => window.removeEventListener('online', handleOnline)
+  }, [loadError, syncError, pendingCount, retry])
 
   // 把 onboarding 采集的体重落到 weights（逻辑见 store.mergeOnboardingWeight，已单测覆盖）
   const syncWeightFromProfile = (weightKg: number) => {
@@ -133,10 +189,57 @@ export default function Home({ user }: { user: User }) {
   const handleSignOut = async () => {
     const ok = await cloud.flush() // 把防抖窗口内的最新数据先写入云端
     if (!ok) {
-      // 数据未同步但不丢：dirty 标记仍在，下次登录会自动重推
-      toast.warning('部分数据未能同步，下次登录会自动重试')
+      // 数据未同步但不丢：T7a 之后 loadError 期间的改动也已落本机缓存并置 dirty，
+      // 下次登录会跳过远端拉取、以缓存为准重推，这句提示才真正成立
+      toast.warning('部分数据尚未同步到云端，已保存在本机，下次登录会自动重试')
     }
     await signOut()
+  }
+
+  const handleExport = () => {
+    try {
+      downloadExport(
+        buildExportPayload(user.email, { profile, weekPlan, checks, weights, feedbacks, setLogs, activity }),
+      )
+      toast.success('数据已导出，请在下载目录查收')
+    } catch {
+      toast.error('导出失败，请重试')
+    }
+  }
+
+  // CSV 导出（T5）：UTF-8 BOM + CRLF，Excel 双击直开
+  const handleExportCsv = (kind: '体重' | '训练记录' | '打卡') => {
+    try {
+      if (kind === '体重') {
+        downloadCsv(weightsCsv(weights, profile.heightCm), csvFileName('体重'))
+      } else if (kind === '训练记录') {
+        downloadCsv(trainingCsv(setLogs), csvFileName('训练记录'))
+      } else {
+        downloadCsv(checksCsv(weekPlan, checks), csvFileName('打卡'))
+      }
+      toast.success(`${kind} CSV 已导出，Excel 可直接打开`)
+    } catch {
+      toast.error('导出失败，请重试')
+    }
+  }
+
+  // 删除账号：编排仍留在 Home，具体顺序交给 account.ts（可单测）。
+  // 关键守卫：flush() 返回 false（loadError 期间）时必须中止，
+  // 否则会在数据没同步到云端的情况下删掉云端行。
+  const handleDeleteAccount = async () => {
+    setDeleting(true)
+    try {
+      await deleteAccount(user.id, {
+        flush: () => cloud.flush(),
+        deleteCloud: deleteCloudRow,
+        clearLocal: clearLocalData,
+        signOut,
+        onError: (msg) => toast.error(msg),
+        onSuccess: (msg) => toast.success(msg),
+      })
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const todayIdx = (new Date().getDay() + 6) % 7
@@ -144,21 +247,11 @@ export default function Home({ user }: { user: User }) {
   const latestWeight = weights[weights.length - 1]?.weight
 
   // 本周打卡统计：完成项数 + 每天是否打过卡（作战卡进度环 / 打卡点用）
-  const { done, total, pct: weekPct, dayChecked } = useMemo(
+  const { done, total, dayChecked } = useMemo(
     () => calcWeekProgress(weekPlan, checks),
     [weekPlan, checks],
   )
   const daysTrained = dayChecked.filter(Boolean).length
-
-  // 作战卡数字 count-up
-  const animatedPct = useCountUp(weekPct)
-  const animatedWeight = useCountUp(latestWeight ?? 0)
-  // 达标周数由真实完成度计算，不再把“填写过反馈”误称为坚持。
-  const completedWeeks = useMemo(
-    () => countCompletedWeeks(feedbacks, weekPlan.week, weekPct),
-    [feedbacks, weekPct, weekPlan.week],
-  )
-  const animatedWeeks = useCountUp(completedWeeks)
 
   // 新用户首次进入 / 老用户软迁移：走 onboarding 引导（老用户带画像预填）
   if (needsOnboardingVal) {
@@ -189,147 +282,157 @@ export default function Home({ user }: { user: User }) {
 
       <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 text-white shadow-md shadow-teal-500/30">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 text-white shadow-md shadow-teal-500/30">
             <Dumbbell className="h-5 w-5" />
           </div>
-          <div className="flex-1">
-            <h1 className="text-lg font-bold leading-tight">FitUp 健身计划</h1>
-            <p className="text-xs text-muted-foreground">
-              {profile.heightCm} cm · 目标：{profile.weightGoal ? WEIGHT_GOAL_LABEL[profile.weightGoal] : '—'}
+          {/* min-w-0 允许标题块在移动端收缩，truncate 保证单行省略不折行 */}
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-lg font-bold leading-tight">FitUp 健身计划</h1>
+            <p className="truncate text-xs text-muted-foreground">
+              {profile.heightCm} cm · 目标：{profile.weightGoal ? WEIGHT_GOAL_LABEL[profile.weightGoal] : '未设置'}
             </p>
           </div>
           <span className="hidden max-w-40 truncate text-xs text-muted-foreground sm:block">
             {user.email}
           </span>
-          <Tooltip>
-            <FeedbackDialog
-              trigger={
-                <TooltipTrigger asChild>
-                  <Button size="icon" variant="ghost" aria-label="意见反馈">
-                    <MessageCircle className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </TooltipTrigger>
-              }
-            />
-            <TooltipContent>意见反馈</TooltipContent>
-          </Tooltip>
           <ThemeToggle />
-          <Badge variant="secondary" className="bg-primary/10 text-primary">
+          <Badge variant="secondary" className="shrink-0 bg-primary/10 text-primary">
             第 {weekPlan.week} 周
           </Badge>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button size="icon" variant="ghost" aria-label="退出登录" onClick={handleSignOut}>
-                <LogOut className="h-4 w-4 text-muted-foreground" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost" aria-label="菜单">
+                <EllipsisVertical className="h-4 w-4 text-muted-foreground" />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent>退出登录</TooltipContent>
-          </Tooltip>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onSelect={() => setFeedbackOpen(true)}>
+                <MessageCircle />
+                意见反馈
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
+                <Settings />
+                设置
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
+                onSelect={() => setSignOutOpen(true)}
+              >
+                <LogOut />
+                退出登录
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
-      <main className="relative mx-auto max-w-5xl px-4 py-5">
-        {/* 今日作战卡 */}
-        <div className="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-teal-600 via-teal-500 to-emerald-500 p-5 text-white shadow-lg shadow-teal-500/25 sm:p-6">
-          {/* 卡内装饰：细网格 + 光斑 */}
-          <div
-            className="pointer-events-none absolute inset-0 opacity-35"
-            style={{
-              backgroundImage:
-                'linear-gradient(to right, rgb(255 255 255 / 0.09) 1px, transparent 1px), linear-gradient(to bottom, rgb(255 255 255 / 0.09) 1px, transparent 1px)',
-              backgroundSize: '28px 28px',
-            }}
-            aria-hidden
-          />
-          <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-white/15 blur-2xl" aria-hidden />
-          <div className="pointer-events-none absolute -bottom-16 right-28 h-40 w-40 rounded-full bg-emerald-300/25 blur-2xl" aria-hidden />
+      {/* 退出登录二次确认：防止误触；确认后才走 flush + signOut */}
+      <AlertDialog open={signOutOpen} onOpenChange={setSignOutOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确定要退出登录吗？</AlertDialogTitle>
+            <AlertDialogDescription>
+              退出前会把未同步的数据写入云端，下次登录后数据都在。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleSignOut()}>退出登录</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-          <div className="relative flex flex-wrap items-center gap-5">
-            <div className="min-w-56 flex-1">
-              <p className="text-sm text-white/80">{greeting()}！{format(new Date(), 'M月d日')}</p>
-              <h2 className="mt-0.5 text-xl font-bold">
-                今天：{todayPlan.day} · {todayPlan.focus}
-              </h2>
-              <p className="mt-1 text-sm text-white/80">
-                {todayPlan.type === 'rest'
-                  ? '休息日也要记得拉伸和好好吃饭 💪'
-                  : todayPlan.type === 'sport'
-                    ? '羽毛球日！尽情挥洒汗水，注意补水 🏸'
-                    : '练前别忘了 5 分钟热身，动作质量优先 🔥'}
-              </p>
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
 
-              {/* 本周打卡点：亮=当天有打卡，光环=今天 */}
-              <div className="mt-3 flex items-center gap-1.5">
-                {weekPlan.days.map((d, di) => (
-                  <span
-                    key={di}
-                    title={d.day}
-                    className={`h-2.5 w-2.5 rounded-full transition-colors ${
-                      dayChecked[di] ? 'bg-white shadow-sm shadow-white/60' : 'bg-white/25'
-                    } ${di === todayIdx ? 'ring-2 ring-white/80 ring-offset-2 ring-offset-teal-500' : ''}`}
-                  />
-                ))}
-                <span className="ml-2 text-xs text-white/75">本周已练 {daysTrained} 天</span>
-              </div>
+      {/* 设置（T4）：账号信息 / 两个导出 / 危险区输入邮箱确认删除 */}
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        email={user.email}
+        deleting={deleting}
+        onExportJson={handleExport}
+        onExportCsv={() => setCsvOpen(true)}
+        onDeleteAccount={handleDeleteAccount}
+      />
 
-              <Button
-                onClick={() => setTab('plan')}
-                className="mt-4 bg-white font-semibold text-teal-700 shadow-md transition-transform hover:scale-[1.03] hover:bg-teal-50"
-              >
-                {todayPlan.type === 'rest' ? '查看本周计划' : '开始今日训练'}
-                <ArrowRight className="ml-1 h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="flex items-center gap-6 pr-1">
-              {/* 本周完成度进度环 */}
-              <div className="relative h-20 w-20" title={`已打卡 ${done} / ${total} 项`}>
-                <svg viewBox="0 0 80 80" className="h-20 w-20 -rotate-90">
-                  <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="7" />
-                  <circle
-                    cx="40"
-                    cy="40"
-                    r="34"
-                    fill="none"
-                    stroke="#fff"
-                    strokeWidth="7"
-                    strokeLinecap="round"
-                    strokeDasharray={2 * Math.PI * 34}
-                    strokeDashoffset={2 * Math.PI * 34 * (1 - animatedPct / 100)}
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-lg font-bold leading-none">{Math.round(animatedPct)}%</span>
-                  <span className="mt-0.5 text-[10px] text-white/75">本周进度</span>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {latestWeight && (
-                  <div className="text-center">
-                    <div className="text-2xl font-bold tabular-nums">{animatedWeight.toFixed(2)}</div>
-                    <div className="text-xs text-white/75">当前体重 kg</div>
-                  </div>
-                )}
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-1 text-2xl font-bold tabular-nums">
-                    <Flame className="h-5 w-5" />
-                    {Math.round(animatedWeeks)}
-                  </div>
-                  <div className="text-xs text-white/75">达标周数</div>
-                </div>
-              </div>
-            </div>
+      {/* 导出 CSV（T5）：三个 Excel 可直接打开的表；训练记录只保留当前周，需标注 */}
+      <Dialog open={csvOpen} onOpenChange={setCsvOpen}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-sm" aria-describedby={undefined}>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            导出 CSV
+          </DialogTitle>
+          <div className="space-y-2">
+            <Button variant="outline" className="w-full justify-between" onClick={() => handleExportCsv('体重')}>
+              体重记录（含体脂 / BMI）
+              <span aria-hidden>↓</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-between"
+              onClick={() => handleExportCsv('训练记录')}
+            >
+              训练记录（重量 / 次数）
+              <span aria-hidden>↓</span>
+            </Button>
+            <Button variant="outline" className="w-full justify-between" onClick={() => handleExportCsv('打卡')}>
+              本周打卡（完成情况）
+              <span aria-hidden>↓</span>
+            </Button>
+            <p className="pt-1 text-xs text-muted-foreground">
+              文件带 UTF-8 BOM，Excel / Numbers 双击即可打开，中文不乱码。训练记录仅包含当前周。
+            </p>
           </div>
-        </div>
+        </DialogContent>
+      </Dialog>
 
-        <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="mb-6 grid h-11 w-full grid-cols-5 rounded-full bg-card p-1 shadow-sm">
-            <TabsTrigger value="overview" className="rounded-full">总览</TabsTrigger>
-            <TabsTrigger value="plan" className="rounded-full">每周计划</TabsTrigger>
-            <TabsTrigger value="data" className="rounded-full">数据记录</TabsTrigger>
-            <TabsTrigger value="feedback" className="rounded-full">每周反馈</TabsTrigger>
-            <TabsTrigger value="nutrition" className="rounded-full">营养建议</TabsTrigger>
+      <main className="relative mx-auto max-w-5xl px-4 py-5">
+        {/* 云端读取失败 / 有待同步改动且上次推送失败：不阻塞使用，但必须说真话并给重试入口。
+            loadError 期间改动仍会写本机缓存并置 dirty，只是不会自动回写云端（防旧缓存覆盖）。 */}
+        {(loadError || (pendingCount > 0 && syncError)) && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+            <span className="min-w-0 flex-1">
+              {loadError
+                ? '云端数据没加载出来，当前显示的是本机缓存（可能不是最新）。'
+                : '云端同步还没完成，当前显示的是本机数据。'}
+              {loadError && <span className="ml-1 text-xs text-muted-foreground">{loadError}</span>}
+              {pendingCount > 0 && (
+                <span className="mt-1 block text-xs text-amber-700 dark:text-amber-300">
+                  本机有 {pendingCount} 项改动尚未同步到云端，已保存在本机；联网或点「重试」后会重推，本机版本将覆盖云端版本。
+                </span>
+              )}
+            </span>
+            <Button size="sm" variant="outline" onClick={retry}>
+              重试
+            </Button>
+          </div>
+        )}
+
+        {/* 今日作战卡：完整版只在「今日」Tab，计划/数据 Tab 压成一行（首屏 322px → 64px） */}
+        <TodayHero
+          weekPlan={weekPlan}
+          todayPlan={todayPlan}
+          todayIdx={todayIdx}
+          dayChecked={dayChecked}
+          daysTrained={daysTrained}
+          done={done}
+          total={total}
+          latestWeight={latestWeight ?? null}
+          weeksPersisted={weekPlan.week}
+          compact={tab !== 'today'}
+          onStart={() => {
+            setTab('plan')
+            setTodayFocus((n) => n + 1)
+          }}
+        />
+
+        <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
+          {/* 一级导航 5 → 3：总览并入「今日」，每周反馈 / 营养建议降级为弹层 */}
+          <TabsList className="mb-6 grid h-11 w-full grid-cols-3 rounded-full bg-card p-1 shadow-sm">
+            <TabsTrigger value="today" className="rounded-full">今日</TabsTrigger>
+            <TabsTrigger value="plan" className="rounded-full">计划</TabsTrigger>
+            <TabsTrigger value="data" className="rounded-full">数据</TabsTrigger>
           </TabsList>
 
           {/* Suspense 包整个 Tabs：Radix Tabs 默认只挂载当前 Tab，切 Tab 时触发对应 section 的懒加载 */}
@@ -340,7 +443,7 @@ export default function Home({ user }: { user: User }) {
               </div>
             }
           >
-            <TabsContent value="overview" className="fade-enter">
+            <TabsContent value="today" className="fade-enter">
               <Overview
                 profile={profile}
                 setProfile={setProfile}
@@ -349,7 +452,10 @@ export default function Home({ user }: { user: User }) {
                 checks={checks}
                 feedbacks={feedbacks}
                 setLogs={setLogs}
+                activity={activity}
                 onRebuild={handleRebuild}
+                onOpenFeedback={() => setWeekFeedbackOpen(true)}
+                onOpenNutrition={() => setNutritionOpen(true)}
               />
             </TabsContent>
             <TabsContent value="plan" className="fade-enter">
@@ -361,32 +467,79 @@ export default function Home({ user }: { user: User }) {
                 setLogs={setLogs}
                 setSetLogs={setSetLogs}
                 feedbacks={feedbacks}
-                onGoFeedback={() => setTab('feedback')}
+                onGoFeedback={() => setWeekFeedbackOpen(true)}
                 profile={profile}
+                onRestStart={(seconds) => restTimerRef.current?.start(seconds)}
+                setActivity={setActivity}
+                focusToday={todayFocus}
               />
             </TabsContent>
             <TabsContent value="data" className="fade-enter">
-              <BodyData weights={weights} setWeights={setWeights} heightCm={profile.heightCm} />
-            </TabsContent>
-            <TabsContent value="feedback" className="fade-enter">
-              <Feedback
+              <BodyData
+                weights={weights}
+                setWeights={setWeights}
+                heightCm={profile.heightCm}
+                activity={activity}
                 feedbacks={feedbacks}
-                setFeedbacks={setFeedbacks}
-                weekPlan={weekPlan}
-                setWeekPlan={setWeekPlan}
-                profile={profile}
-                onGoPlan={() => setTab('plan')}
-                checks={checks}
-                draft={feedbackDraft}
-                setDraft={setFeedbackDraft}
               />
-            </TabsContent>
-            <TabsContent value="nutrition" className="fade-enter">
-              <Nutrition weights={weights} weightGoal={profile.weightGoal} />
             </TabsContent>
           </Suspense>
         </Tabs>
       </main>
+
+      {/* 每周反馈（原第 4 个 Tab）：周日的收尾流程，从「今日」或计划页进入即可 */}
+      <Dialog open={weekFeedbackOpen} onOpenChange={setWeekFeedbackOpen}>
+        <DialogContent
+          className="max-h-[90dvh] gap-0 overflow-y-auto p-4 sm:max-w-3xl"
+          aria-describedby={undefined}
+        >
+          <DialogTitle className="sr-only">每周反馈</DialogTitle>
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center py-16">
+                <Spinner className="h-6 w-6" />
+              </div>
+            }
+          >
+            <Feedback
+              feedbacks={feedbacks}
+              setFeedbacks={setFeedbacks}
+              weekPlan={weekPlan}
+              setWeekPlan={setWeekPlan}
+              profile={profile}
+              checks={checks}
+              draft={feedbackDraft}
+              setDraft={setFeedbackDraft}
+              onGoPlan={() => {
+                setWeekFeedbackOpen(false)
+                setTab('plan')
+              }}
+            />
+          </Suspense>
+        </DialogContent>
+      </Dialog>
+
+      {/* 营养建议（原第 5 个 Tab）：静态参考内容，从今日页的蛋白质目标进入 */}
+      <Dialog open={nutritionOpen} onOpenChange={setNutritionOpen}>
+        <DialogContent
+          className="max-h-[90dvh] gap-0 overflow-y-auto p-4 sm:max-w-2xl"
+          aria-describedby={undefined}
+        >
+          <DialogTitle className="sr-only">营养建议</DialogTitle>
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center py-16">
+                <Spinner className="h-6 w-6" />
+              </div>
+            }
+          >
+            <Nutrition weights={weights} weightGoal={profile.weightGoal} />
+          </Suspense>
+        </DialogContent>
+      </Dialog>
+
+      {/* 组间休息悬浮计时器（无计时时不渲染） */}
+      <RestTimer ref={restTimerRef} />
     </div>
   )
 }

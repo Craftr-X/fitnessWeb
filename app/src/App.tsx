@@ -10,9 +10,11 @@ export default function App() {
 
   return (
     <>
+      {/* 具体 Tab（/today /plan /data）由 Home 自己按 URL 解析，这里只做登录态闸门。
+          HashRouter 下深链接形如 #/plan，GitHub Pages 上刷新不会 404 */}
       <Routes>
         <Route
-          path="/"
+          path="*"
           element={
             loading ? (
               <AppSplash tip="正在恢复登录状态…" />

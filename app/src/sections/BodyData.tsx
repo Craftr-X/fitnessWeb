@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { format, subDays } from 'date-fns'
+import { zhCN } from 'date-fns/locale'
 import {
   CartesianGrid,
   Legend,
@@ -12,6 +13,7 @@ import {
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
@@ -23,42 +25,116 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { LineChart as LineChartIcon, Plus, Trash2 } from 'lucide-react'
+import { CalendarCheck, LineChart as LineChartIcon, Plus, Trash2 } from 'lucide-react'
 import { bmi } from '@/lib/store'
-import type { WeightEntry } from '@/types'
+import { compareWeightEntries, dailyChartData, weightEntryKey } from '@/lib/weightChart'
+import type { ActivityMap, WeekFeedback, WeightEntry } from '@/types'
 
 interface Props {
   weights: WeightEntry[]
   setWeights: (v: WeightEntry[] | ((p: WeightEntry[]) => WeightEntry[])) => void
   heightCm: number
+  /** 每日训练活跃度（训练日历数据源） */
+  activity: ActivityMap
+  feedbacks: WeekFeedback[]
 }
 
-export default function BodyData({ weights, setWeights, heightCm }: Props) {
+/**
+ * 训练日历卡片：月历上标记 训练日（底色加粗）/ 称重（橙点）/ 每周反馈（蓝点），
+ * 底部给当月统计。训练打卡自 activity 字段上线起按真实日期记录；
+ * 此前的历史只有体重与反馈带日期，所以仅这两类可回溯标记。
+ */
+function TrainingCalendarCard({
+  activity,
+  weights,
+  feedbacks,
+}: {
+  activity: ActivityMap
+  weights: WeightEntry[]
+  feedbacks: WeekFeedback[]
+}) {
+  // 受控展示月份：底部「本月统计」跟随用户翻页
+  const [month, setMonth] = useState<Date>(new Date())
+  const keyOf = (d: Date) => format(d, 'yyyy-MM-dd')
+
+  const stats = useMemo(() => {
+    const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate()
+    let trained = 0
+    let weigh = 0
+    let fb = 0
+    for (let i = 1; i <= daysInMonth; i++) {
+      const key = format(new Date(month.getFullYear(), month.getMonth(), i), 'yyyy-MM-dd')
+      if ((activity[key] ?? 0) > 0) trained += 1
+      if (weights.some((w) => w.date === key)) weigh += 1
+      if (feedbacks.some((f) => f.date === key)) fb += 1
+    }
+    return { trained, weigh, fb }
+  }, [month, activity, weights, feedbacks])
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <CalendarCheck className="h-4 w-4 text-teal-500" /> 训练日历
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {/* 桌面端两栏（日历 + 图例/统计），把大卡片的空白用起来；移动端仍然竖排、日历铺满 */}
+        <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:justify-center sm:gap-10">
+          <div className="w-full max-w-sm">
+            <Calendar
+              locale={zhCN}
+              month={month}
+              onMonthChange={setMonth}
+              modifiers={{
+                trained: (d) => (activity[keyOf(d)] ?? 0) > 0,
+                weighIn: (d) => weights.some((w) => w.date === keyOf(d)),
+                feedback: (d) => feedbacks.some((f) => f.date === keyOf(d)),
+              }}
+              modifiersClassNames={{
+                trained: 'bg-teal-500/15 font-bold text-teal-700 dark:text-teal-300',
+                weighIn: 'rdp-dot-weigh relative',
+                feedback: 'rdp-dot-feedback relative',
+              }}
+            />
+          </div>
+          <div className="flex w-full flex-col items-center gap-2 text-xs text-muted-foreground sm:w-auto sm:items-start sm:pt-6">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded bg-teal-500/40" />训练日
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />称重
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />每周反馈
+            </span>
+            <p className="mt-2 text-center sm:text-left">
+              本月训练 {stats.trained} 天 · 称重 {stats.weigh} 次 · 反馈 {stats.fb} 次
+            </p>
+            <p className="max-w-52 text-center text-xs text-muted-foreground sm:text-left">
+              训练打卡自本版本起记录；此前数据仅显示体重与反馈标记。
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+export default function BodyData({ weights, setWeights, heightCm, activity, feedbacks }: Props) {
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [time, setTime] = useState(format(new Date(), 'HH:mm'))
   const [weight, setWeight] = useState('')
   const [bodyFat, setBodyFat] = useState('')
   const [range, setRange] = useState<'7' | '30' | 'all'>('30')
 
-  // 同一天可有多条记录（早晚），以 日期+时间 作为唯一键
-  const keyOf = (e: WeightEntry) => `${e.date}T${e.time ?? ''}`
-
   const sorted = useMemo(
-    () => [...weights].sort((a, b) => keyOf(a).localeCompare(keyOf(b))),
+    () => [...weights].sort(compareWeightEntries),
     [weights],
   )
 
-  const chartData = useMemo(() => {
-    const cutoff =
-      range === 'all' ? null : format(subDays(new Date(), range === '7' ? 7 : 30), 'yyyy-MM-dd')
-    return sorted
-      .filter((e) => !cutoff || e.date >= cutoff)
-      .map((e) => ({
-        date: format(new Date(e.date + 'T00:00:00'), 'M/d') + (e.time ? ` ${e.time}` : ''),
-        体重: e.weight,
-        体脂: e.bodyFat ?? undefined,
-      }))
-  }, [sorted, range])
+  // 趋势图一天一个点：窗口过滤 + 按天聚合（同天取最后一条）见 weightChart.ts
+  const chartData = useMemo(() => dailyChartData(weights, range), [weights, range])
 
   const latest = sorted[sorted.length - 1]
   const weekAgo = useMemo(() => {
@@ -80,17 +156,20 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
     }
     setWeights((prev) => {
       // 同一日期+时间覆盖，否则新增（同一天早晚可各记一条）
-      const rest = prev.filter((e) => keyOf(e) !== keyOf(entry))
-      return [...rest, entry].sort((a, b) => keyOf(a).localeCompare(keyOf(b)))
+      const rest = prev.filter((e) => weightEntryKey(e) !== weightEntryKey(entry))
+      return [...rest, entry].sort(compareWeightEntries)
     })
     setWeight('')
     setBodyFat('')
   }
 
-  const remove = (key: string) => setWeights((prev) => prev.filter((e) => keyOf(e) !== key))
+  const remove = (key: string) => setWeights((prev) => prev.filter((e) => weightEntryKey(e) !== key))
 
   return (
     <div className="space-y-4">
+      {/* 训练日历：打卡/称重/反馈的月度回看 */}
+      <TrainingCalendarCard activity={activity} weights={weights} feedbacks={feedbacks} />
+
       {/* 录入 */}
       <Card>
         <CardHeader className="pb-2">
@@ -117,7 +196,7 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
                 id="bd-weight"
                 type="number"
                 step="0.01"
-                placeholder="50.55"
+                placeholder="如 72.5"
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
                 className="w-28"
@@ -136,7 +215,7 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
               />
             </div>
             <div className="space-y-1">
-              <Label>BMI</Label>
+              <Label>BMI（自动计算）</Label>
               <div className="flex h-9 w-24 items-center justify-center rounded-md border bg-muted/60 text-sm font-semibold">
                 {(() => {
                   const w = parseFloat(weight)
@@ -174,23 +253,23 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
           <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-lg bg-muted/60 p-3 text-center">
               <div className="text-xl font-bold">{latest ? latest.weight.toFixed(2) : '—'} kg</div>
-              <div className="text-xs text-muted-foreground">最新体重</div>
+              <div className="text-xs text-muted-foreground">{latest ? '最新体重' : '还没有体重记录'}</div>
             </div>
             <div className="rounded-lg bg-muted/60 p-3 text-center">
               <div className="text-xl font-bold">
                 {latest?.bodyFat ? `${latest.bodyFat.toFixed(1)}%` : '—'}
               </div>
-              <div className="text-xs text-muted-foreground">最新体脂率</div>
+              <div className="text-xs text-muted-foreground">{latest?.bodyFat ? '最新体脂率' : '记录体脂后显示'}</div>
             </div>
             <div className="rounded-lg bg-muted/60 p-3 text-center">
               <div className={`text-xl font-bold ${weekDelta == null ? '' : weekDelta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
                 {weekDelta == null ? '—' : `${weekDelta >= 0 ? '+' : ''}${weekDelta.toFixed(2)} kg`}
               </div>
-              <div className="text-xs text-muted-foreground">近 7 天变化</div>
+              <div className="text-xs text-muted-foreground">{weekDelta == null ? '满 7 天后显示' : '近 7 天变化'}</div>
             </div>
             <div className="rounded-lg bg-muted/60 p-3 text-center">
               <div className="text-xl font-bold">{latest ? bmi(latest.weight, heightCm).toFixed(1) : '—'}</div>
-              <div className="text-xs text-muted-foreground">当前 BMI</div>
+              <div className="text-xs text-muted-foreground">{latest ? '当前 BMI' : '填体重后自动计算'}</div>
             </div>
           </div>
 
@@ -247,14 +326,14 @@ export default function BodyData({ weights, setWeights, heightCm }: Props) {
             </TableHeader>
             <TableBody>
               {[...sorted].reverse().slice(0, 15).map((e) => (
-                <TableRow key={keyOf(e)}>
+                <TableRow key={weightEntryKey(e)}>
                   <TableCell>{format(new Date(e.date + 'T00:00:00'), 'yyyy年M月d日')}</TableCell>
                   <TableCell>{e.time ?? '—'}</TableCell>
                   <TableCell className="text-right">{e.weight.toFixed(2)}</TableCell>
                   <TableCell className="text-right">{e.bodyFat != null ? e.bodyFat.toFixed(1) : '—'}</TableCell>
                   <TableCell className="text-right">{bmi(e.weight, heightCm).toFixed(1)}</TableCell>
                   <TableCell>
-                    <Button size="icon" variant="ghost" onClick={() => remove(keyOf(e))}>
+                    <Button size="icon" variant="ghost" className="h-11 w-11" onClick={() => remove(weightEntryKey(e))}>
                       <Trash2 className="h-4 w-4 text-muted-foreground" />
                     </Button>
                   </TableCell>

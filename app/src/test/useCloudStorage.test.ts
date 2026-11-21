@@ -60,8 +60,68 @@ describe('cloud dirty 标记', () => {
 })
 
 /* ------------------------------------------------------------------ */
-/* 核心回归：本地有未同步改动时，启动不得被远端旧数据覆盖               */
+/* 首屏同步失败：不覆盖云端、可用本机缓存、可重试                       */
 /* ------------------------------------------------------------------ */
+describe('useCloudStorage 加载失败兜底', () => {
+  it('拉取失败：置 loadError、ready 仍为 true、且绝不回写云端', async () => {
+    const uid = 'u-load-err'
+    seedCache(uid, { checks: { '2:0:0': true } })
+    loadUserDataMock.mockRejectedValue(new Error('Failed to fetch'))
+    saveUserDataMock.mockResolvedValue(true)
+
+    const { result } = renderHook(() => useCloudStorage(uid))
+    await flushMicrotasks()
+
+    // 不卡在加载态（之前 ready 永远为 false，页面停在「正在同步你的数据…」）
+    expect(result.current.ready).toBe(true)
+    expect(result.current.loadError).toContain('Failed to fetch')
+    // 本机缓存还能用
+    expect(result.current.checks[0]).toEqual({ '2:0:0': true })
+    // 关键：读取失败不能被当成"新用户"，否则会用默认值覆盖云端真实数据
+    expect(saveUserDataMock).not.toHaveBeenCalled()
+
+    // 防抖窗口过去也不许回写
+    act(() => vi.advanceTimersByTime(DEBOUNCE_MS))
+    await flushMicrotasks()
+    expect(saveUserDataMock).not.toHaveBeenCalled()
+  })
+
+  it('loadError 期间 flush 返回 false（退出登录不应把旧缓存推上去）', async () => {
+    const uid = 'u-load-err-flush'
+    loadUserDataMock.mockRejectedValue(new Error('timeout'))
+    saveUserDataMock.mockResolvedValue(true)
+
+    const { result } = renderHook(() => useCloudStorage(uid))
+    await flushMicrotasks()
+    expect(result.current.loadError).toBeTruthy()
+
+    let ok = true
+    await act(async () => {
+      ok = await result.current.flush()
+    })
+    expect(ok).toBe(false)
+    expect(saveUserDataMock).not.toHaveBeenCalled()
+  })
+
+  it('retry 成功后清掉 loadError 并拉回远端数据', async () => {
+    const uid = 'u-retry'
+    loadUserDataMock
+      .mockRejectedValueOnce(new Error('超过加载超时（8000ms）'))
+      .mockResolvedValueOnce({ checks: { '3:0:0': true } })
+    saveUserDataMock.mockResolvedValue(true)
+
+    const { result } = renderHook(() => useCloudStorage(uid))
+    await flushMicrotasks()
+    expect(result.current.loadError).toBeTruthy()
+
+    act(() => result.current.retry())
+    await flushMicrotasks()
+
+    expect(result.current.loadError).toBeNull()
+    expect(result.current.ready).toBe(true)
+    expect(result.current.checks[0]).toEqual({ '3:0:0': true })
+  })
+})
 describe('useCloudStorage 未同步重推', () => {
   it('脏标记 + 本地缓存存在：以本地为准、跳过远端拉取，防抖后重推并清标记', async () => {
     const uid = 'u-dirty'

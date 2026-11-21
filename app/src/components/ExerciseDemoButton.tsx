@@ -10,12 +10,19 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CirclePlay, Loader2, ImageOff } from 'lucide-react'
+import { pickVideoPoster } from '@/lib/demos'
 import type { DemoInfo, DemoSource } from '@/lib/demos'
 
 interface Props {
   exerciseName: string
   demo: DemoInfo
 }
+
+/** 单源加载超时：卡住/慢 404 时尽快切下一候选，避免干等浏览器 onError */
+export const DEMO_SOURCE_TIMEOUT_MS = 2000
+
+/** 侧面媒体延迟启动：先抢正面带宽，弱网下首屏更快出画面 */
+export const DEMO_SIDE_DEFER_MS = 600
 
 /** 双帧循环播放的图片（free-exercise-db 逐帧图，模拟动图效果）。两帧同时加载、按显隐切换，避免切帧时闪烁 */
 function AnimatedImg({ url, url2, alt, onLoad, onError }: { url: string; url2: string; alt: string; onLoad: () => void; onError: () => void }) {
@@ -50,7 +57,20 @@ function AnimatedImg({ url, url2, alt, onLoad, onError }: { url: string; url2: s
 }
 
 /** 单视角媒体：按顺序尝试 sources，全部失败显示兜底 */
-function DemoMedia({ sources, label, exerciseName }: { sources: DemoSource[]; label: string; exerciseName: string }) {
+function DemoMedia({
+  sources,
+  label,
+  exerciseName,
+  active,
+  onReady,
+}: {
+  sources: DemoSource[]
+  label: string
+  exerciseName: string
+  /** false 时不发起请求（用于侧面分时加载） */
+  active: boolean
+  onReady?: () => void
+}) {
   const [idx, setIdx] = useState(0)
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
@@ -62,14 +82,51 @@ function DemoMedia({ sources, label, exerciseName }: { sources: DemoSource[]; la
     } else {
       setFailed(true)
       setLoading(false)
+      onReady?.()
     }
   }
 
+  const markReady = () => {
+    setLoading(false)
+    onReady?.()
+  }
+
+  // 超时强制降级：弱网/404 挂起时不必等浏览器 error；加载成功后 loading=false 清掉计时
+  useEffect(() => {
+    if (!active || failed || !loading) return
+    const timer = setTimeout(() => onError(), DEMO_SOURCE_TIMEOUT_MS)
+    return () => clearTimeout(timer)
+    // 仅在当前源尝试期间计时；成功/失败都会改 loading/failed 从而清掉
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: tick per source attempt
+  }, [active, idx, failed, loading, sources.length])
+
+  if (!active) {
+    return (
+      <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-muted">
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+        <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-xs font-medium text-white">
+          {label}
+        </span>
+      </div>
+    )
+  }
+
   const source = sources[idx]
+  const poster = source.type === 'video' ? pickVideoPoster(sources) : undefined
+  // 有 poster 时首帧已可见，不再盖一层转圈抢视觉
+  const showSpinner = loading && !failed && !poster
 
   return (
     <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-muted">
-      {loading && !failed && (
+      {/* 视频没有可用首帧时用图标占位，弱网下不再是纯黑块加转圈 */}
+      {source.type === 'video' && !poster && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
+          <CirclePlay className="h-10 w-10 text-muted-foreground" />
+        </div>
+      )}
+      {showSpinner && (
         <div className="absolute inset-0 flex items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -83,13 +140,15 @@ function DemoMedia({ sources, label, exerciseName }: { sources: DemoSource[]; la
         <video
           key={source.url}
           src={source.url}
+          poster={poster}
           className="h-full w-full object-contain"
           autoPlay
           loop
           muted
           playsInline
           controls
-          onLoadedData={() => setLoading(false)}
+          preload="metadata"
+          onLoadedData={markReady}
           onError={onError}
         />
       ) : source.url2 ? (
@@ -98,7 +157,7 @@ function DemoMedia({ sources, label, exerciseName }: { sources: DemoSource[]; la
           url={source.url}
           url2={source.url2}
           alt={`${exerciseName} ${label}示范`}
-          onLoad={() => setLoading(false)}
+          onLoad={markReady}
           onError={onError}
         />
       ) : (
@@ -107,11 +166,11 @@ function DemoMedia({ sources, label, exerciseName }: { sources: DemoSource[]; la
           src={source.url}
           alt={`${exerciseName} ${label}示范`}
           className="h-full w-full object-contain"
-          onLoad={() => setLoading(false)}
+          onLoad={markReady}
           onError={onError}
         />
       )}
-      <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
+      <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-xs font-medium text-white">
         {label}
       </span>
     </div>
@@ -119,9 +178,25 @@ function DemoMedia({ sources, label, exerciseName }: { sources: DemoSource[]; la
 }
 
 export default function ExerciseDemoButton({ exerciseName, demo }: Props) {
+  const [open, setOpen] = useState(false)
+  const [sideActive, setSideActive] = useState(false)
   const [frontLabel, sideLabel] = demo.mediaLabels ?? ['正面', '侧面']
+
+  // 打开后延迟启动侧面，把首段带宽留给正面；关闭时在 onOpenChange 复位
+  useEffect(() => {
+    if (!open) return
+    const timer = setTimeout(() => setSideActive(true), DEMO_SIDE_DEFER_MS)
+    return () => clearTimeout(timer)
+  }, [open])
+
   return (
-    <Dialog>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) setSideActive(false)
+      }}
+    >
       <DialogTrigger asChild>
         <Button
           size="icon"
@@ -149,8 +224,19 @@ export default function ExerciseDemoButton({ exerciseName, demo }: Props) {
         </DialogHeader>
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <DemoMedia sources={demo.front} label={frontLabel} exerciseName={exerciseName} />
-          <DemoMedia sources={demo.side} label={sideLabel} exerciseName={exerciseName} />
+          <DemoMedia
+            sources={demo.front}
+            label={frontLabel}
+            exerciseName={exerciseName}
+            active={open}
+            onReady={() => setSideActive(true)}
+          />
+          <DemoMedia
+            sources={demo.side}
+            label={sideLabel}
+            exerciseName={exerciseName}
+            active={open && sideActive}
+          />
         </div>
 
         <ol className="space-y-2.5">
@@ -163,16 +249,6 @@ export default function ExerciseDemoButton({ exerciseName, demo }: Props) {
             </li>
           ))}
         </ol>
-
-        {/* 暂不显示动图来源说明
-        <p className="text-xs text-muted-foreground">
-          动图来源：
-          <a href="https://musclewiki.com/zh-cn" target="_blank" rel="noreferrer" className="underline">
-            MuscleWiki
-          </a>
-          （加载失败时自动切换备用开源动作库）
-        </p>
-        */}
       </DialogContent>
     </Dialog>
   )

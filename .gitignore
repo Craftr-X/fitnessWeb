@@ -2,5 +2,15 @@
 DEPLOY.md
 .idea/
 
+# 依赖目录（任何层级）与本地环境变量（含真实凭据，绝不入库）
+node_modules/
+app/.env.local
+
 # ZCode 工作区元数据
 .zcode/
+
+# WorkBuddy 工作区记忆（本地助手数据，不入库）
+.workbuddy/
+
+# mirror-demos 本地下载缓存
+app/scripts/.demo-cache/

@@ -46,7 +46,14 @@ interface Progression {
 export function computeProgression(week: number, difficulty?: number): Progression {
   const step = Math.min(Math.floor((week - 1) / 2), 4)
   let extra = step
-  let note = `第 ${week} 周：在前一阶段基础上动作次数 +${step}（渐进超负荷）。`
+  // 第 1 周没有"上一阶段"，第 2 周起 step 仍为 0（每 2 周一个台阶），
+  // "+0" 这种说法会让人以为引擎没生效，改成"维持组次"的表述
+  let note =
+    week <= 1
+      ? '第 1 周：起始周，先把动作做标准；从第 2 周起按你的反馈逐步进阶。'
+      : step === 0
+        ? `第 ${week} 周：维持上周组次，先把动作做标准（第 ${week + 1} 周起加量）。`
+        : `第 ${week} 周：在前一阶段基础上动作次数 +${step}（渐进超负荷）。`
   if (difficulty !== undefined) {
     if (difficulty >= 4) {
       extra = Math.max(0, step - 1)
@@ -120,7 +127,8 @@ interface ExerciseSeed {
   note?: string
 }
 
-const POOL: Record<MuscleGroup, Partial<Record<Equipment, ExerciseSeed[]>>> = {
+// 导出供 demos.coverage 测试遍历全池（动作替换弹窗会把整个池子暴露给用户）
+export const POOL: Record<MuscleGroup, Partial<Record<Equipment, ExerciseSeed[]>>> = {
   chest: {
     none: [
       { name: '俯卧撑（跪姿可退阶）', baseLo: 8, baseHi: 12, note: '胸触地、核心收紧' },
@@ -356,8 +364,8 @@ function shouldFilterByInjury(name: string, injuries: string[] | undefined): boo
   return false
 }
 
-/** 伤病对应的替代动作（按伤病关键词） */
-const INJURY_SUBSTITUTES: { keyword: RegExp; group: MuscleGroup; seed: ExerciseSeed }[] = [
+/** 伤病对应的替代动作（按伤病关键词）；导出供覆盖测试遍历 */
+export const INJURY_SUBSTITUTES: { keyword: RegExp; group: MuscleGroup; seed: ExerciseSeed }[] = [
   {
     keyword: /膝/,
     group: 'legs',
@@ -620,6 +628,11 @@ const FOCUS_GROUP: Record<string, MuscleGroup> = Object.fromEntries(
   Object.entries(GROUP_LABEL).map(([g, label]) => [label, g as MuscleGroup]),
 )
 
+/** focus 文案 → 肌群（动作替换定位候选池用）；未知文案（休息/专项运动日）返回 undefined */
+export function groupFromFocus(focus: string): MuscleGroup | undefined {
+  return FOCUS_GROUP[focus]
+}
+
 /**
  * 反馈 → 渐进参数修正（完成度/睡眠对"量"的影响）。
  * 与 computeProgression 串联：先按 difficulty 算基础进阶，再叠加完成度/睡眠规则。
@@ -755,12 +768,12 @@ export function buildWeekPlanFromProfile(
   })
   if (feedback) notes.push(...applyFeedbackToDays(days, feedback, goal))
 
-  // adjustmentNote：进阶说明 + 反馈触发的调整；有反馈但未触发任何规则时给兜底文案
+  // adjustmentNote：进阶说明 + 反馈触发的调整；有反馈但未触发任何规则时给兜底文案。
+  // 各段本身以「。」结尾，直接 join('；') 会出现「。；」这种双标点，先把句末句号去掉再拼
   const adjustmentNote = feedback
-    ? [
-        progression.note,
-        ...(notes.length > 0 ? notes : ['根据上周反馈检查，本周保持原计划节奏。']),
-      ].join('；')
+    ? [...[progression.note, ...(notes.length > 0 ? notes : ['根据上周反馈检查，本周保持原计划节奏。'])]
+        .map((s) => s.replace(/。$/, ''))]
+        .join('；') + '。'
     : progression.note
 
   return { week, startDate: currentMonday(), days, adjustmentNote }
@@ -785,7 +798,7 @@ export function buildNextWeekPlan(
 }
 
 /* ------------------------------------------------------------------ */
-/* 复制下周：原样复制为下一周，用于"复制上周计划"按钮                   */
+/* 沿用本周：原样复制为下一周，用于"沿用本周计划"按钮                    */
 /* ------------------------------------------------------------------ */
 
 export function copyWeekPlanFromProfile(plan: WeekPlan): WeekPlan {
@@ -794,8 +807,39 @@ export function copyWeekPlanFromProfile(plan: WeekPlan): WeekPlan {
     week: plan.week + 1,
     startDate: nextMonday,
     days: plan.days.map((d) => ({ ...d, exercises: d.exercises.map((e) => ({ ...e })) })),
-    adjustmentNote: '沿用上周计划，未做进阶调整。',
+    adjustmentNote: '沿用本周计划，未做进阶调整。',
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* 动作替换：同肌群候选池（"换一个动作"功能）                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 列出某肌群下可替换的动作候选。
+ * 复用计划生成管线：同肌群 + 同器械的动作池 → 伤病过滤 → 与正式计划同一套
+ * seedToExercise 参数，保证候选的组数/次数与当周计划口径一致。
+ * 注意：完成度/睡眠触发的组数微调（setCapDelta）不参与候选计算，
+ * 候选组数可能与同日其他动作偶有 ±1 组差异——组数本就是建议值，可接受。
+ */
+export function listAlternatives(opts: {
+  group: MuscleGroup
+  equipment: Equipment
+  experience: Experience
+  /** 当前周数：候选组数/次数按当周进阶台阶换算 */
+  week: number
+  /** 上周难度反馈（1-5，可选；与计划生成同口径地影响进阶幅度） */
+  difficulty?: number
+  tuning: GoalTuning
+  injuries?: string[]
+  /** 当前动作名，从候选中排除 */
+  excludeName: string
+}): Exercise[] {
+  const progression = computeProgression(opts.week, opts.difficulty)
+  const pool = filterByInjury(opts.group, poolFor(opts.group, opts.equipment), opts.injuries)
+  return pool
+    .filter((s) => s.name !== opts.excludeName)
+    .map((s) => seedToExercise(s, progression, opts.tuning, opts.experience, opts.equipment))
 }
 
 /* ------------------------------------------------------------------ */

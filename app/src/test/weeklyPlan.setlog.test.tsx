@@ -6,7 +6,7 @@ import { addDays, format } from 'date-fns'
 import WeeklyPlan from '@/sections/WeeklyPlan'
 import { currentMonday } from '@/lib/planEngine'
 import { Toaster } from '@/components/ui/sonner'
-import type { CheckMap, ExerciseLogMap, WeekPlan } from '@/types'
+import type { ActivityMap, CheckMap, ExerciseLogMap, WeekPlan } from '@/types'
 
 const WEIGHTED_EX = '哑铃弯举'
 const BODYWEIGHT_EX = '俯卧撑（跪姿可退阶）'
@@ -52,6 +52,7 @@ function Harness({ initialLogs = {} }: { initialLogs?: ExerciseLogMap }) {
   const [weekPlan] = useState(() => TEST_PLAN)
   const [checks, setChecks] = useState<CheckMap>({})
   const [setLogs, setSetLogs] = useState<ExerciseLogMap>(initialLogs)
+  const [, setActivity] = useState<ActivityMap>({})
   return (
     <>
       <WeeklyPlan
@@ -63,6 +64,7 @@ function Harness({ initialLogs = {} }: { initialLogs?: ExerciseLogMap }) {
         setSetLogs={setSetLogs}
         feedbacks={[]}
         onGoFeedback={() => {}}
+        setActivity={setActivity}
       />
       <Toaster />
     </>
@@ -145,13 +147,53 @@ describe('负重动作（哑铃弯举）', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
-  it('校验：填完第 1 组但第 2 组还是 0，提示位置精确到第 2 组', async () => {
+  it('少做一组也能保存：只填第 1 组，末尾空组自动忽略', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    const dialog = await openDialogFor(user, WEIGHTED_EX)
+    await fillSet(user, 1, '12.5', '10')
+    await user.click(within(dialog).getByRole('button', { name: '完成' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(rowFor(WEIGHTED_EX).textContent).toContain('本次：12.5kg×10 · 1组')
+  })
+
+  it('中间留空仍拦截：第 1、3 组填了但第 2 组空，提示位置精确到第 2 组', async () => {
     const user = userEvent.setup()
     render(<Harness />)
     await openDialogFor(user, WEIGHTED_EX)
     await fillSet(user, 1, '12.5', '10')
+    await fillSet(user, 3, '12.5', '8')
     await user.click(screen.getByRole('button', { name: '完成' }))
     expect(await screen.findByText(/第 2 组的重量和次数为 0/)).toBeInTheDocument()
+  })
+
+  it('保存后自动打卡：记完不用再点一次勾', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    // 先看未打卡的初始态，再开弹窗（弹窗标题也含动作名，开着时 rowFor 会命中两个）
+    expect(within(rowFor(WEIGHTED_EX)).getByRole('checkbox')).toHaveAttribute('aria-checked', 'false')
+
+    const dialog = await openDialogFor(user, WEIGHTED_EX)
+    await fillSet(user, 1, '12.5', '10')
+    await user.click(within(dialog).getByRole('button', { name: '完成' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(within(rowFor(WEIGHTED_EX)).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('再次保存不会取消已有打卡', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    let dialog = await openDialogFor(user, WEIGHTED_EX)
+    await fillSet(user, 1, '12.5', '10')
+    await user.click(within(dialog).getByRole('button', { name: '完成' }))
+
+    dialog = await openDialogFor(user, WEIGHTED_EX)
+    await fillSet(user, 1, '15', '8')
+    await user.click(within(dialog).getByRole('button', { name: '完成' }))
+
+    expect(within(rowFor(WEIGHTED_EX)).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
   })
 
   it('全部填写后点完成：保存并关闭弹窗，入口显示本次摘要', async () => {
@@ -226,6 +268,38 @@ describe('负重动作（哑铃弯举）', () => {
     expect(within(dialog).getByText(/已为你预填/)).toBeInTheDocument()
     expect((screen.getByLabelText('第 1 组重量（kg）') as HTMLInputElement).value).toBe('10')
     expect((screen.getByLabelText('第 3 组重量（kg）') as HTMLInputElement).value).toBe('12.5')
+    expect(within(dialog).getByTestId('setlog-mini-trend')).toBeInTheDocument()
+    expect(within(dialog).getByText('仅 1 次记录')).toBeInTheDocument()
+    expect(within(dialog).getByTestId('setlog-pr-badge')).toBeInTheDocument()
+  })
+
+  it('≥2 次历史时展示迷你折线与最近场次文案', async () => {
+    const user = userEvent.setup()
+    const d1 = format(addDays(today, -14), 'yyyy-MM-dd')
+    const d2 = format(addDays(today, -7), 'yyyy-MM-dd')
+    const initialLogs: ExerciseLogMap = {
+      [WEIGHTED_EX]: [
+        { date: d1, week: 1, sets: [{ weightKg: 15, reps: 10 }] },
+        { date: d2, week: 1, sets: [{ weightKg: 12.5, reps: 8 }] },
+      ],
+    }
+    render(<Harness initialLogs={initialLogs} />)
+    const dialog = await openDialogFor(user, WEIGHTED_EX)
+    expect(within(dialog).getByTestId('setlog-mini-trend')).toBeInTheDocument()
+    expect(within(dialog).getByText('最近 2 次')).toBeInTheDocument()
+    expect(within(dialog).queryByTestId('setlog-pr-badge')).not.toBeInTheDocument()
+  })
+
+  it('破纪录保存后 toast 轻提示', async () => {
+    const user = userEvent.setup()
+    const initialLogs: ExerciseLogMap = {
+      [WEIGHTED_EX]: [{ date: format(addDays(today, -3), 'yyyy-MM-dd'), week: 1, sets: [{ weightKg: 20, reps: 6 }] }],
+    }
+    render(<Harness initialLogs={initialLogs} />)
+    const dialog = await openDialogFor(user, WEIGHTED_EX)
+    await fillSet(user, 1, '25', '5')
+    await user.click(within(dialog).getByRole('button', { name: '完成' }))
+    expect(await screen.findByText(/新纪录/)).toBeInTheDocument()
   })
 
   it('今天的记录显示为"本次"而不是"上次"', () => {

@@ -171,3 +171,23 @@
     display: none;
   }
 }
+
+/* 训练日历日期标记：称重（橙点，中线偏左）/ 每周反馈（天蓝点，中线偏右）。
+   两个标记都用 ::after 落在日期按钮底部，同一天可叠加显示。 */
+.rdp-dot-weigh::after,
+.rdp-dot-feedback::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+}
+.rdp-dot-weigh::after {
+  left: calc(50% - 3px);
+  background-color: #f97316;
+}
+.rdp-dot-feedback::after {
+  left: calc(50% + 3px);
+  background-color: #0ea5e9;
+}

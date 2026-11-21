@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { format } from 'date-fns'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -12,15 +12,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ArrowRightCircle, ArrowRightLeft, BedDouble, CalendarClock, Copy, Dumbbell, History, Info, Leaf, Plus, Trash2, Trophy } from 'lucide-react'
+import { ArrowLeftRight, ArrowRightCircle, ArrowRightLeft, BedDouble, CalendarClock, ChevronDown, Copy, Dumbbell, History, Info, Leaf, Plus, Timer, Trash2, Trophy } from 'lucide-react'
 import { toast } from 'sonner'
-import { clearChecksForDays, currentMonday, exerciseWeekStats, getLastLogBefore, getLogForDate, inferLoadType, parseSetTarget, removeExerciseLog, rescheduleTrainingDay, upsertExerciseLog } from '@/lib/store'
+import { bumpActivity, clearChecksForDays, currentMonday, exerciseWeekStats, getLastLogBefore, getLogForDate, inferLoadType, parseSetTarget, removeExerciseLog, rescheduleTrainingDay, upsertExerciseLog } from '@/lib/store'
 import type { SetTarget } from '@/lib/store'
-import { buildNextWeekPlan, copyWeekPlanFromProfile } from '@/lib/planEngine'
+import { buildNextWeekPlan, buildWeekPlanFromProfile, copyWeekPlanFromProfile, groupFromFocus, listAlternatives, tuneByGoal } from '@/lib/planEngine'
+import { describeChange, diffWeekPlans, summarizePlanDiff } from '@/lib/planDiff'
 import { burstAt, celebrateDayDone, celebrateWeekDone } from '@/lib/celebrate'
 import { getDemo } from '@/lib/demos'
 import ExerciseDemoButton from '@/components/ExerciseDemoButton'
-import type { CheckMap, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, WorkoutSet } from '@/types'
+import SetLogMiniTrend from '@/components/SetLogMiniTrend'
+import {
+  allTimeMaxWeight,
+  isNewPr,
+  recentMaxWeightPoints,
+  sessionMaxWeight,
+} from '@/lib/setLogTrend'
+import type { ActivityMap, CheckMap, Exercise, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, WorkoutSet } from '@/types'
 
 interface Props {
   weekPlan: WeekPlan
@@ -33,6 +41,12 @@ interface Props {
   onGoFeedback: () => void
   /** 当前用户画像，用于已 onboarded 用户生成下周时走规则引擎 */
   profile?: Profile
+  /** 开始组间休息倒计时（秒，缺省用 RestTimer 默认值）；由 Home 层的悬浮计时器承接 */
+  onRestStart?: (seconds?: number) => void
+  /** 训练活跃度写入（打卡勾选/取消时更新，训练日历数据源） */
+  setActivity: (v: ActivityMap | ((p: ActivityMap) => ActivityMap)) => void
+  /** 首页「开始今日训练」触发：值变化时把今天的日卡滚进视口（0/undefined = 不处理） */
+  focusToday?: number
 }
 
 /**
@@ -57,6 +71,9 @@ function totalVolume(sets: WorkoutSet[]): number {
 
 const WEEKDAY_LABEL = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
+/** 今天那张日卡的 DOM id：首页「开始今日训练」滚动定位用 */
+const TODAY_ANCHOR = 'fitup-today-day'
+
 /** "2026-08-10" → "8/10 周一"（日期非法时原样返回） */
 function logDateLabel(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00')
@@ -79,18 +96,22 @@ interface ExerciseLogDialogProps {
   weekRecords: ExerciseLogRecord[]
   /** 本周（>= 周一）其他日期的记录，倒序展示 */
   weekHistory: ExerciseLogRecord[]
+  /** 该动作全部训练记录（含跨周，受 cap 限制），用于迷你趋势与 PR */
+  historyRecords: ExerciseLogRecord[]
   todayStr: string
   /** 校验通过后提交本次编辑（X / 遮罩关闭不会触发） */
   onSave: (sets: WorkoutSet[]) => void
   /** 清除今天的记录（仅当 todayRec 存在时展示入口） */
   onClear: () => void
+  /** 「完成」保存成功后自动开始组间休息（可选；由上层悬浮计时器承接） */
+  onRestStart?: () => void
 }
 
 /** 纪录带单项：彩色小标签 + 大数字 + 单位（对齐训记图表页的三栏纪录样式） */
 function StatItem({ label, value, unit, color }: { label: string; value: number; unit: string; color: string }) {
   return (
     <div className="min-w-0">
-      <p className={`text-[11px] font-medium ${color}`}>{label}</p>
+      <p className={`text-xs font-medium ${color}`}>{label}</p>
       <p className="mt-0.5 text-xl font-bold leading-tight tracking-tight">
         {value > 0 ? value.toLocaleString() : '—'}
         <span className="ml-0.5 text-xs font-normal text-muted-foreground">{unit}</span>
@@ -119,11 +140,21 @@ function ExerciseLogDialog({
   lastRec,
   weekRecords,
   weekHistory,
+  historyRecords,
   todayStr,
   onSave,
   onClear,
+  onRestStart,
 }: ExerciseLogDialogProps) {
   const weighted = loadType === 'weighted'
+  const trendPoints = useMemo(
+    () => (weighted ? recentMaxWeightPoints(historyRecords, todayStr, 5) : []),
+    [weighted, historyRecords, todayStr],
+  )
+  const allTimeMax = useMemo(
+    () => (weighted ? allTimeMaxWeight(historyRecords) : 0),
+    [weighted, historyRecords],
+  )
   /** 次数列的单位与文案（时间类动作记秒数） */
   const repsUnit = loadType === 'timed' ? '秒' : '次'
   // 编辑草稿：弹窗打开期间的唯一真相，完成时才提交
@@ -190,20 +221,36 @@ function ExerciseLogDialog({
     toast.success('已清除本次记录')
   }
 
-  // 完成前校验：任何一组为 0（或未填）都提示具体位置并留在弹窗；
+  // 完成前校验：只校验"已开始填写"的组。末尾连续空组视为"今天少做了一组"，
+  // 直接忽略（落库时 store.pruneEmptySets 也会剔除），不再阻断保存——
+  // 训练现场少做一组是常态，之前要求每一行都填满，用户必须先删组才能保存。
   // 负重动作校验重量+次数，自重/时间类只校验次数/秒数。校验通过才提交草稿并关闭
   const handleDone = () => {
-    const idx = sets.findIndex((s) => (weighted && !s.weightKg) || !s.reps)
+    const touched = (s: WorkoutSet) => (s.reps ?? 0) > 0 || (s.weightKg ?? 0) > 0
+    let lastFilled = -1
+    sets.forEach((s, i) => {
+      if (touched(s)) lastFilled = i
+    })
+    // 一组都没填时保留第 1 行做提示，避免"没填"被当成"合法空记录"静默通过
+    const effective = lastFilled >= 0 ? sets.slice(0, lastFilled + 1) : sets.slice(0, 1)
+    const idx = effective.findIndex((s) => (weighted && !s.weightKg) || !s.reps)
     if (idx >= 0) {
-      const s = sets[idx]
+      const s = effective[idx]
       const fields = weighted
         ? [!s.weightKg ? '重量' : '', !s.reps ? '次数' : ''].filter(Boolean).join('和')
         : repsUnit === '秒' ? '秒数' : '次数'
       toast.error(`第 ${idx + 1} 组的${fields}为 0，请填写实际数值后再完成`)
       return
     }
+    if (weighted) {
+      const newSessionMax = sessionMaxWeight(effective)
+      if (newSessionMax != null && isNewPr(allTimeMax, newSessionMax)) {
+        toast.success('新纪录 🎉 刷新个人最好重量')
+      }
+    }
     onSave(sets)
     onOpenChange(false)
+    onRestStart?.() // 保存成功 = 训练在继续，自动开始组间休息
   }
 
   return (
@@ -250,6 +297,10 @@ function ExerciseLogDialog({
             </div>
           )}
 
+          {weighted && trendPoints.length > 0 && (
+            <SetLogMiniTrend points={trendPoints} allTimeMax={allTimeMax} />
+          )}
+
           {/* 上次记录提示（训记式预填来源） */}
           {lastRec && !todayRec && (
             <p className="flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
@@ -261,7 +312,7 @@ function ExerciseLogDialog({
           {/* 组编辑列表 */}
           <div>
             <div
-              className={`mb-1.5 grid items-center gap-2 px-1 text-[11px] text-muted-foreground ${
+              className={`mb-1.5 grid items-center gap-2 px-1 text-xs text-muted-foreground ${
                 weighted ? 'grid-cols-[2rem_1fr_auto_1fr_2.5rem]' : 'grid-cols-[2rem_1fr_2.5rem]'
               }`}
             >
@@ -318,7 +369,7 @@ function ExerciseLogDialog({
                     onClick={() => removeSet(i)}
                     disabled={sets.length <= 1}
                     aria-label={`删除第 ${i + 1} 组`}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-30"
+                    className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-30"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -428,14 +479,138 @@ const DAY_STYLE: Record<
 // 防御性兜底：规则引擎若产出未知 type（未来扩展），用 rest 样式兜底而不是崩溃
 const FALLBACK_STYLE = DAY_STYLE.rest
 
-export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, setLogs, setSetLogs, feedbacks, onGoFeedback, profile }: Props) {
+interface ReplaceExerciseDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  /** 当前动作名（弹窗标题说明用） */
+  exerciseName: string
+  /** 同肌群 + 同器械 + 避开伤病的候选（planEngine.listAlternatives 产出） */
+  candidates: Exercise[]
+  onPick: (replacement: Exercise) => void
+}
+
+/** 动作替换弹窗：列出候选平替动作，点选即替换；无候选时给空态说明 */
+function ReplaceExerciseDialog({
+  open,
+  onOpenChange,
+  exerciseName,
+  candidates,
+  onPick,
+}: ReplaceExerciseDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[92dvh] overflow-y-auto p-0 sm:max-w-sm">
+        <DialogHeader className="border-b bg-gradient-to-r from-teal-500/10 to-transparent px-5 py-4 text-left">
+          <DialogTitle className="text-base leading-tight">换一个动作</DialogTitle>
+          <DialogDescription className="mt-0.5 text-xs">
+            「{exerciseName}」的同肌群平替，组数次数按当前周进度换算；替换后该动作的打卡会清空。
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 px-5 py-4">
+          {candidates.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              当前器械与伤病设置下没有可替换的动作。
+            </p>
+          ) : (
+            candidates.map((c) => {
+              const demo = getDemo(c.name)
+              return (
+                <button
+                  key={c.name}
+                  type="button"
+                  onClick={() => {
+                    onPick(c)
+                    onOpenChange(false)
+                  }}
+                  className="flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors hover:border-teal-300 hover:bg-teal-500/5"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium">{c.name}</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      {c.sets}
+                      {c.note ? ` · ${c.note}` : ''}
+                    </span>
+                  </span>
+                  {demo && (
+                    <Badge variant="secondary" className="mt-0.5 shrink-0 text-xs">
+                      有示范
+                    </Badge>
+                  )}
+                </button>
+              )
+            })
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, setLogs, setSetLogs, feedbacks, onGoFeedback, profile, onRestStart, setActivity, focusToday }: Props) {
   const [confirming, setConfirming] = useState(false)
   const [confirmingCopy, setConfirmingCopy] = useState(false)
+  // 日卡折叠：移动端默认只展开今天（7 天全展开有 4 米长），桌面端空间够，默认全展开
+  const [expandedDays, setExpandedDays] = useState<number[]>(() => {
+    const narrow = typeof window !== 'undefined' && window.innerWidth < 768
+    const t = (new Date().getDay() + 6) % 7
+    return narrow ? [t] : weekPlan.days.map((_, i) => i)
+  })
+  const toggleDay = (di: number) =>
+    setExpandedDays((prev) => (prev.includes(di) ? prev.filter((x) => x !== di) : [...prev, di]))
+  // 明细展开开关：把 adjustmentNote 换成「哪个动作、组数怎么变」的可读列表
+  const [showDiff, setShowDiff] = useState(false)
   // 重量记录弹窗当前编辑的动作位置（day index + exercise index），null = 关闭
   const [loggerPos, setLoggerPos] = useState<{ di: number; ei: number } | null>(null)
+  // 动作替换弹窗当前操作的动作位置，null = 关闭
+  const [swapPos, setSwapPos] = useState<{ di: number; ei: number } | null>(null)
   const clickPos = useRef<{ x: number; y: number } | null>(null)
   const todayStr = format(new Date(), 'yyyy-MM-dd')
 
+  /**
+   * 本周计划 vs「同样画像、不带上周反馈」的基准计划。
+   * 规则引擎是确定性的，所以可以按需重算基准来反推"反馈到底改了什么"，
+   * 不用额外存字段，历史周也能算。第 1 周没有上一周反馈，跳过。
+   */
+  const planDiff = useMemo(() => {
+    if (!profile || weekPlan.week <= 1) return null
+    return diffWeekPlans(buildWeekPlanFromProfile(profile, weekPlan.week), weekPlan)
+  }, [profile, weekPlan])
+
+  // 首页「开始今日训练」：把今天那张日卡滚进视口。
+  // 计划区是懒加载 chunk，元素要挂载后才存在，所以放在 effect 里而不是点击时查询
+  useEffect(() => {
+    if (!focusToday) return
+    document.getElementById(TODAY_ANCHOR)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [focusToday])
+
+  // 动作替换：槽位就地更新（随 weekPlan 云同步、多端可见）。
+  // 清除该槽位本周打卡——动作变了旧打卡不再成立；若原本已勾选，
+  // 同步扣减当日活跃度保持训练日历一致。setLogs 按动作名索引：
+  // 旧动作历史保留，新动作从零开始（有历史则「上次记录」正常预填）。
+  // 「沿用本周」会带走替换结果；「生成下周 / 重新定制」按画像重新生成——替换是当周选择。
+  const handleReplace = (di: number, ei: number, replacement: Exercise) => {
+    const key = `${weekPlan.week}:${di}:${ei}`
+    const hadCheck = checks[key] === true
+    setWeekPlan((prev) => ({
+      ...prev,
+      days: prev.days.map((d, i) =>
+        i === di
+          ? { ...d, exercises: d.exercises.map((e, j) => (j === ei ? replacement : e)) }
+          : d,
+      ),
+    }))
+    setChecks((prev) => {
+      if (!(key in prev)) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+    if (hadCheck) setActivity((prev) => bumpActivity(prev, todayStr, -1))
+    toast.success(`已替换为「${replacement.name}」`)
+  }
+
+  // 今日训练顺延到下一个休息日：交换两天后清理两天的勾选，
+  // 避免原日期的完成状态跟着动作错位（训练日历活跃度保留为历史记录）。
   const rescheduleToday = (todayIdx: number) => {
     const result = rescheduleTrainingDay(weekPlan, todayIdx)
     if (!result) {
@@ -443,7 +618,6 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
       return
     }
     setWeekPlan(result.plan)
-    // 交换日后清理两天的勾选，避免原日期的完成状态跟着动作错位。
     setChecks((prev) => clearChecksForDays(prev, weekPlan.week, [todayIdx, result.targetIdx]))
     toast.success(`已将今日训练顺延至${result.plan.days[result.targetIdx].day}`)
   }
@@ -452,6 +626,8 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
     const key = `${weekPlan.week}:${di}:${ei}`
     const willCheck = !checks[key]
     setChecks((prev) => ({ ...prev, [key]: !prev[key] }))
+    // 同步累计每日活跃度（训练日历数据源）：勾选 +1，取消 -1
+    setActivity((prev) => bumpActivity(prev, todayStr, willCheck ? 1 : -1))
     if (!willCheck) return
     const day = weekPlan.days[di]
     const dayAllDone = day.exercises.every((_, i) => i === ei || checks[`${weekPlan.week}:${di}:${i}`])
@@ -484,7 +660,7 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
     setWeekPlan(copyWeekPlanFromProfile(weekPlan))
     setConfirmingCopy(false)
     celebrateWeekDone()
-    toast.success(`📋 已复制本周计划为第 ${weekPlan.week + 1} 周计划！`)
+    toast.success(`📋 已沿用本周计划，生成第 ${weekPlan.week + 1} 周计划！`)
   }
 
   const todayIdx = (new Date().getDay() + 6) % 7
@@ -522,9 +698,44 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
       {/* 进阶说明 + 生成下周 */}
       <Card className="overflow-hidden rounded-2xl border-0 bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-lg shadow-sky-500/20">
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-          <div className="flex flex-1 items-start gap-2 text-sm">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 opacity-80" />
-            <span className="text-white/90">{weekPlan.adjustmentNote}</span>
+          <div className="flex flex-1 flex-col gap-1 text-sm">
+            <span className="flex items-start gap-2 text-white/90">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 opacity-80" />
+              {planDiff && planDiff.changes.length > 0 ? (
+                <span>
+                  {summarizePlanDiff(planDiff)}
+                  <span className="ml-1 text-xs text-white/90">（依据第 {weekPlan.week - 1} 周反馈）</span>
+                </span>
+              ) : (
+                <span>{weekPlan.adjustmentNote}</span>
+              )}
+            </span>
+            {planDiff && planDiff.changes.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowDiff((v) => !v)}
+                  className="ml-6 w-fit text-xs text-white/90 underline underline-offset-2 hover:text-white"
+                >
+                  {showDiff ? '收起明细' : `展开明细（${planDiff.changes.length} 处）`}
+                </button>
+                {showDiff && (
+                  <ul className="ml-6 mt-1 space-y-1 text-xs text-white/85">
+                    {planDiff.changes.slice(0, 8).map((c, i) => (
+                      <li key={`${c.day}-${c.name}-${i}`} className="flex items-baseline justify-between gap-3">
+                        <span className="truncate">
+                          {c.day} · {c.name}
+                        </span>
+                        <span className="shrink-0 tabular-nums text-white/90">{describeChange(c)}</span>
+                      </li>
+                    ))}
+                    {planDiff.changes.length > 8 && (
+                      <li className="text-white/90">…另有 {planDiff.changes.length - 8} 处（同一天多个动作一起调整）</li>
+                    )}
+                  </ul>
+                )}
+              </>
+            )}
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button
@@ -533,7 +744,7 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
               className={confirmingCopy ? 'bg-white text-sky-700 hover:bg-white/90' : 'bg-white/15 text-white hover:bg-white/25 border border-white/30'}
             >
               <Copy className="mr-1 h-4 w-4" />
-              {confirmingCopy ? '再点一次确认复制' : '复制上周计划'}
+              {confirmingCopy ? '再点一次确认沿用' : '沿用本周计划'}
             </Button>
             <Button
               onClick={nextWeek}
@@ -556,46 +767,69 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
           ).length
           const allDone = doneCount === day.exercises.length && day.exercises.length > 0
           const isToday = di === todayIdx
+          const open = expandedDays.includes(di)
           return (
             <Card
               key={day.day}
+              id={isToday ? TODAY_ANCHOR : undefined}
               className={`overflow-hidden rounded-2xl py-0 shadow-sm transition-shadow hover:shadow-md ${
-                isToday ? `ring-2 ${style.ring}` : ''
+                isToday ? `scroll-mt-24 ring-2 ${style.ring}` : ''
               }`}
             >
               {/* 头部色条 */}
-              <div className={`flex items-center gap-2.5 bg-gradient-to-r px-4 py-3 ${style.header}`}>
-                <div className={`flex h-8 w-8 items-center justify-center rounded-lg border ${style.badge}`}>
+              {/* 头部即折叠开关：折叠时仍保留「周几 · 练什么 · 完成度」，不丢信息 */}
+              <div className={`flex items-center bg-gradient-to-r transition-colors hover:brightness-[1.03] ${style.header}`}>
+              <button
+                type="button"
+                onClick={() => toggleDay(di)}
+                aria-expanded={open}
+                aria-controls={`day-body-${di}`}
+                className="flex min-w-0 flex-1 items-center gap-2.5 px-4 py-3 text-left"
+              >
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${style.badge}`}>
                   <Icon className="h-4 w-4" />
                 </div>
-                <div className="flex-1">
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className={`font-semibold ${isToday ? 'text-orange-600 dark:text-orange-400' : ''}`}>{day.day}</span>
                     {isToday && (
                       <Badge className="bg-orange-500 text-white hover:bg-orange-500">今天</Badge>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground">{day.focus}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {open
+                      ? day.focus
+                      : `${day.focus} · ${day.exercises.slice(0, 2).map((e) => e.name).join('、')}${
+                          day.exercises.length > 2 ? '…' : ''
+                        }`}
+                  </p>
                 </div>
                 <Badge variant="outline" className={style.badge}>
                   {weekPlan.skippedDays?.[String(di)] ? '已顺延' : allDone ? '✓ 完成' : `${doneCount}/${day.exercises.length}`}
                 </Badge>
-                {isToday && day.type !== 'rest' && !weekPlan.skippedDays?.[String(di)] && (
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7 text-muted-foreground hover:bg-background/60"
-                    aria-label="顺延今日训练"
-                    title="顺延到下一个休息日"
-                    onClick={() => rescheduleToday(di)}
-                  >
-                    <ArrowRightLeft className="h-4 w-4" />
-                  </Button>
-                )}
+                <ChevronDown
+                  className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? '' : '-rotate-90'}`}
+                  aria-hidden
+                />
+              </button>
+              {/* 顺延按钮不能嵌在头部 <button> 内（按钮嵌套非法），与折叠开关并列放在头部行 */}
+              {isToday && day.type !== 'rest' && !weekPlan.skippedDays?.[String(di)] && (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="mr-3 h-7 w-7 shrink-0 text-muted-foreground hover:bg-background/60"
+                  aria-label="顺延今日训练"
+                  title="顺延到下一个休息日"
+                  onClick={() => rescheduleToday(di)}
+                >
+                  <ArrowRightLeft className="h-4 w-4" />
+                </Button>
+              )}
               </div>
 
-              <CardContent className="space-y-2 p-3">
+              {open && (
+                <CardContent id={`day-body-${di}`} className="space-y-2 p-3">
                 {day.exercises.map((ex, ei) => {
                   const checked = !!checks[`${weekPlan.week}:${di}:${ei}`]
                   const demo = getDemo(ex.name)
@@ -637,11 +871,11 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
                         {demo && <ExerciseDemoButton exerciseName={ex.name} demo={demo} />}
                       </div>
                       {target && (
-                        <div className="mt-1.5 pl-8">
+                        <div className="mt-1.5 flex items-stretch gap-1.5 pl-8">
                           <button
                             type="button"
                             onClick={() => setLoggerPos({ di, ei })}
-                            className={`flex w-full items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition-colors ${
+                            className={`flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition-colors ${
                               todayRec
                                 ? 'border-emerald-200 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:border-emerald-500/30 dark:text-emerald-300 dark:hover:bg-emerald-500/20'
                                 : 'border-orange-200 bg-orange-500/5 text-orange-700 hover:bg-orange-500/15 dark:border-orange-500/30 dark:text-orange-300 dark:hover:bg-orange-500/20'
@@ -665,6 +899,28 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
                               </>
                             )}
                           </button>
+                          {/* 组间休息：一键开始倒计时（悬浮计时器在 Home 层，切 tab 不中断） */}
+                          {onRestStart && (
+                            <button
+                              type="button"
+                              onClick={() => onRestStart()}
+                              title="组间休息 75 秒"
+                              aria-label={`开始组间休息计时（${ex.name}）`}
+                              className="flex shrink-0 items-center justify-center rounded-lg border border-muted-foreground/20 px-2.5 text-muted-foreground transition-colors hover:border-teal-300 hover:bg-teal-500/10 hover:text-teal-700 dark:hover:text-teal-300"
+                            >
+                              <Timer className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          {/* 换一个动作：同肌群平替（替换弹窗单实例渲染在列表下方） */}
+                          <button
+                            type="button"
+                            onClick={() => setSwapPos({ di, ei })}
+                            title="换一个动作"
+                            aria-label={`为${ex.name}更换动作`}
+                            className="flex shrink-0 items-center justify-center rounded-lg border border-muted-foreground/20 px-2.5 text-muted-foreground transition-colors hover:border-sky-300 hover:bg-sky-500/10 hover:text-sky-700 dark:hover:text-sky-300"
+                          >
+                            <ArrowLeftRight className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       )}
                     </div>
@@ -673,7 +929,8 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
                 {day.tip && (
                   <p className="rounded-lg bg-muted/60 p-2 text-xs text-muted-foreground">💡 {day.tip}</p>
                 )}
-              </CardContent>
+                </CardContent>
+              )}
             </Card>
           )
         })}
@@ -702,24 +959,49 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
                 .filter((r) => r.date >= weekPlan.startDate && r.date !== todayStr)
                 .slice()
                 .reverse()}
+              historyRecords={records}
               todayStr={todayStr}
-              onSave={(sets) =>
-                (() => {
-                  setSetLogs((prev) =>
-                    upsertExerciseLog(prev, ex.name, { date: todayStr, week: weekPlan.week, sets }, weekPlan.startDate),
-                  )
-                  // 有效训练记录就是完成动作的证据，免去用户重复勾选。
-                  setChecks((prev) => ({ ...prev, [`${weekPlan.week}:${loggerPos.di}:${loggerPos.ei}`]: true }))
-                })()
-              }
-              onClear={() => {
-                setSetLogs((prev) => removeExerciseLog(prev, ex.name, todayStr))
-                setChecks((prev) => {
-                  const next = { ...prev }
-                  delete next[`${weekPlan.week}:${loggerPos.di}:${loggerPos.ei}`]
-                  return next
-                })
+              onSave={(sets) => {
+                setSetLogs((prev) =>
+                  upsertExerciseLog(prev, ex.name, { date: todayStr, week: weekPlan.week, sets }, weekPlan.startDate),
+                )
+                // 记完这一组就等于做完了这个动作 → 自动打卡，省掉"记完再点一次勾"的重复操作
+                const key = `${weekPlan.week}:${loggerPos.di}:${loggerPos.ei}`
+                if (!checks[key]) toggle(loggerPos.di, loggerPos.ei)
               }}
+              onClear={() => setSetLogs((prev) => removeExerciseLog(prev, ex.name, todayStr))}
+              onRestStart={() => onRestStart?.()}
+            />
+          )
+        })()}
+
+      {/* 动作替换弹窗：单实例渲染，避免每个动作各挂一个 Dialog（与记录弹窗同模式） */}
+      {swapPos &&
+        (() => {
+          const day = weekPlan.days[swapPos.di]
+          const ex = day?.exercises[swapPos.ei]
+          // 仅力量训练日可换：rest/sport 日的 focus 反查不到肌群，自然不渲染
+          const group = ex && day.type === 'strength' ? groupFromFocus(day.focus) : undefined
+          if (!ex || !group) return null
+          const candidates = listAlternatives({
+            group,
+            equipment: profile?.equipment ?? 'none',
+            experience: profile?.experience ?? 'beginner',
+            week: weekPlan.week,
+            difficulty: feedbacks.find((f) => f.week === weekPlan.week)?.difficulty,
+            tuning: tuneByGoal(profile?.weightGoal ?? 'gain'),
+            injuries: profile?.injuries,
+            excludeName: ex.name,
+          })
+          return (
+            <ReplaceExerciseDialog
+              open
+              onOpenChange={(o) => {
+                if (!o) setSwapPos(null)
+              }}
+              exerciseName={ex.name}
+              candidates={candidates}
+              onPick={(replacement) => handleReplace(swapPos.di, swapPos.ei, replacement)}
             />
           )
         })()}

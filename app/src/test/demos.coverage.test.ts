@@ -4,14 +4,18 @@
  * 目的：确保规则引擎（planEngine）为任意新用户画像生成的计划里，每个"可教学"的动作
  * 都能在 demos.ts 的示范库里命中 getDemo，从而每个动作都能点开教学视频/动图。
  *
- * 做法：遍历器械 × 训练天数 × 伤病的代表性组合，用 buildWeekPlanFromProfile 生成完整计划，
- * 收集所有出现的动作名，对每个动作名调用 getDemo 断言命中。
+ * 做法：两条路径各测一遍——
+ * 1. 计划生成路径：遍历器械 × 训练天数 × 伤病的代表性组合，用 buildWeekPlanFromProfile
+ *    生成完整计划，收集所有出现的动作名，对每个动作名调用 getDemo 断言命中。
+ * 2. 动作池全量路径：动作替换弹窗（listAlternatives）会把每个池子的全部候选列给
+ *    用户，而生成路径每种组合只会固定选中其中 1 个——所以必须直接遍历 POOL 与
+ *    伤病替代动作，否则"池里有、但从未被生成选中"的动作缺示范时测试不会发现。
  * 休息日的散步/睡眠/填写反馈等"非教学动作"通过 ALLOW_MISSING 白名单豁免。
  *
  * 当未来往 planEngine 的 POOL 里新增动作却忘了在 demos.ts 补示范时，本测试会失败提醒。
  */
 import { describe, it, expect } from 'vitest'
-import { buildWeekPlanFromProfile } from '@/lib/planEngine'
+import { buildWeekPlanFromProfile, POOL, INJURY_SUBSTITUTES } from '@/lib/planEngine'
 import { getDemo } from '@/lib/demos'
 import type { Equipment, Profile, Sport } from '@/types'
 
@@ -86,5 +90,20 @@ describe('动作示范覆盖：规则引擎产出的每个教学动作都能命�
       ([name, combos]) => `  - "${name}"\n    出现于：${combos.slice(0, 3).join(' | ')}${combos.length > 3 ? ` 等 ${combos.length} 种组合` : ''}`,
     )
     expect(missMap.size, `以下 ${missMap.size} 个动作未命中示范库：\n${missList.join('\n')}\n请在 demos.ts 补充对应 key`).toBe(0)
+  })
+
+  it('动作池全量：POOL 与伤病替代动作全部命中示范库（替换弹窗全池可见）', () => {
+    const misses: string[] = []
+    for (const byEquipment of Object.values(POOL)) {
+      for (const seeds of Object.values(byEquipment)) {
+        for (const seed of seeds ?? []) {
+          if (!getDemo(seed.name)) misses.push(seed.name)
+        }
+      }
+    }
+    for (const sub of INJURY_SUBSTITUTES) {
+      if (!getDemo(sub.seed.name)) misses.push(sub.seed.name)
+    }
+    expect(misses, `以下动作未命中示范库：\n${misses.map((n) => `  - "${n}"`).join('\n')}\n请在 demos.ts 补充对应 key`).toEqual([])
   })
 })
