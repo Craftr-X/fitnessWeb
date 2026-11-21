@@ -26,7 +26,7 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Dumbbell, EllipsisVertical, FileSpreadsheet, LogOut, MessageCircle, Settings } from 'lucide-react'
-import { calcWeekProgress, currentMonday, hasUsageTrace, mergeOnboardingWeight, needsOnboarding, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
+import { calcWeekProgress, currentMonday, hasUsageTrace, mergeOnboardingWeight, needsOnboarding, nextTrainDayIndex, useCloudStorage, WEIGHT_GOAL_LABEL, weeksBetween } from '@/lib/store'
 import { buildExportPayload, clearLocalData, deleteAccount, deleteCloudRow, downloadExport } from '@/lib/account'
 import { checksCsv, csvFileName, downloadCsv, trainingCsv, weightsCsv } from '@/lib/exportCsv'
 import { buildNextWeekPlan } from '@/lib/planEngine'
@@ -77,7 +77,8 @@ export default function Home({ user }: { user: User }) {
   const tab = tabFromPath(location.pathname)
   const setTab = useCallback((next: TabKey) => void navigate(`/${next}`), [navigate])
   // 「开始今日训练」：每次点击 +1，计划区据此把今天那张日卡滚进视口
-  const [todayFocus, setTodayFocus] = useState(0)
+  // token 递增触发滚动；dayIdx 指向要展开/滚到的日（休息日会导向下次训练）
+  const [planFocus, setPlanFocus] = useState({ token: 0, dayIdx: 0 })
   // 二级弹层：每周反馈 / 营养建议
   const [weekFeedbackOpen, setWeekFeedbackOpen] = useState(false)
   const [nutritionOpen, setNutritionOpen] = useState(false)
@@ -422,8 +423,12 @@ export default function Home({ user }: { user: User }) {
           weeksPersisted={weekPlan.week}
           compact={tab !== 'today'}
           onStart={() => {
+            const target =
+              todayPlan.type === 'rest'
+                ? (nextTrainDayIndex(weekPlan.days, todayIdx + 1) ?? todayIdx)
+                : todayIdx
             setTab('plan')
-            setTodayFocus((n) => n + 1)
+            setPlanFocus((p) => ({ token: p.token + 1, dayIdx: target }))
           }}
         />
 
@@ -471,7 +476,8 @@ export default function Home({ user }: { user: User }) {
                 profile={profile}
                 onRestStart={(seconds) => restTimerRef.current?.start(seconds)}
                 setActivity={setActivity}
-                focusToday={todayFocus}
+                focusToken={planFocus.token}
+                focusDayIdx={planFocus.dayIdx}
               />
             </TabsContent>
             <TabsContent value="data" className="fade-enter">

@@ -2,6 +2,7 @@ import { format } from 'date-fns'
 import { ArrowRight, Flame } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useCountUp } from '@/hooks/useCountUp'
+import { nextTrainDayIndex } from '@/lib/store'
 import type { DayPlan, WeekPlan } from '@/types'
 
 interface Props {
@@ -29,12 +30,10 @@ function greeting(): string {
   return '晚上好'
 }
 
-const tipOf = (day: DayPlan) =>
-  day.type === 'rest'
-    ? '休息日也要记得拉伸和好好吃饭 💪'
-    : day.type === 'sport'
-      ? '羽毛球日！尽情挥洒汗水，注意补水 🏸'
-      : '练前别忘了 5 分钟热身，动作质量优先 🔥'
+function shortFocus(focus: string): string {
+  const head = focus.split(/[（(/]/)[0]?.trim() ?? focus
+  return head.length > 10 ? `${head.slice(0, 10)}…` : head
+}
 
 /**
  * 今日作战卡。
@@ -58,29 +57,45 @@ export default function TodayHero({
   const weekPct = total === 0 ? 0 : Math.round((done / total) * 100)
   const animatedPct = useCountUp(weekPct)
   const isRest = todayPlan.type === 'rest'
+  const nextTrainIdx = isRest ? nextTrainDayIndex(weekPlan.days, todayIdx + 1) : null
+  const nextTrain = nextTrainIdx != null ? weekPlan.days[nextTrainIdx] : null
+
+  const tip = isRest
+    ? nextTrain
+      ? `下次训练是${nextTrain.day}「${shortFocus(nextTrain.focus)}」。今天可做主动恢复打卡。`
+      : '休息日也要记得拉伸和好好吃饭 💪'
+    : todayPlan.type === 'sport'
+      ? '专项日！尽情挥洒汗水，注意补水 💧'
+      : '练前别忘了 5 分钟热身，动作质量优先 🔥'
+
+  const ctaLabel = isRest
+    ? nextTrain
+      ? `去练${nextTrain.day}·${shortFocus(nextTrain.focus)}`
+      : '查看本周计划'
+    : '开始今日训练'
 
   if (compact) {
     return (
-      <div className="relative mb-4 overflow-hidden rounded-2xl bg-gradient-to-r from-teal-600 to-emerald-500 px-4 py-3 text-white shadow-md shadow-teal-500/20">
+      <div className="relative mb-4 overflow-hidden rounded-2xl bg-gradient-to-r from-teal-600 to-emerald-500 px-4 py-2.5 text-white shadow-md shadow-teal-500/20">
         <div className="relative flex items-center gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15 text-sm font-bold">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/15 text-sm font-bold">
             {todayPlan.day.replace('周', '')}
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">今天：{todayPlan.focus}</p>
             <p className="truncate text-xs text-white/90">
-              本周 {done}/{total} 项 · {weekPct}%
+              {isRest && nextTrain
+                ? `下次：${nextTrain.day}·${shortFocus(nextTrain.focus)} · 本周 ${weekPct}%`
+                : `本周 ${done}/${total} 项 · ${weekPct}%`}
             </p>
           </div>
-          {!isRest && (
-            <button
-              type="button"
-              onClick={onStart}
-              className="shrink-0 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-teal-700 shadow-sm transition-transform hover:scale-[1.03]"
-            >
-              去训练
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onStart}
+            className="shrink-0 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-teal-700 shadow-sm transition-transform hover:scale-[1.03]"
+          >
+            {isRest ? (nextTrain ? '去练' : '计划') : '去训练'}
+          </button>
         </div>
       </div>
     )
@@ -109,7 +124,7 @@ export default function TodayHero({
           <h2 className="mt-0.5 text-xl font-bold">
             今天：{todayPlan.day} · {todayPlan.focus}
           </h2>
-          <p className="mt-1 text-sm text-white/90">{tipOf(todayPlan)}</p>
+          <p className="mt-1 text-sm text-white/90">{tip}</p>
 
           {/* 本周打卡点：亮=当天有打卡，光环=今天 */}
           <div className="mt-3 flex items-center gap-1.5">
@@ -129,7 +144,7 @@ export default function TodayHero({
             onClick={onStart}
             className="mt-4 bg-white font-semibold text-teal-700 shadow-md transition-transform hover:scale-[1.03] hover:bg-teal-50"
           >
-            {isRest ? '查看本周计划' : '开始今日训练'}
+            {ctaLabel}
             <ArrowRight className="ml-1 h-4 w-4" />
           </Button>
         </div>

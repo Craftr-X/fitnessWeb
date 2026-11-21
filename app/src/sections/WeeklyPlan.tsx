@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { ArrowLeftRight, ArrowRightCircle, ArrowRightLeft, BedDouble, CalendarClock, ChevronDown, Copy, Dumbbell, History, Info, Leaf, Plus, Timer, Trash2, Trophy } from 'lucide-react'
 import { toast } from 'sonner'
-import { bumpActivity, clearChecksForDays, currentMonday, exerciseWeekStats, getLastLogBefore, getLogForDate, inferLoadType, parseSetTarget, removeExerciseLog, rescheduleTrainingDay, upsertExerciseLog } from '@/lib/store'
+import { bumpActivity, calcWeekProgress, clearChecksForDays, currentMonday, defaultExpandedDayIndices, exerciseWeekStats, getLastLogBefore, getLogForDate, inferLoadType, parseSetTarget, removeExerciseLog, rescheduleTrainingDay, shouldOfferWeekAdvance, upsertExerciseLog } from '@/lib/store'
 import type { SetTarget } from '@/lib/store'
 import { buildNextWeekPlan, buildWeekPlanFromProfile, copyWeekPlanFromProfile, groupFromFocus, listAlternatives, tuneByGoal } from '@/lib/planEngine'
 import { describeChange, diffWeekPlans, summarizePlanDiff } from '@/lib/planDiff'
@@ -45,8 +45,9 @@ interface Props {
   onRestStart?: (seconds?: number) => void
   /** 训练活跃度写入（打卡勾选/取消时更新，训练日历数据源） */
   setActivity: (v: ActivityMap | ((p: ActivityMap) => ActivityMap)) => void
-  /** 首页「开始今日训练」触发：值变化时把今天的日卡滚进视口（0/undefined = 不处理） */
-  focusToday?: number
+  /** 首页 CTA 触发：token 变化时把 focusDayIdx 日卡展开并滚进视口（0 = 不处理） */
+  focusToken?: number
+  focusDayIdx?: number
 }
 
 /**
@@ -72,7 +73,7 @@ function totalVolume(sets: WorkoutSet[]): number {
 const WEEKDAY_LABEL = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
 /** 今天那张日卡的 DOM id：首页「开始今日训练」滚动定位用 */
-const TODAY_ANCHOR = 'fitup-today-day'
+const dayAnchorId = (di: number) => `fitup-day-${di}`
 
 /** "2026-08-10" → "8/10 周一"（日期非法时原样返回） */
 function logDateLabel(dateStr: string): string {
@@ -546,15 +547,14 @@ function ReplaceExerciseDialog({
   )
 }
 
-export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, setLogs, setSetLogs, feedbacks, onGoFeedback, profile, onRestStart, setActivity, focusToday }: Props) {
+export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, setLogs, setSetLogs, feedbacks, onGoFeedback, profile, onRestStart, setActivity, focusToken, focusDayIdx }: Props) {
   const [confirming, setConfirming] = useState(false)
   const [confirmingCopy, setConfirmingCopy] = useState(false)
-  // 日卡折叠：移动端默认只展开今天（7 天全展开有 4 米长），桌面端空间够，默认全展开
-  const [expandedDays, setExpandedDays] = useState<number[]>(() => {
-    const narrow = typeof window !== 'undefined' && window.innerWidth < 768
-    const t = (new Date().getDay() + 6) % 7
-    return narrow ? [t] : weekPlan.days.map((_, i) => i)
-  })
+  // 日卡折叠：默认只展开今天（休息日再展开下次训练），避免 7 天全开成墙
+  const todayIdx = (new Date().getDay() + 6) % 7
+  const [expandedDays, setExpandedDays] = useState<number[]>(() =>
+    defaultExpandedDayIndices(weekPlan.days, todayIdx),
+  )
   const toggleDay = (di: number) =>
     setExpandedDays((prev) => (prev.includes(di) ? prev.filter((x) => x !== di) : [...prev, di]))
   // 明细展开开关：把 adjustmentNote 换成「哪个动作、组数怎么变」的可读列表
@@ -565,6 +565,8 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
   const [swapPos, setSwapPos] = useState<{ di: number; ei: number } | null>(null)
   const clickPos = useRef<{ x: number; y: number } | null>(null)
   const todayStr = format(new Date(), 'yyyy-MM-dd')
+  const weekPct = calcWeekProgress(weekPlan, checks).pct
+  const offerAdvance = shouldOfferWeekAdvance(weekPct)
 
   /**
    * 本周计划 vs「同样画像、不带上周反馈」的基准计划。
@@ -576,12 +578,19 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
     return diffWeekPlans(buildWeekPlanFromProfile(profile, weekPlan.week), weekPlan)
   }, [profile, weekPlan])
 
-  // 首页「开始今日训练」：把今天那张日卡滚进视口。
-  // 计划区是懒加载 chunk，元素要挂载后才存在，所以放在 effect 里而不是点击时查询
+  // 首页 CTA 目标日：渲染时并入展开集合（避免 effect 里 setState），再滚进视口
+  const focusDi = focusToken ? (focusDayIdx ?? todayIdx) : null
+  const visibleExpanded =
+    focusDi != null && !expandedDays.includes(focusDi)
+      ? [...expandedDays, focusDi]
+      : expandedDays
+
   useEffect(() => {
-    if (!focusToday) return
-    document.getElementById(TODAY_ANCHOR)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [focusToday])
+    if (focusDi == null) return
+    requestAnimationFrame(() => {
+      document.getElementById(dayAnchorId(focusDi))?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [focusToken, focusDi])
 
   // 动作替换：槽位就地更新（随 weekPlan 云同步、多端可见）。
   // 清除该槽位本周打卡——动作变了旧打卡不再成立；若原本已勾选，
@@ -663,7 +672,6 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
     toast.success(`📋 已沿用本周计划，生成第 ${weekPlan.week + 1} 周计划！`)
   }
 
-  const todayIdx = (new Date().getDay() + 6) % 7
   // 周日且计划仍是本周时，提醒填反馈并生成下周计划（当天一直显示，不持久化）
   const showSundayReminder = new Date().getDay() === 0 && weekPlan.startDate === currentMonday()
 
@@ -737,24 +745,37 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
               </>
             )}
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Button
-              onClick={copyLast}
-              variant={confirmingCopy ? 'default' : 'secondary'}
-              className={confirmingCopy ? 'bg-white text-sky-700 hover:bg-white/90' : 'bg-white/15 text-white hover:bg-white/25 border border-white/30'}
-            >
-              <Copy className="mr-1 h-4 w-4" />
-              {confirmingCopy ? '再点一次确认沿用' : '沿用本周计划'}
-            </Button>
-            <Button
-              onClick={nextWeek}
-              variant={confirming ? 'default' : 'secondary'}
-              className={confirming ? 'bg-white text-sky-700 hover:bg-white/90' : 'bg-white/15 text-white hover:bg-white/25 border border-white/30'}
-            >
-              <ArrowRightCircle className="mr-1 h-4 w-4" />
-              {confirming ? '再点一次确认进入下一周' : '完成本周，生成下周计划'}
-            </Button>
-          </div>
+          {offerAdvance ? (
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                onClick={copyLast}
+                variant={confirmingCopy ? 'default' : 'secondary'}
+                className={confirmingCopy ? 'bg-white text-sky-700 hover:bg-white/90' : 'bg-white/15 text-white hover:bg-white/25 border border-white/30'}
+              >
+                <Copy className="mr-1 h-4 w-4" />
+                {confirmingCopy ? '再点一次确认沿用' : '沿用本周计划'}
+              </Button>
+              <Button
+                onClick={nextWeek}
+                variant={confirming ? 'default' : 'secondary'}
+                className={confirming ? 'bg-white text-sky-700 hover:bg-white/90' : 'bg-white/15 text-white hover:bg-white/25 border border-white/30'}
+              >
+                <ArrowRightCircle className="mr-1 h-4 w-4" />
+                {confirming ? '再点一次确认进入下一周' : '完成本周，生成下周计划'}
+              </Button>
+            </div>
+          ) : (
+            <p className="text-xs text-white/90 sm:max-w-xs sm:text-right">
+              本周进度 {weekPct}% · 完成一半后再生成下周
+              <button
+                type="button"
+                onClick={nextWeek}
+                className="ml-2 underline underline-offset-2 hover:text-white"
+              >
+                {confirming ? '再点确认' : '提前进入下周'}
+              </button>
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -767,13 +788,13 @@ export default function WeeklyPlan({ weekPlan, setWeekPlan, checks, setChecks, s
           ).length
           const allDone = doneCount === day.exercises.length && day.exercises.length > 0
           const isToday = di === todayIdx
-          const open = expandedDays.includes(di)
+          const open = visibleExpanded.includes(di)
           return (
             <Card
               key={day.day}
-              id={isToday ? TODAY_ANCHOR : undefined}
+              id={dayAnchorId(di)}
               className={`overflow-hidden rounded-2xl py-0 shadow-sm transition-shadow hover:shadow-md ${
-                isToday ? `scroll-mt-24 ring-2 ${style.ring}` : ''
+                isToday ? `scroll-mt-24 ring-2 ${style.ring}` : 'scroll-mt-24'
               }`}
             >
               {/* 头部色条 */}

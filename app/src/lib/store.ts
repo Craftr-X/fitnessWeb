@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { differenceInCalendarWeeks, format, startOfWeek } from 'date-fns'
-import type { ActivityMap, CheckMap, Exercise, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, WeightEntry, WorkoutSet } from '@/types'
+import type { ActivityMap, CheckMap, DayPlan, Exercise, ExerciseLogMap, ExerciseLogRecord, LoadType, Profile, WeekFeedback, WeekPlan, WeightEntry, WorkoutSet } from '@/types'
 import type { WeightGoal } from '@/types'
 import { loadUserData, readLegacyData, saveUserData } from '@/lib/sync'
 
@@ -418,6 +418,41 @@ export function clearChecksForDays(checks: CheckMap, week: number, dayIndices: n
     next[key] = value
   }
   return next
+}
+
+/** 从 fromIdx 起找下一个力量/运动日（含当天）；没有则返回 null。 */
+export function nextTrainDayIndex(days: DayPlan[], fromIdx: number): number | null {
+  if (!days.length) return null
+  const start = Math.min(Math.max(fromIdx, 0), days.length - 1)
+  for (let i = start; i < days.length; i++) {
+    const t = days[i]?.type
+    if (t === 'strength' || t === 'sport') return i
+  }
+  for (let i = 0; i < start; i++) {
+    const t = days[i]?.type
+    if (t === 'strength' || t === 'sport') return i
+  }
+  return null
+}
+
+/**
+ * 计划页默认展开：今天；若今天是休息日，再展开本周下一次训练日，
+ * 避免新用户周中打开看到「全空休息」却找不到练什么。
+ */
+export function defaultExpandedDayIndices(days: DayPlan[], todayIdx: number): number[] {
+  const set = new Set<number>()
+  if (todayIdx >= 0 && todayIdx < days.length) set.add(todayIdx)
+  const today = days[todayIdx]
+  if (today && today.type === 'rest') {
+    const next = nextTrainDayIndex(days, todayIdx + 1)
+    if (next != null) set.add(next)
+  }
+  return [...set].sort((a, b) => a - b)
+}
+
+/** 完成度够高才在计划页露出「完成本周 / 沿用」强 CTA，避免第 1 周 0% 时催收尾。 */
+export function shouldOfferWeekAdvance(completionPct: number): boolean {
+  return completionPct >= 50
 }
 
 /** 计算 BMI */
